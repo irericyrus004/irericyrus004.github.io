@@ -22,8 +22,8 @@
   (function brandSplash() {                      // PREPFIX logo every time the app opens, on every device
     const t0 = Date.now();
     const hide = () => { const el = document.getElementById('brandsplash'); if (!el) return; el.classList.add('out'); setTimeout(() => el.remove(), 600); };
-    addEventListener('load', () => setTimeout(hide, Math.max(0, 3100 - (Date.now() - t0))));   // long enough for the P animation to finish
-    setTimeout(hide, 5000);
+    addEventListener('load', () => setTimeout(hide, Math.max(0, 2200 - (Date.now() - t0))));   // long enough for the P animation to finish
+    setTimeout(hide, 3200);
     const sp = document.getElementById('brandsplash'); if (sp) sp.addEventListener('click', hide);   // tap to skip
   })();
   (function addBrandBar() {                      // frozen footer, always visible
@@ -1872,7 +1872,9 @@
   const mq = matchMedia('(orientation: landscape)');
   const onRotate = () => { if (state.data && ['view', 'master'].includes(route().name)) setTimeout(() => { applyForce(); fitGrid(); }, 200); };
   if (mq.addEventListener) mq.addEventListener('change', onRotate); else if (mq.addListener) mq.addListener(onRotate);
-  addEventListener('resize', () => { applyForce(); document.body.classList.toggle('desk', isDesk()); if (state.data) document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name)); if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 60); });
+  let _rz = 0, _rw = 0, _rh = 0;
+  addEventListener('resize', () => { if (innerWidth === _rw && Math.abs(innerHeight - _rh) < 120 && !state.full) return; clearTimeout(_rz); _rz = setTimeout(() => { _rw = innerWidth; _rh = innerHeight; _resize(); }, 150); });
+  const _resize = () => { applyForce(); document.body.classList.toggle('desk', isDesk()); if (state.data) document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name)); if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 60); };
   addEventListener('hashchange', () => { if (state.full && !['view', 'master'].includes(route().name)) releaseRotate(); });
   addEventListener('online', () => { state.online = true; sync('online'); });
   addEventListener('offline', () => { state.online = false; renderStatus(); });
