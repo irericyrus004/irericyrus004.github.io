@@ -9,9 +9,15 @@
   const BRAND_LINE = LOCKED_BRAND + ' · ' + LOCKED_CONTACT;
   // Watermark over every timetable on screen and on every saved image. Built in, cannot be switched off.
   const WATERMARK = '© Cyrus Ireri';
+  (function brandSplash() {                      // PREPFIX logo every time the app opens, on every device
+    const t0 = Date.now();
+    const hide = () => { const el = document.getElementById('brandsplash'); if (!el) return; el.classList.add('out'); setTimeout(() => el.remove(), 600); };
+    addEventListener('load', () => setTimeout(hide, Math.max(0, 1700 - (Date.now() - t0))));
+    setTimeout(hide, 4000);
+  })();
   (function addBrandBar() {                      // frozen footer, always visible
     const add = () => { if (document.getElementById('brandbar')) return; const f = document.createElement('div'); f.id = 'brandbar';
-      f.innerHTML = `<span>${LOCKED_BRAND}</span><b>${LOCKED_CONTACT}</b>`; document.body.appendChild(f); };
+      f.innerHTML = `<span>${LOCKED_BRAND}</span><button type="button" data-act="contact" aria-label="Contact Cyrus Ireri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1l-2.3 2.2Z"/></svg>${LOCKED_CONTACT}</button>`; document.body.appendChild(f); };
     if (document.body) add(); else document.addEventListener('DOMContentLoaded', add);
   })();
   (function addWatermarkStyle() {
@@ -92,7 +98,7 @@
     el.innerHTML = `<div class="splash"><div class="splash-logo"></div><h2>School timetables</h2><p>Loading schools…</p></div>`;
     const j = await fetchSchools();
     const n = j && j.schools ? j.schools.length : 0;
-    el.innerHTML = `<header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div><div class="titles"><h1>School Timetables</h1><p class="sub">${n} school${n === 1 ? '' : 's'} using this app</p></div></div></header>
+    el.innerHTML = `<header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div><div class="titles"><h1>PREPFIX Timetables</h1><p class="sub">${n} school${n === 1 ? '' : 's'} using this app</p></div></div></header>
       <main class="page wide"><p class="hint-box">Tap your school to open its timetables.</p>
       <div class="searchbox">${icon('search')}<input id="sq" type="search" autocomplete="off" placeholder="Search for your school…"></div>
       <div id="slist">${schoolsListHTML(j, null, '')}</div>
@@ -174,7 +180,7 @@
     return /^\d+$/.test(t.code) ? `Teacher ${t.code}` : t.code;
   }
   const tLabel = t => t ? (t.name ? `${t.code} · ${t.name}` : teacherLabel(t)) : '';
-  function teachersText(codes, max = 2) {
+  function teachersText(codes, max = Infinity) {          // every teacher by NAME (code only when FET has no name)
     if (!codes) return '';
     const list = String(codes).split(',').map(s => s.trim()).filter(Boolean);
     if (list.length > max) return `${list.length} teachers`;
@@ -238,11 +244,10 @@
     const pm = IDX.lessons.filter(j => IDX.P[j].pm); if (!pm.length) return null;
     let best = [], cur = [];
     for (const j of pm) { const c = cellAt(t, d, j); if (c === '' || c === 'X') { cur.push(j); if (cur.length > best.length) best = cur.slice(); } else cur = []; }
-    const need = Math.min(3, pm.length);
-    if (best.length < need) return null;
+    if (best.length < pm.length) return null;          // free afternoon = the WHOLE afternoon, lunch to end of day
     return { j0: best[0], j1: best[best.length - 1], n: best.length, full: best.length === pm.length };
   }
-  const runLabel = r => r.full ? 'Whole afternoon' : `${IDX.P[r.j0].label}–${IDX.P[r.j1].label} · ${r.n} free`;
+  const runLabel = r => r.full ? `Whole afternoon · ${IDX.P[r.j0].time.split('-')[0]}–${IDX.P[r.j1].time.split('-')[1] || ''}` : `${IDX.P[r.j0].label}–${IDX.P[r.j1].label} · ${r.n} free`;
   function candidates(item, d, j, c) {
     let span = 1; while ((item.grid[d] || [])[j + span] === '^') span++;
     const slots = Array.from({ length: span }, (_, k) => j + k);
@@ -350,7 +355,7 @@
   const go = h => { location.hash = h; };
   function render() {
     if (POSTER) return renderPoster();
-    if (state.force && route().name !== 'view') releaseRotate();
+    if ((state.full || state.force) && !['view', 'master'].includes(route().name)) releaseRotate();
     if (state.error === 'locked') return renderMsg('Timetables not available', 'This school\'s timetable service is switched off. Please contact the school office.', false);
     if (!state.data) return renderEmpty();
     const r = route();
@@ -365,9 +370,9 @@
     if (r.name === 'where') return renderWhere();
     return renderHome();
   }
-  function topBar(title, sub = '', right = '') {
+  function topBar(title, sub = '', right = '', html = '') {
     return `<header class="vtop"><button class="icon-btn" data-act="back" aria-label="Back">${icon('back')}</button>
-      <div class="vtitles"><h2>${esc(title)}</h2>${sub ? `<p>${sub}</p>` : ''}</div>${right || '<span class="icon-btn ghost"></span>'}</header>`;
+      <div class="vtitles"><h2${html ? ' class="big"' : ''}>${html || esc(title)}</h2>${sub ? `<p>${sub}</p>` : ''}</div>${right || '<span class="icon-btn ghost"></span>'}</header>`;
   }
   function renderStatus() {
     const el = $('#status'); if (!el || !state.data) return;
@@ -416,7 +421,97 @@
     } else if (!me) {
       mine = `<button class="now-set" data-act="pickMe">${icon('starO')} Choose “My timetable” to see your lessons here</button>`;
     }
-    return `<section class="now-card"><div class="now-when">${icon('clock', 'tiny')}<span>${esc(when)}</span></div>${mine}</section>`;
+    const rem = me ? `<button class="remrow ${remOn() ? 'on' : ''}" data-act="remToggle" role="switch" aria-checked="${remOn()}"><span>⏰ <b>Lesson reminder</b><small>${REMIND_MIN} minutes before each of your lessons</small></span><i class="sw"><em></em></i></button>` : '';
+    return `<section class="now-card"><div class="now-when">${icon('clock', 'tiny')}<span>${esc(when)}</span></div>${mine}${rem}</section>`;
+  }
+
+  // ------------------------------------------------------------------ LESSON REMINDER (alarm 10 minutes before a lesson)
+  const REMIND_MIN = 10;
+  const remOn = () => !!store.get('remind', false);
+  const fired = new Set();
+  function myLessonsOn(me, d) {           // [{j, start, end, lines}]
+    return IDX.lessons.filter(j => isLesson(cellAt(me, d, j)) && !isCont(me, d, j) && IDX.P[j].start != null).map(j => {
+      let k = j; while ((me.grid[d] || [])[k + 1] === '^') k++;
+      return { j, start: IDX.P[j].start, end: IDX.P[k].end ?? IDX.P[j].end, lines: cellLines('teachers', cellAt(me, d, j)), cell: cellAt(me, d, j) };
+    });
+  }
+  const hm = m => `${Math.floor(m / 60) > 12 ? Math.floor(m / 60) - 12 : Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+  function checkReminders() {
+    if (!remOn() || !state.data) return;
+    const me = meTeacher(), d = todayIndex(); if (!me || d < 0) return;
+    const now = nowMinutes(), day = new Date().toDateString();
+    for (const L of myLessonsOn(me, d)) {
+      const key = `${day}|${state.data.tt}|${L.j}`;
+      if (fired.has(key) || store.get('fired:' + key)) continue;
+      if (now >= L.start - REMIND_MIN && now < L.start) { fired.add(key); store.set('fired:' + key, 1); fireReminder(L, L.start - now); }
+    }
+  }
+  function beep() {
+    try {
+      const A = new (window.AudioContext || window.webkitAudioContext)(); let t = A.currentTime;
+      [880, 660, 880, 660, 988].forEach((f, i) => { const o = A.createOscillator(), g = A.createGain(); o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+        o.connect(g); g.connect(A.destination); o.start(t); o.stop(t + 0.34); t += 0.38; });
+    } catch { }
+  }
+  function fireReminder(L, mins) {
+    const title = `⏰ Lesson in ${mins} minute${mins === 1 ? '' : 's'} — ${IDX.P[L.j].label} at ${hm(L.start)}`;
+    const body = `${L.lines[0]}${L.lines[1] ? ' · ' + L.lines[1] : ''}${L.cell.r ? ' · ' + L.cell.r : ''}`;
+    try { navigator.vibrate && navigator.vibrate([400, 150, 400, 150, 800]); } catch { }
+    try {
+      if ('Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker) {
+        navigator.serviceWorker.ready.then(reg => reg.showNotification(title, { body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: 'lesson-' + L.j, renotify: true, requireInteraction: true, vibrate: [400, 150, 400, 150, 800], data: { url: location.href } })).catch(() => { });
+      }
+    } catch { }
+    if (document.visibilityState === 'visible') {
+      beep();
+      $$('.alarm-bg').forEach(n => n.remove());               // its own layer, above anything else on screen
+      const box = document.createElement('div'); box.className = 'alarm-bg';
+      box.innerHTML = `<div class="alarm" role="alertdialog"><div class="abell">⏰</div><h3>Lesson in ${mins} minute${mins === 1 ? '' : 's'}</h3>
+        <p class="alesson"><b>${esc(L.lines[0])}</b>${L.lines[1] ? `<span>${esc(L.lines[1])}</span>` : ''}</p>
+        <p class="awhen">${esc(IDX.P[L.j].label)} · ${esc(IDX.P[L.j].time)}${L.cell.r ? ' · ' + esc(L.cell.r) : ''}</p>
+        <button class="btn wide" type="button">OK</button></div>`;
+      box.querySelector('button').addEventListener('click', () => box.remove());
+      document.body.appendChild(box);
+    }
+  }
+  async function remToggle() {
+    if (remOn()) { store.set('remind', false); toast('Lesson reminder OFF'); render(); return; }
+    store.set('remind', true);
+    let perm = 'default';
+    try { if ('Notification' in window) perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission(); } catch { }
+    render();
+    openSheet(`<div class="grab"></div><h3>⏰ Lesson reminder is ON</h3>
+      <p>You will get an alarm <b>${REMIND_MIN} minutes before each of your lessons</b> (${esc(teacherLabel(meTeacher()))}), with sound and vibration.</p>
+      ${perm === 'granted' ? '<p class="okline">✓ Notifications allowed</p>' : '<p class="warnline">Notifications are blocked — allow them for this app in your phone settings so the reminder shows on the lock screen.</p>'}
+      <p class="muted small">Phones can stop a closed app from running. To be sure you never miss an alarm — even when the app is closed — also add your lessons to your phone's calendar:</p>
+      <button class="btn wide" data-act="remCal">📅 Add my lessons to my phone calendar</button>
+      <button class="btn ghost wide" data-act="closeSheet">Done</button>`);
+    checkReminders();
+  }
+  function remCalendar() {
+    const me = meTeacher(); if (!me) return;
+    const pad = n => String(n).padStart(2, '0'), stamp = new Date();
+    const dt = (date, m) => `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}T${pad(Math.floor(m / 60))}${pad(m % 60)}00`;
+    const escI = t => String(t || '').replace(/\\/g, '\\\\').replace(/[,;]/g, m => '\\' + m).replace(/\n/g, ' ');
+    const ev = [];
+    IDX.D.forEach((dd, d) => {
+      if (dd.wd < 0) return;
+      const date = new Date(); date.setHours(0, 0, 0, 0);
+      while (date.getDay() !== dd.wd) date.setDate(date.getDate() + 1);
+      myLessonsOn(me, d).forEach(L => {
+        ev.push(['BEGIN:VEVENT', `UID:prepfix-${state.data.tt}-${me.code}-${d}-${L.j}@prepfix`, `DTSTAMP:${dt(stamp, stamp.getHours() * 60 + stamp.getMinutes())}`,
+          `DTSTART:${dt(date, L.start)}`, `DTEND:${dt(date, L.end || L.start + 40)}`, 'RRULE:FREQ=WEEKLY;COUNT=14',
+          `SUMMARY:${escI(`${IDX.P[L.j].label} · ${L.lines[0]}${L.lines[1] ? ' ' + L.lines[1] : ''}`)}`,
+          L.cell.r ? `LOCATION:${escI(L.cell.r)}` : '', `DESCRIPTION:${escI(`${state.data.school?.name || ''} · ${state.data.ttName || ''} · PREPFIX`)}`,
+          'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escI('Lesson in ' + REMIND_MIN + ' minutes: ' + L.lines[0])}`, `TRIGGER:-PT${REMIND_MIN}M`, 'END:VALARM', 'END:VEVENT'].filter(Boolean).join('\r\n'));
+      });
+    });
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PREPFIX//Timetables//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:PREPFIX · ${escI(teacherLabel(me))}`, ...ev, 'END:VCALENDAR'].join('\r\n');
+    const blob = new Blob([ics], { type: 'text/calendar' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `PREPFIX reminders - ${teacherLabel(me).replace(/[\\/:*?"<>|]+/g, ' ').replace(/[.\s]+$/, '')}.ics`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast(`Calendar file saved — open it to add ${ev.length} weekly lessons with a ${REMIND_MIN}-minute alarm`, 5000);
   }
   function schoolsCount() {
     try { const j = JSON.parse(localStorage.getItem('ireri:schools') || 'null'); const n = j && j.schools ? j.schools.length : 0; if (n) return `${n} school${n === 1 ? '' : 's'}`; } catch { }
@@ -477,7 +572,8 @@
   function ttSwitcher() {
     const list = state.tts || [];
     if (list.length < 2) return state.data && state.data.ttName ? `<p class="ttone">${esc(state.data.ttName)}</p>` : '';
-    return `<div class="ttswitch" role="tablist" aria-label="Choose timetable">${list.map(t => `<button class="ttchip ${t.id === state.data.tt ? 'on' : ''}" data-tt="${esc(t.id)}">${esc(t.name)}${isNewTT(t) ? '<i></i>' : ''}</button>`).join('')}</div>`;
+    return `<div class="ttlist" role="list" aria-label="Choose timetable"><h3 class="ttl-h">Timetables published · tap one to open</h3>${list.map(t => { const on = t.id === state.data.tt;
+      return `<button class="ttrow ${on ? 'on' : ''}" data-tt="${esc(t.id)}" role="listitem"><span class="ttdot">${on ? '✓' : ''}</span><span class="ttn"><b>${esc(t.name)}</b><small>${t.updated ? 'Updated ' + esc(fmtDate(t.updated)) : ''}</small></span>${isNewTT(t) ? '<em class="ttnew">NEW</em>' : ''}${on ? '<em class="ttshow">Showing</em>' : icon('chev', 'chev')}</button>`; }).join('')}</div>`;
   }
   const seenMap = () => store.get('seenTT', {}) || {};
   const isNewTT = t => seenMap()[t.id] !== t.version;
@@ -499,8 +595,8 @@
       out.push(`<div class="banner new"><div><strong>🆕 ${fresh.length > 1 ? 'New timetables published' : 'New timetable published'}</strong><span>${items}</span></div><button class="txt-btn" data-act="seen">Got it</button></div>`);
     }
     if (!isStandalone() && !store.get('hideInstallTip')) {
-      if (state.installEvt) out.push(`<div class="banner tip"><div>${icon('install')}<span><strong>Install this app</strong> for one-tap access, even offline.</span></div><div class="banner-actions"><button class="btn small" data-act="install">Install</button><button class="txt-btn" data-act="hideInstall">Later</button></div></div>`);
-      else if (isIOS()) out.push(`<div class="banner tip"><div>${icon('install')}<span><strong>Add to Home Screen:</strong> tap Share <b>⬆</b> in Safari, then <b>Add to Home Screen</b>.</span></div><div class="banner-actions"><button class="txt-btn" data-act="hideInstall">OK</button></div></div>`);
+      if (state.installEvt) out.push(`<div class="banner tip"><div>${icon('install')}<span><strong>Install this app</strong> for one-tap access, even offline.</span></div><div class="banner-actions"><button class="btn small" data-act="install">Install</button><button class="txt-btn" data-act="getapp">Other devices</button><button class="txt-btn" data-act="hideInstall">Later</button></div></div>`);
+      else out.push(`<div class="banner tip"><div>${icon('install')}<span><strong>Get the app</strong> on your Android, iPhone or computer — one tap, works offline.</span></div><div class="banner-actions"><button class="btn small" data-act="getapp">Get the app</button><button class="txt-btn" data-act="hideInstall">Later</button></div></div>`);
     }
     box.innerHTML = out.join('');
   }
@@ -561,35 +657,46 @@
     const isMe = kind === 'teachers' && String(store.get('me')) === String(item.code);
     const title = kind === 'teachers' ? teacherLabel(item) : item.name;
     const sub = `${KIND[kind]?.title || 'Master'} · ${idx + 1} of ${sib.length}${kind === 'teachers' && item.name ? ' · No. ' + esc(item.code) : ''}`;
+    const titleHTML = kind === 'teachers' ? `<span class="tcode">${esc(item.code)}</span>${esc(title)}` : '';
     if (state.day == null) state.day = Math.max(0, todayIndex());
     const layout = effectiveLayout();
     document.title = title + ' · Timetable';
     app.innerHTML = `
-      ${topBar(title, sub, kind === 'teachers' ? `<button class="icon-btn star ${isMe ? 'on' : ''}" data-act="me" aria-label="My timetable">${icon(isMe ? 'star' : 'starO')}</button>` : '')}
+      ${topBar(title, sub, kind === 'teachers' ? `<button class="icon-btn star ${isMe ? 'on' : ''}" data-act="me" aria-label="My timetable">${icon(isMe ? 'star' : 'starO')}</button>` : '', titleHTML)}
       <div class="vbar">
         <div class="seg"><button class="${layout === 'day' ? 'on' : ''}" data-layout="day">Day</button><button class="${layout === 'week' ? 'on' : ''}" data-layout="week">Week</button></div>
-        <button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>Rotate</span></button>
+        <button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit full screen' : 'Rotate'}</span></button>
         ${kind === 'teachers' ? `<button class="btn small ghost" data-go="analysis/${esc(item.id)}">${icon('chart')} Profile</button>` : ''}<button class="btn small ghost" data-act="save">${icon('save')} Save</button>
       </div>
       <main class="tt" id="tt">${instBlock('small')}${layout === 'day' ? dayView(item) : weekGrid(item)}</main>
       <div class="vtools">
         <button class="icon-btn" data-act="prev" ${idx <= 0 ? 'disabled' : ''} aria-label="Previous">${icon('prev')}</button>
-        <span class="vcount">${idx > 0 ? esc(nameOf(sib[idx - 1])) + ' ‹' : ''}</span><span class="vsep">${idx + 1}/${sib.length}</span><span class="vcount r">${idx < sib.length - 1 ? '› ' + esc(nameOf(sib[idx + 1])) : ''}</span>
+        <span class="vcount">${idx > 0 ? sibName(sib[idx - 1]) : ''}</span><span class="vsep">${idx + 1}/${sib.length}</span><span class="vcount r">${idx < sib.length - 1 ? sibName(sib[idx + 1]) : ''}</span>
         <button class="icon-btn" data-act="next" ${idx >= sib.length - 1 ? 'disabled' : ''} aria-label="Next">${icon('next')}</button>
       </div>`;
     if (layout === 'week') fitGrid();
   }
-  function releaseRotate() { try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch { } state.force = false; document.body.classList.remove('force-land'); }
-  async function toggleRotate() {
-    if (effectiveLayout() === 'day') {
-      state.layout = 'week';
-      let locked = false;
-      try { if (screen.orientation && screen.orientation.lock) { await screen.orientation.lock('landscape'); locked = true; } } catch { }
-      if (!locked && !matchMedia('(orientation: landscape)').matches) { state.force = true; document.body.classList.add('force-land'); }
-    } else { releaseRotate(); state.layout = 'day'; }
-    render();
+  // ROTATE = full-screen landscape, whatever the phone's auto-rotate setting. The whole week fits on the screen.
+  function applyForce() {
+    if (!state.full) return;
+    const portrait = innerHeight > innerWidth;
+    state.force = portrait; document.body.classList.toggle('force-land', portrait);
   }
-  const nameOf = x => x.kind === 'teachers' ? (x.name ? x.name : 'Tr ' + x.code) : x.name;
+  function releaseRotate() {
+    try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch { }
+    try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => { }); } catch { }
+    state.full = false; state.force = false; document.body.classList.remove('force-land', 'fullv');
+  }
+  async function toggleRotate() {
+    if (state.full) { releaseRotate(); if (route().name === 'view') state.layout = 'day'; render(); return; }
+    state.full = true; state.layout = 'week'; document.body.classList.add('fullv');
+    try { const el = document.documentElement; if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' }); } catch { }
+    try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch { }
+    applyForce(); render();
+    setTimeout(() => { applyForce(); fitGrid(); }, 350);
+  }
+  const sibName = x => x.kind === 'teachers' ? `<i class="sc">${esc(x.code)}</i><span>${esc(teacherLabel(x))}</span>` : `<span>${esc(x.name)}</span>`;
+  const nameOf = x => x.kind === 'teachers' ? tLabel(x) : x.name;
   function dayTabs(sel, attr = 'day') {
     const today = todayIndex();
     return `<div class="daytabs">${IDX.D.map((d, i) => `<button class="dc${i % 5} ${i === sel ? 'on' : ''}" data-${attr}="${i}">${esc(d.label.slice(0, 3))}${i === today ? '<i></i>' : ''}</button>`).join('')}</div>`;
@@ -610,12 +717,21 @@
     return `${dayTabs(d)}<ul class="dayview dv-${item.kind}">${rows}</ul><p class="swipe-hint"><b>Tap a lesson</b> to see who can be there · swipe for the next ${item.kind === 'teachers' ? 'teacher' : item.kind === 'classes' ? 'class' : 'timetable'} · press <b>Rotate</b> for the whole week</p>`;
   }
   function headCells(d, n) {
-    return IDX.P.map((p, j) => `<th class="${p.brk ? 'b' : p.pm ? 'pmh' : 'amh'}${n.d === d && n.j === j ? ' nowcol' : ''}">${n.d === d && n.j === j && !p.brk ? '<span class="curtag sm">CURRENT</span>' : ''}${p.brk ? `<span class="vt">${esc(p.label)}</span>` : `<b>${esc(p.label)}</b><small>${esc(p.time)}</small>`}</th>`).join('');
+    return IDX.P.map((p, j) => `<th class="${p.brk ? 'b' : p.pm ? 'pmh' : 'amh'}${n.d === d && n.j === j ? ' nowcol' : ''}">${n.d === d && n.j === j && !p.brk ? '<span class="curtag sm">CURRENT</span>' : ''}${p.brk ? brkHead(p) : `<b>${esc(p.label)}</b><small>${esc(p.time)}</small>`}</th>`).join('');
   }
-  function rowCells(item, kind, d, n) {
+  // Breaks: name written downwards, one letter per line, sized to fit the column height
+  function stackText(label, nrows, rowH) {
+    const words = String(label || 'BREAK').toUpperCase().split(/\s+/).filter(Boolean);
+    const units = words.reduce((t, w) => t + w.length, 0) + (words.length - 1) * 0.6;
+    const px = Math.max(7, Math.min(13, Math.floor((nrows * rowH - 8) / (units * 1.12))));
+    return `<div class="stk" style="font-size:${px}px">${words.map(w => [...w].map(ch => `<i>${esc(ch)}</i>`).join('')).join('<i class="sp"></i>')}</div>`;
+  }
+  const brkTimes = p => { const t = String(p.time || '').split('-'); return t.length === 2 ? `<span class="bt"><b>${esc(t[0])}</b><i>–</i><b>${esc(t[1])}</b></span>` : ''; };
+  function brkHead(p) { return brkTimes(p) || `<span class="bt"><b>—</b></span>`; }
+  function rowCells(item, kind, d, n, ri = 0, nrows = 1, rowH = 46) {
     let tds = '';
     for (let j = 0; j < IDX.P.length; j++) {
-      if (IDX.P[j].brk) { tds += `<td class="b"></td>`; continue; }
+      if (IDX.P[j].brk) { if (ri === 0) tds += `<td class="b bl" rowspan="${nrows}">${stackText(IDX.P[j].label, nrows, rowH)}</td>`; continue; }
       if (isCont(item, d, j)) continue;
       let span = 1; while ((item.grid[d] || [])[j + span] === '^') span++;
       const c = cellAt(item, d, j), L = cellLines(kind, c, item.name);
@@ -626,12 +742,28 @@
   }
   function weekGrid(item) {
     const n = nowSlot();
-    const body = IDX.D.map((dd, d) => `<tr class="dc${d % 5} ${n.d === d ? 'today' : ''}"><th>${esc(dd.label)}${n.d === d ? '<small>today</small>' : ''}</th>${rowCells(item, item.kind, d, n)}</tr>`).join('');
+    const body = IDX.D.map((dd, d) => `<tr class="dc${d % 5} ${n.d === d ? 'today' : ''}"><th>${esc(dd.label)}${n.d === d ? '<small>today</small>' : ''}</th>${rowCells(item, item.kind, d, n, d, IDX.D.length, 46)}</tr>`).join('');
     return `<div class="gridwrap" id="gridwrap"><table class="wk" id="wk"><thead><tr><th></th>${headCells(-9, { d: -1 })}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
   function fitGrid() {
     const wrap = $('#gridwrap'), tb = $('#wk'); if (!wrap || !tb) return;
-    tb.style.zoom = 1;
+    tb.style.zoom = 1; tb.style.width = '';
+    if (state.full) {                                   // whole week on one screen: fill the width, fit the height
+      const W = wrap.clientWidth - 2, H = wrap.clientHeight - 2, rows = $$('tbody tr', tb);
+      rows.forEach(r => { r.style.height = ''; });
+      const at = z => { tb.style.zoom = z; tb.style.width = (W / z) + 'px'; return tb.offsetHeight * z; };
+      let lo = 0.2, hi = 1.5;                            // largest size at which the whole week still fits
+      for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (at(mid) <= H) lo = mid; else hi = mid; }
+      const MIN = 0.85;                                  // never too small to read: below this, scroll instead
+      if (lo < MIN) { tb.style.zoom = MIN; tb.style.width = ''; tb.style.minWidth = (W / MIN) + 'px'; wrap.classList.add('scroll2'); return; }
+      wrap.classList.remove('scroll2'); tb.style.minWidth = '';
+      const z = lo, h = at(z);
+      if (h < H - 4 && rows.length) {                   // spread the rows to use the whole height
+        const extra = (H - h) / z / rows.length;
+        rows.forEach(r => { r.style.height = (r.offsetHeight + extra) + 'px'; });
+      }
+      return;
+    }
     const z = Math.min(1, (wrap.clientWidth - 2) / tb.scrollWidth);
     if (z < 1) tb.style.zoom = Math.max(isLandscape() ? 0.55 : 0.62, z);
   }
@@ -641,12 +773,13 @@
     if (state.day == null) state.day = Math.max(0, todayIndex());
     const d = state.day, n = nowSlot();
     const list = B.master.filter(m => state.grade === 'all' || gradeOf(m.name) === state.grade);
-    const body = list.map((m, i) => `<tr class="${i > 0 && gradeOf(list[i - 1].name) !== gradeOf(m.name) ? 'gstart' : ''}"><th>${esc(m.name)}</th>${rowCells(m, 'master', d, n)}</tr>`).join('');
+    const body = list.map((m, i) => `<tr class="${i > 0 && gradeOf(list[i - 1].name) !== gradeOf(m.name) ? 'gstart' : ''}"><th>${esc(m.name)}</th>${rowCells(m, 'master', d, n, i, list.length, 34)}</tr>`).join('');
     document.title = 'Master · ' + dayLabel(d);
-    app.innerHTML = `${topBar('Master timetable', esc(dayLabel(d)) + ' · all classes', `<button class="icon-btn" data-act="save" aria-label="Save">${icon('save')}</button>`)}
+    app.innerHTML = `${topBar('Master timetable', esc(dayLabel(d)) + ' · all classes', `<button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit' : 'Rotate'}</span></button><button class="icon-btn" data-act="save" aria-label="Save">${icon('save')}</button>`)}
       <div class="mbar">${dayTabs(d)}${gradeChips()}</div>
       <main class="tt"><div class="gridwrap" id="gridwrap"><table class="wk master dc${d % 5}" id="wk"><thead><tr><th>Class</th>${headCells(d, n)}</tr></thead><tbody>${body}</tbody></table></div>
-      <p class="swipe-hint">Slide the table sideways · turn the phone for a wider view</p></main>`;
+      <p class="swipe-hint">Slide the table sideways · press Rotate to see the whole day on one screen</p></main>`;
+    if (state.full) fitGrid();
   }
 
   // ------------------------------------------------------------------ FREE TEACHERS + FREE AFTERNOON
@@ -677,7 +810,7 @@
         ${IDX.D.map((dd, i) => `<h3 class="sect dsect dc${i % 5}">${esc(dd.label)} afternoon · ${byDay[i].length} free</h3>
           <div class="namegrid">${byDay[i].map(x => `<button data-go="view/${x.t.id}" class="${x.r.full ? 'full' : ''} ${me && me.id === x.t.id ? 'me' : ''}"><b>${nm(x.t)}</b><small>${esc(runLabel(x.r))}</small></button>`).join('') || '<span class="muted">Nobody</span>'}</div>`).join('')}
         ${none.length ? `<h3 class="sect warn">No free afternoon this week · ${none.length}</h3><div class="namegrid">${none.map(t => `<button data-go="view/${t.id}"><b>${nm(t)}</b></button>`).join('')}</div>` : ''}
-        <p class="muted small">A free afternoon = 3 or more lessons in a row after lunch with no class. “Whole afternoon” means no class at all after lunch.</p>`;
+        <p class="muted small">A free afternoon = no class at all from after lunch to the end of the day (${IDX.lessons.filter(j => IDX.P[j].pm).map(j => esc(IDX.P[j].label)).join(', ')}).</p>`;
     }
     app.innerHTML = `${topBar('Free teachers', 'At any lesson, and free afternoons')}
       <div class="seg wide-seg"><button class="${tab === 'now' ? 'on' : ''}" data-freetab="now">Free at a lesson</button><button class="${tab === 'pm' ? 'on' : ''}" data-freetab="pm">Free afternoon</button></div>
@@ -1077,7 +1210,7 @@
     let title, rows, kind, fname;
     if (r.name === 'master') {
       const d = state.day; kind = 'master';
-      title = `Master timetable — ${dayLabel(d)}`; fname = `Master-${dayLabel(d)}`;
+      title = `Master timetable — ${dayLabel(d)}`; fname = `Master timetable ${dayLabel(d)}`;
       rows = B.master.filter(m => state.grade === 'all' || gradeOf(m.name) === state.grade).map(m => ({ head: m.name, item: m, d }));
     } else {
       const item = IDX.byId[r.id]; kind = item.kind;
@@ -1086,9 +1219,28 @@
       rows = IDX.D.map((dd, d) => ({ head: dd.label, item, d }));
     }
     const P = IDX.P, scale = 2;
-    const headW = kind === 'master' ? 90 : 70, colW = 118, brkW = 22, rowH = 64, top = 96, pad = 20;
-    const width = pad * 2 + headW + P.reduce((s, p) => s + (p.brk ? brkW : colW), 0);
-    const height = top + 44 + rows.length * rowH + 50;
+    const headW = kind === 'master' ? 90 : 70, colW = 130, brkW = 34, top = 96, pad = 20;
+    const colWs = P.map(p => p.brk ? brkW : colW);
+    // every row as tall as its longest cell, so all teacher names fit
+    const mctx = document.createElement('canvas').getContext('2d');
+    const cellText = (row, j) => {
+      let span = 1; while ((row.item.grid[row.d] || [])[j + span] === '^') span++;
+      let cw = 0; for (let k = j; k < j + span; k++) cw += colWs[k];
+      const c = cellAt(row.item, row.d, j), L = cellLines(kind, c, row.item.name);
+      if (!L) return { cw, L, a: [], b: [] };
+      mctx.font = '700 12px Poppins, Arial'; const a = wrapText(mctx, L[0], cw - 10).slice(0, 3);
+      mctx.font = '600 11px Poppins, Arial'; const b = wrapText(mctx, L[1] || '', cw - 10);
+      return { cw, L, a, b };
+    };
+    const RH = rows.map(row => {
+      let h = 64;
+      for (let j = 0; j < P.length; j++) { if (P[j].brk || isCont(row.item, row.d, j)) continue; const t = cellText(row, j); h = Math.max(h, t.a.length * 14 + t.b.length * 13 + 20); }
+      return Math.ceil(h);
+    });
+    const Y = []; RH.reduce((acc, h, i) => { Y[i] = acc; return acc + h; }, 0);
+    const bodyH = RH.reduce((a, b) => a + b, 0);
+    const width = pad * 2 + headW + colWs.reduce((a, b) => a + b, 0);
+    const height = top + 44 + bodyH + 50;
     const cv = document.createElement('canvas'); cv.width = width * scale; cv.height = height * scale;
     const ctx = cv.getContext('2d'); ctx.scale(scale, scale);
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, width, height);
@@ -1101,27 +1253,39 @@
     P.forEach((p, j) => {
       const w = p.brk ? brkW : colW; colX[j] = [x, w];
       ctx.fillStyle = p.brk ? '#EEE8D8' : '#F3EEDF'; ctx.fillRect(x, y0, w, 44); ctx.strokeStyle = '#5F6B82'; ctx.strokeRect(x, y0, w, 44);
+      if (p.brk) { const t = String(p.time || '').split('-'); ctx.textAlign = 'center'; ctx.fillStyle = '#1B2333'; ctx.font = '700 9px Poppins, Arial';
+        if (t.length === 2) { ctx.fillText(t[0], x + w / 2, y0 + 13); ctx.fillText('–', x + w / 2, y0 + 24); ctx.fillText(t[1], x + w / 2, y0 + 35); } ctx.textAlign = 'left'; }
       if (!p.brk) { ctx.textAlign = 'center'; ctx.fillStyle = '#12284C'; ctx.font = '800 13px Poppins, Arial'; ctx.fillText(p.label, x + w / 2, y0 + 18); ctx.font = '700 11px Poppins, Arial'; ctx.fillStyle = '#1B2333'; ctx.fillText(p.time, x + w / 2, y0 + 35); ctx.textAlign = 'left'; }
       x += w;
     });
     rows.forEach((row, ri) => {
-      const y = y0 + 44 + ri * rowH;
+      const y = y0 + 44 + Y[ri], rowH = RH[ri];
       ctx.fillStyle = '#12284C'; ctx.fillRect(pad, y, headW, rowH); ctx.fillStyle = '#fff'; ctx.font = '600 13px Poppins, Arial';
       wrapText(ctx, row.head, headW - 10).slice(0, 3).forEach((ln, k) => ctx.fillText(ln, pad + 6, y + 22 + k * 15));
       for (let j = 0; j < P.length; j++) {
         const [cx, w] = colX[j];
-        if (P[j].brk) { ctx.fillStyle = '#EEE8D8'; ctx.fillRect(cx, y, w, rowH); ctx.strokeStyle = '#5F6B82'; ctx.strokeRect(cx, y, w, rowH); continue; }
+        if (P[j].brk) {
+          if (ri === 0) {
+            const H = bodyH; ctx.fillStyle = '#E4DCC2'; ctx.fillRect(cx, y, w, H); ctx.lineWidth = 1.5; ctx.strokeStyle = '#2B3447'; ctx.strokeRect(cx, y, w, H); ctx.lineWidth = 1;
+            const words = String(P[j].label || 'BREAK').toUpperCase().split(/\s+/).filter(Boolean);
+            const units = words.reduce((t, wd) => t + wd.length, 0) + (words.length - 1) * 0.6;
+            const fs = Math.max(8, Math.min(16, Math.floor((H - 12) / (units * 1.15)))), lh = fs * 1.15;
+            let ty = y + (H - units * lh) / 2 + fs; ctx.font = `800 ${fs}px Poppins, Arial`; ctx.fillStyle = '#3A3218'; ctx.textAlign = 'center';
+            words.forEach((wd, wi) => { [...wd].forEach(ch => { ctx.fillText(ch, cx + w / 2, ty); ty += lh; }); if (wi < words.length - 1) ty += lh * 0.6; });
+            ctx.textAlign = 'left';
+          }
+          continue;
+        }
         if (isCont(row.item, row.d, j)) continue;
         let span = 1; while ((row.item.grid[row.d] || [])[j + span] === '^') span++;
         const cw = colX[j + span - 1][0] + colX[j + span - 1][1] - cx;
-        const c = cellAt(row.item, row.d, j), L = cellLines(kind, c, row.item.name);
+        const c = cellAt(row.item, row.d, j), T = cellText(row, j), L = T.L;
         const fc = L && isLesson(c) ? fetColour(c.s) : null;
         ctx.fillStyle = fc ? fc[0] : L ? '#ffffff' : c === 'X' ? '#F2F2F2' : '#FBFAF6'; ctx.fillRect(cx, y, cw, rowH);
         ctx.lineWidth = 1.5; ctx.strokeStyle = '#2B3447'; ctx.strokeRect(cx, y, cw, rowH); ctx.lineWidth = 1;
         if (L) {
-          ctx.textAlign = 'center'; ctx.font = '700 12px Poppins, Arial';
-          const a = wrapText(ctx, L[0], cw - 10).slice(0, 2);
-          ctx.font = '600 11px Poppins, Arial'; const b2 = wrapText(ctx, L[1] || '', cw - 10).slice(0, 2);
+          ctx.textAlign = 'center';
+          const a = T.a, b2 = T.b;
           let ty = y + rowH / 2 - ((a.length * 14 + b2.length * 13) / 2) + 11;
           ctx.fillStyle = fc ? fc[1] : '#1B2333'; ctx.font = '700 12px Poppins, Arial'; a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 14; });
           ctx.font = '600 11px Poppins, Arial'; ctx.fillStyle = fc ? fc[1] : '#3A4356'; b2.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 13; });
@@ -1129,7 +1293,7 @@
         }
       }
     });
-    ctx.save(); const gh = 44 + rows.length * rowH, gw = width - pad * 2;
+    ctx.save(); const gh = 44 + bodyH, gw = width - pad * 2;
     let fs = Math.min(80, gh * 0.3); ctx.font = `600 ${fs}px Poppins, Arial`;
     while (ctx.measureText(WATERMARK).width > Math.min(gw, gh * 1.6) * 0.75 && fs > 18) { fs -= 2; ctx.font = `600 ${fs}px Poppins, Arial`; }
     ctx.globalAlpha = 0.07; ctx.fillStyle = '#12284C'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1137,12 +1301,16 @@
     ctx.fillStyle = '#667085'; ctx.font = '11px Poppins, Arial';
     ctx.fillText(`${WATERMARK} · ${BRAND_LINE} · saved ${new Date().toLocaleString('en-GB')}`, pad, height - 18);
     const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
-    const file = new File([blob], fname + '.png', { type: 'image/png' });
-    try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: fname }); return; } }
-    catch (e) { if (e && e.name === 'AbortError') return; }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname + '.png';
+    const ttn = state.data?.ttName || '';
+    const full = [fname, ttn].filter(Boolean).join(' - ').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90);
+    const file = new File([blob], full + '.png', { type: 'image/png' });
+    if (isIOS() && navigator.canShare && navigator.canShare({ files: [file] })) {   // iPhone: the only way into Photos
+      try { await navigator.share({ files: [file], title: full }); toast('Tap “Save Image” to put it in Photos'); } catch { }
+      return;
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = full + '.png';
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    toast('Saved to your Downloads ✓');
+    toast(`Saved: ${full}.png ✓ (Gallery / Downloads)`, 3500);
   }
 
   // ------------------------------------------------------------------ sheets: menu, share, poster
@@ -1155,8 +1323,10 @@
     openSheet(`<div class="grab"></div>
       <button class="mrow" data-act="refresh">${icon('refresh')}<span>Check for new timetable<small>${state.lastSync ? 'Last checked ' + ago(state.lastSync) : ''}</small></span></button>
       <button class="mrow" data-act="share">${icon('share')}<span>Share with colleagues<small>QR code, WhatsApp or copy link</small></span></button>
-      ${!isStandalone() && (state.installEvt || isIOS()) ? `<button class="mrow" data-act="install">${icon('install')}<span>Install app<small>Add to your home screen</small></span></button>` : ''}
+      ${!isStandalone() ? `<button class="mrow" data-act="getapp">${icon('install')}<span>Get the app<small>Android · iPhone · Computer</small></span></button>` : ''}
       <button class="mrow" data-go="schools">${icon('classes')}<span>Schools using this app<small>See the other schools on Timetables</small></span></button>
+      ${meTeacher() ? `<button class="mrow" data-act="remToggle">${icon('clock')}<span>Lesson reminder: ${remOn() ? 'ON' : 'OFF'}<small>Alarm ${REMIND_MIN} minutes before each of your lessons · tap to switch ${remOn() ? 'off' : 'on'}</small></span></button>` : ''}
+      <button class="mrow" data-act="contact">${icon('wa')}<span>Contact Cyrus Ireri<small>WhatsApp · call · SMS — ${esc(LOCKED_CONTACT)}</small></span></button>
       <button class="mrow" data-act="about">${icon('info')}<span>About<small>${esc(BRAND_LINE)}</small></span></button>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
@@ -1173,18 +1343,44 @@
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
     const svg = await qrSvg(link); const box = $('#qrBox'); if (box) box.innerHTML = svg || '<span class="muted">QR code could not be drawn.</span>';
   }
+  // Contact Cyrus Ireri: WhatsApp chat, call or SMS
+  const INTL = '254' + LOCKED_CONTACT.replace(/^0/, '');
+  function openContact() {
+    const school = state.data?.school?.name || '';
+    const msg = `Hello Cyrus, I am a teacher${school ? ' at ' + school : ''}. I am using the timetable app and `;
+    openSheet(`<div class="grab"></div><h3>Contact Cyrus Ireri</h3><p class="muted center-t">${esc(LOCKED_BRAND)} · ${esc(LOCKED_CONTACT)}</p>
+      <div class="contact-opts">
+        <a class="copt cwa" href="https://wa.me/${INTL}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${icon('wa')}<span><b>Chat on WhatsApp</b><small>Opens WhatsApp with a message ready</small></span></a>
+        <a class="copt ccall" href="tel:+${INTL}"><svg class="ic" viewBox="0 0 24 24"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1l-2.3 2.2Z"/></svg><span><b>Call</b><small>${esc(LOCKED_CONTACT)}</small></span></a>
+        <a class="copt csms" href="sms:+${INTL}"><svg class="ic" viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2Zm3 6v2h2v-2H7Zm4 0v2h2v-2h-2Zm4 0v2h2v-2h-2Z"/></svg><span><b>Send SMS</b><small>Text message</small></span></a>
+      </div>
+      <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  }
+  // Get the app: teachers choose their device
+  function openGetApp(focus) {
+    const me = focus || platformName();
+    const inst = state.installEvt ? `<button class="btn wide" data-act="install">${icon('install')} Install now</button>` : '';
+    const card = (key, title, sub, steps) => `<details class="gcard ${key}"${key === me ? ' open' : ''}><summary><span class="gicon gi-${key}"></span><span><b>${title}</b><small>${sub}</small></span>${key === me ? '<i class="me-tag">This device</i>' : ''}</summary>
+      <ol class="steps">${steps.map(x => `<li>${x}</li>`).join('')}</ol>${key === me ? inst : ''}</details>`;
+    openSheet(`<div class="grab"></div><h3>Get the app</h3><p class="muted center-t">Free · the same timetables on every device · updates itself · works offline</p>
+      ${card('android', 'Android phone or tablet', 'Chrome', ['Open this page in <b>Chrome</b>.', 'Tap <b>Install</b> (or menu <b>⋮</b> → <b>Install app</b> / <b>Add to Home screen</b>).', 'The app appears on your home screen and in your apps list.'])}
+      ${card('ios', 'iPhone or iPad', 'Safari', ['Open this page in <b>Safari</b>.', 'Tap <b>Share ⬆</b> at the bottom of the screen.', 'Choose <b>Add to Home Screen</b>, then <b>Add</b>.'])}
+      ${card('desktop', 'Computer (Windows, Mac, Linux)', 'Chrome or Microsoft Edge', ['Open this page in <b>Chrome</b> or <b>Edge</b>.', 'Click the <b>Install</b> icon at the right end of the address bar (or menu → <b>Install Timetables</b>).', 'It opens in its own window and gets a desktop / Start-menu icon.'])}
+      <p class="muted center-t small">Share the link or QR code (menu → Share) so colleagues can get it too.</p>
+      <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  }
   function openAbout() {
-    openSheet(`<div class="grab"></div><h3>About</h3><p>${esc(state.data?.school?.name || '')} timetables. This app shows the latest version published by the school and updates itself when you open it, and keeps a copy for offline use.</p>
+    openSheet(`<div class="grab"></div><img class="about-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX — Prepare. Perfect. Present."><h3>About</h3><p>${esc(state.data?.school?.name || '')} timetables. This app shows the latest version published by the school and updates itself when you open it, and keeps a copy for offline use.</p>
       <p class="muted">${esc(state.data?.school?.institution || '')}<br>${esc(LOCKED_BRAND)}<br>${esc(LOCKED_CONTACT)}<br>App version ${esc(CFG.build || '')}</p>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   async function renderPoster() {
     const link = linkFor(), name = state.data?.school?.name || '';
     document.body.classList.add('poster-mode');
-    app.innerHTML = `<div class="poster"><div class="ptop"><div class="logo big"></div><div><h1>${esc(name || 'School')} Timetables</h1><p>On your phone · Always up to date · Works offline</p></div></div>
+    app.innerHTML = `<div class="poster"><img class="plogo" src="/brand/prepfix-logo-600.png" alt="PREPFIX — Prepare. Perfect. Present."><div class="ptop"><div class="logo big"></div><div><h1>${esc(name || 'School')} Timetables</h1><p>On your phone · Always up to date · Works offline</p></div></div>
       <div class="pmain"><div class="pqr" id="pqr"></div><ol>
         <li><b>Scan</b> this QR code with your phone camera.</li>
-        <li><b>Add to Home Screen</b> — Android: tap <b>Install</b>. iPhone: Share ⬆ → <b>Add to Home Screen</b>.</li>
+        <li><b>Get the app</b> — Android (Chrome): tap <b>Install</b>. iPhone (Safari): Share ⬆ → <b>Add to Home Screen</b>. Computer (Chrome/Edge): click <b>Install</b> in the address bar.</li>
         <li>Tap <b>My timetable</b>, find your name and tap <b>☆</b> to make it <b>My timetable</b>.</li></ol></div>
       <p class="plink">${esc(link)}</p><p class="pfoot">${esc(BRAND_LINE)}</p>
       <button class="btn noprint" onclick="window.print()">Print poster</button></div>`;
@@ -1204,7 +1400,7 @@
     const b = e.target.closest('[data-act],[data-layout],[data-day],[data-sday],[data-slot],[data-grade],[data-freetab],[data-coverslot],[data-covert]');
     if (!b) return;
     const ds = b.dataset;
-    if (ds.layout) { state.layout = ds.layout; render(); return; }
+    if (ds.layout) { if (ds.layout === 'day' && state.full) releaseRotate(); state.layout = ds.layout; render(); return; }
     if (ds.day != null) { state.day = +ds.day; state.coverSlot = null; render(); return; }
     if (ds.sday != null) { state.slot = { ...(state.slot || defaultSlot()), d: +ds.sday }; render(); return; }
     if (ds.slot != null) { state.slot = { ...(state.slot || defaultSlot()), j: +ds.slot }; render(); return; }
@@ -1237,11 +1433,15 @@
         else if (isIOS()) openSheet(`<div class="grab"></div><h3>Add to Home Screen</h3><ol class="steps"><li>Tap <b>Share ⬆</b> at the bottom of Safari.</li><li>Choose <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>.</li></ol><button class="btn wide" data-act="closeSheet">OK</button>`);
         break;
       case 'menu': openMenu(); break;
+      case 'remToggle': await remToggle(); break;
+      case 'remCal': remCalendar(); break;
       case 'refresh': closeSheet(); toast('Checking…', 1200); await sync('manual'); if (state.online) toast('You have the latest timetable ✓'); break;
       case 'share': openShare(); break;
       case 'copy': try { await navigator.clipboard.writeText(linkFor()); toast('Link copied'); } catch { toast(linkFor(), 6000); } break;
       case 'nativeShare': try { await navigator.share({ title: 'School timetables', url: linkFor() }); } catch { } break;
       case 'about': openAbout(); break;
+      case 'contact': openContact(); break;
+      case 'getapp': openGetApp(); break;
       case 'retry': state.error = null; renderEmpty(); sync('manual'); break;
     }
   });
@@ -1264,7 +1464,8 @@
   const mq = matchMedia('(orientation: landscape)');
   const onRotate = () => { releaseRotate(); if (state.data && route().name === 'view') { state.layout = 'auto'; render(); } };
   if (mq.addEventListener) mq.addEventListener('change', onRotate); else if (mq.addListener) mq.addListener(onRotate);
-  addEventListener('resize', () => { if (state.data && route().name === 'view' && effectiveLayout() === 'week') fitGrid(); });
+  addEventListener('resize', () => { applyForce(); if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 60); });
+  addEventListener('hashchange', () => { if (state.full && !['view', 'master'].includes(route().name)) releaseRotate(); });
   addEventListener('online', () => { state.online = true; sync('online'); });
   addEventListener('offline', () => { state.online = false; renderStatus(); });
   document.addEventListener('visibilitychange', () => {
@@ -1273,6 +1474,8 @@
     if (state.data && route().name === 'home') render();
   });
   setInterval(() => { if (document.visibilityState === 'visible' && state.data && route().name === 'home') { const c = $('.now-card'); if (c) c.outerHTML = nowCard(); } }, 60000);
+  setInterval(checkReminders, 15000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkReminders(); });
   addEventListener('beforeinstallprompt', e => { e.preventDefault(); state.installEvt = e; if (state.data && route().name === 'home') renderBanners(); });
   addEventListener('appinstalled', () => { state.installEvt = null; toast('Installed ✓'); });
   if ('serviceWorker' in navigator) {

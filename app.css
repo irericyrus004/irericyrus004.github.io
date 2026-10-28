@@ -511,3 +511,132 @@ table.wk td.l[data-fc].now{box-shadow:inset 0 0 0 3px var(--gold)}
 .wsub[data-fc]{background:var(--fb)!important;color:var(--ff)!important;border-color:rgba(0,0,0,.35)!important}
 .dayview li.has[data-fc].now{background:var(--fb)!important;box-shadow:inset 0 0 0 4px var(--gold)}
 table.wk td.l[data-fc].now{background:var(--fb)!important}
+#brandbar{pointer-events:auto}
+#brandbar button{display:inline-flex;align-items:center;gap:5px;background:rgba(201,162,39,.18);border:1px solid var(--gold);color:var(--gold-2);font:700 11.5px/1 Poppins,"Segoe UI",Arial,sans-serif;letter-spacing:.04em;border-radius:999px;padding:4px 10px;cursor:pointer}
+#brandbar button svg{width:12px;height:12px;fill:currentColor}
+#brandbar button:active{background:rgba(201,162,39,.35)}
+.contact-opts{display:grid;gap:10px;margin:12px 0}
+.copt{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);text-decoration:none;color:var(--ink);background:#fff}
+.copt .ic{width:26px;height:26px;flex:none}
+.copt b{display:block;font-size:15px}.copt small{color:var(--muted);font-size:12px}
+.copt.cwa{background:#E7F8EE;border-color:#25D366}.copt.cwa .ic{fill:#128C7E}
+.copt.ccall .ic{fill:var(--navy)}.copt.csms .ic{fill:var(--green)}
+.gcard{border:1.5px solid var(--line);border-radius:14px;margin:10px 0;background:#fff;overflow:hidden}
+.gcard[open]{border-color:var(--gold);box-shadow:0 2px 10px rgba(11,27,54,.08)}
+.gcard summary{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;list-style:none}
+.gcard summary::-webkit-details-marker{display:none}
+.gcard summary b{display:block}.gcard summary small{color:var(--muted)}
+.gcard summary .me-tag{margin-left:auto}
+.gcard .steps{margin:0 14px 12px 34px;padding:0}
+.gcard .btn{margin:0 14px 14px;width:calc(100% - 28px)}
+.gicon{width:34px;height:34px;border-radius:10px;flex:none;background:var(--navy) center/20px no-repeat}
+.gi-android{background-color:#3DDC84;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23073' d='M7 9h10v7a1 1 0 0 1-1 1h-1v3h-2v-3h-2v3H9v-3H8a1 1 0 0 1-1-1V9Zm-2 0h1v6H5V9Zm13 0h1v6h-1V9ZM8.3 4.1l.9-.5 1 1.6a5 5 0 0 1 3.6 0l1-1.6.9.5-1 1.6A4 4 0 0 1 17 8H7a4 4 0 0 1 2.3-2.3l-1-1.6Z'/%3E%3C/svg%3E")}
+.gi-ios{background-color:#1B2333;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='7' y='2' width='10' height='20' rx='2.5' fill='none' stroke='white' stroke-width='1.8'/%3E%3Ccircle cx='12' cy='18.5' r='1' fill='white'/%3E%3C/svg%3E")}
+.gi-desktop{background-color:#2563EB;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3' y='4' width='18' height='12' rx='1.5' fill='none' stroke='white' stroke-width='1.8'/%3E%3Cpath d='M8 20h8M12 16v4' stroke='white' stroke-width='1.8'/%3E%3C/svg%3E")}
+.small{font-size:12px}
+
+/* Break columns: name downwards letter by letter, times in the header */
+table.wk td.bl{vertical-align:middle;text-align:center;padding:4px 2px;background:#E4DCC2!important;min-width:30px}
+.stk{display:flex;flex-direction:column;align-items:center;font-weight:800;line-height:1.12;color:#3A3218;font-family:Poppins,"Segoe UI",Arial,sans-serif}
+.stk i{font-style:normal;display:block}
+.stk i.sp{height:.6em}
+table.wk thead th.b{padding:4px 2px;min-width:30px;vertical-align:middle}
+.bt{display:flex;flex-direction:column;align-items:center;font:700 9px/1.15 Poppins,"Segoe UI",Arial,sans-serif;color:#1B2333;font-variant-numeric:tabular-nums}
+.bt i{font-style:normal;line-height:.9}
+table.wk th.b,table.wk td.b{width:40px!important;min-width:40px!important;max-width:44px!important}
+table.wk thead th.b{padding:4px 1px!important}
+table.wk.master td.bl{vertical-align:top;padding-top:14px}
+table.wk.master td.bl .stk{position:sticky;top:64px}
+/* ===== ROTATE: full-screen landscape, whole week on one screen ===== */
+body.fullv{overflow:hidden}
+body.fullv #app{display:flex;flex-direction:column;height:calc(100dvh - var(--brandh) - var(--safe-b));overflow:hidden}
+body.fullv.force-land #app{height:100vw;padding-bottom:var(--brandh)}
+body.fullv .vtop{position:static;padding:3px 6px;min-height:0;box-shadow:none}
+body.fullv .vtop .icon-btn{width:30px;height:30px}
+body.fullv .vtop h2{font-size:14px;line-height:1.1}
+body.fullv .vtop p{font-size:10px;line-height:1.1;margin:0}
+body.fullv .vbar{padding:2px 8px;gap:6px;flex-wrap:nowrap}
+body.fullv .vbar .btn,body.fullv .vbar .seg button{padding:3px 10px;font-size:12px;min-height:0}
+body.fullv .vtop .btn.rot{padding:3px 10px;font-size:12px}
+body.fullv main.tt{flex:1;min-height:0;display:flex;flex-direction:column;padding:3px 6px 2px;max-width:none;width:100%;box-sizing:border-box}
+body.fullv .inst.small{display:flex;justify-content:center;align-items:baseline;gap:10px;padding:2px 8px;margin:0 0 3px;border-top-width:2px;border-radius:8px;box-shadow:none}
+body.fullv .inst.small b{font-size:12px;display:inline}
+body.fullv .inst.small span{font-size:10.5px;display:inline;margin:0}
+body.fullv .gridwrap{flex:1;min-height:0;overflow:hidden!important;max-height:none!important}
+body.fullv .swipe-hint{display:none}
+body.fullv .vtools{position:static;padding:2px 8px;gap:4px}
+body.fullv .vtools .icon-btn{width:28px;height:28px}
+body.fullv .vtools .vcount,body.fullv .vtools .vsep{font-size:11px}
+body.fullv .mbar{padding:3px 8px 0;display:flex;gap:8px;align-items:center}
+body.fullv .mbar .daytabs{flex:1;margin:0 0 3px;padding:2px}
+body.fullv .mbar .daytabs button{padding:3px 0;font-size:11px}
+body.fullv .mbar .chips{margin:0 0 3px;flex-wrap:nowrap}
+body.fullv .mbar .chip{padding:2px 8px;font-size:11px}
+body.fullv #brandbar{--brandh:22px}
+body.fullv table.wk{table-layout:fixed;min-width:0}
+body.fullv table.wk td.l{min-width:0;white-space:normal;word-break:break-word;overflow:hidden}
+body.fullv table.wk thead th{white-space:normal}
+body.fullv table.wk thead th:first-child,body.fullv table.wk tbody th{width:52px}
+body.fullv table.wk.master thead th:first-child,body.fullv table.wk.master tbody th{width:44px}
+/* Teachers: big, clear names with their code */
+.vtitles h2.big{font-size:20px;font-weight:800;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
+.tcode{display:inline-grid;place-items:center;min-width:30px;height:30px;padding:0 7px;border-radius:9px;background:var(--gold);color:var(--navy);font-size:15px;font-weight:800;flex:none}
+.vtools .vcount{font-size:14px;font-weight:700;color:var(--navy)}
+.vtools .vsep{font-size:14px;font-weight:800}
+.list .row .nm{font-size:16px;font-weight:700}
+.list .row .nm small{font-size:12.5px;font-weight:500}
+.list .av.av-teachers{font-size:14px;font-weight:800}
+body.fullv .vtitles h2.big{font-size:15px}
+body.fullv .tcode{min-width:22px;height:22px;font-size:12px}
+/* Published timetables: a vertical list, easy to tap */
+.ttlist{display:grid;gap:8px;margin:0 0 12px}
+.ttl-h{margin:2px 2px 0;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.ttrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;border-radius:14px;background:#fff;border:1.5px solid var(--line);box-shadow:var(--shadow);color:var(--ink);min-height:56px}
+.ttrow .ttdot{width:24px;height:24px;border-radius:50%;border:2px solid #9AA4B8;display:grid;place-items:center;font-size:14px;font-weight:800;flex:none;color:#fff}
+.ttrow .ttn{flex:1;min-width:0}
+.ttrow .ttn b{display:block;font-size:16px;font-weight:800;color:var(--navy);letter-spacing:.02em}
+.ttrow .ttn small{font-size:12px;color:var(--muted)}
+.ttrow.on{background:var(--navy);border-color:var(--navy)}
+.ttrow.on .ttn b{color:#fff}.ttrow.on .ttn small{color:#C9D3E6}
+.ttrow.on .ttdot{background:var(--gold);border-color:var(--gold);color:var(--navy)}
+.ttnew{font-style:normal;font-size:11px;font-weight:800;background:var(--gold);color:var(--navy);border-radius:999px;padding:2px 8px}
+.ttshow{font-style:normal;font-size:11px;font-weight:700;color:var(--gold-2)}
+.ttrow .chev{width:18px;height:18px;fill:#9AA4B8}
+.vtools .vcount{display:flex;align-items:center;gap:6px;justify-content:flex-end;white-space:normal;line-height:1.15}
+.vtools .vcount.r{justify-content:flex-start}
+.vtools .vcount span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px;font-weight:700;color:var(--navy)}
+.vtools .vcount .sc{font-style:normal;flex:none;min-width:22px;height:22px;padding:0 5px;border-radius:7px;background:var(--soft);border:1.5px solid var(--navy);display:grid;place-items:center;font-size:12px;font-weight:800;color:var(--navy)}
+.vtools .vcount span{-webkit-line-clamp:3;font-size:12.5px}
+.vtools .vcount:not(.r) span{text-align:right}
+
+/* PREPFIX brand */
+.logo{background:#fff url('/brand/prepfix-mark.png') center/86% no-repeat!important;border:1.5px solid rgba(255,255,255,.6)}
+.splash-logo{background:#fff url('/brand/prepfix-mark.png') center/86% no-repeat!important}
+.about-logo{display:block;width:min(100%,320px);margin:4px auto 6px}
+.plogo{display:block;width:min(90%,520px);margin:0 auto 18px}
+/* Lesson reminder switch + alarm */
+.remrow{display:flex;align-items:center;gap:12px;width:100%;margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.08);color:#fff;text-align:left;border:1px solid rgba(255,255,255,.12)}
+.remrow span{flex:1;font-size:14px}.remrow b{font-weight:700}
+.remrow small{display:block;font-size:11.5px;color:#AFC0DD}
+.remrow .sw{position:relative;width:46px;height:26px;border-radius:999px;background:#5B6782;flex:none;transition:background .2s}
+.remrow .sw em{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s}
+.remrow.on .sw{background:#2FBF71}.remrow.on .sw em{left:23px}
+.remrow.on{border-color:#2FBF71}
+.alarm{text-align:center;padding:4px 0 8px}
+.abell{font-size:46px;animation:ring 1s ease-in-out 3}
+@keyframes ring{0%,100%{transform:rotate(0)}20%{transform:rotate(-18deg)}40%{transform:rotate(16deg)}60%{transform:rotate(-10deg)}80%{transform:rotate(6deg)}}
+.alarm h3{margin:6px 0 10px;font-size:22px;color:var(--navy)}
+.alesson b{display:block;font-size:24px;font-weight:800;color:var(--navy)}
+.alesson span{display:inline-block;margin-top:6px;font-weight:700;background:var(--soft);border:1.5px solid var(--navy);border-radius:10px;padding:2px 10px}
+.awhen{font-weight:700;color:var(--muted)}
+.okline{color:var(--green);font-weight:700}.warnline{color:#B42318;font-weight:600}
+.alarm-bg{position:fixed;inset:0;z-index:80;background:rgba(11,27,54,.55);display:flex;align-items:center;justify-content:center;padding:20px}
+.alarm-bg .alarm{background:#fff;border-radius:20px;padding:18px 18px 16px;width:min(100%,380px);box-shadow:0 20px 50px rgba(0,0,0,.35);border-top:6px solid var(--gold)}
+/* Teacher names on class & master cells: show them all */
+table.wk td.l small{white-space:normal}
+/* Full screen: when the week is too big to read in one view, scroll left-right and up-down */
+body.fullv .gridwrap.scroll2{overflow:auto!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+body.fullv .gridwrap.scroll2 table.wk{table-layout:auto}
+body.fullv .gridwrap.scroll2 table.wk td.l{min-width:110px}
+body.fullv .gridwrap.scroll2 table.wk thead th{position:sticky;top:0;z-index:3}
+body.fullv .gridwrap.scroll2 table.wk tbody th{position:sticky;left:0;z-index:2}

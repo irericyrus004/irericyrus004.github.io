@@ -1,13 +1,13 @@
 {
-  "name": "School Timetables",
-  "short_name": "Timetables",
-  "description": "Teachers, classes, labs and master timetables — always the latest version.",
+  "name": "PREPFIX Timetables",
+  "short_name": "PREPFIX",
+  "description": "PREPFIX — Prepare. Perfect. Present. Teachers, classes, labs and master timetables, always the latest version.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#FBF6EA",
+  "background_color": "#FFFFFF",
   "theme_color": "#12284C",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

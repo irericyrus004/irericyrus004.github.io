@@ -1,7 +1,7 @@
 /* Ireri Timetables service worker: keeps the app working offline. */
-const SHELL = 'ireri-shell-v14';
+const SHELL = 'ireri-shell-v30';
 const SHELL_FILES = ['/app.css', '/app.js', '/config.js', '/qrcode.js',
-  '/icons/icon-192.png', '/icons/icon-512.png'];
+  '/icons/icon-192.png', '/icons/icon-512.png', '/brand/prepfix-logo-600.png', '/brand/prepfix-mark.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -55,4 +55,14 @@ self.addEventListener('fetch', event => {
       return hit || net;
     })
   );
+});
+
+// Lesson reminder: tapping the notification opens the app
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    for (const c of list) { if ('focus' in c) return c.focus(); }
+    return clients.openWindow ? clients.openWindow(url) : null;
+  }));
 });

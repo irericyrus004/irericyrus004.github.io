@@ -1,13 +1,13 @@
 {
-  "name": "ST. BARBARA KIANDERI SEN. SCHOOL Timetables",
-  "short_name": "ST. BARBARA ",
-  "description": "Teachers, classes, labs and master timetables — always the latest version.",
+  "name": "PREPFIX · ST. BARBARA KIANDERI SEN. SCHOOL Timetables",
+  "short_name": "PREPFIX",
+  "description": "PREPFIX — Prepare. Perfect. Present. Teachers, classes, labs and master timetables, always the latest version.",
   "id": "/s/st-barbara-kianderi-sen-school-p6sq/",
   "start_url": "/s/st-barbara-kianderi-sen-school-p6sq/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#FBF6EA",
+  "background_color": "#FFFFFF",
   "theme_color": "#12284C",
   "icons": [
     {

@@ -1,0 +1,32 @@
+{
+  "name": "PREPFIX · CHANIA BOYS SEN. SCHOOL Timetables",
+  "short_name": "PREPFIX",
+  "description": "PREPFIX — Prepare. Perfect. Present. Teachers, classes, labs and master timetables, always the latest version.",
+  "id": "/s/chania-boys-sen-school-k2f6/",
+  "start_url": "/s/chania-boys-sen-school-k2f6/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FFFFFF",
+  "theme_color": "#12284C",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
