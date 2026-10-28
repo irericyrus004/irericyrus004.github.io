@@ -3,6 +3,26 @@
   'use strict';
 
   const CFG = self.IRERI_CONFIG || {};
+  // Built in. The same on every school's app and not taken from any setting.
+  const LOCKED_BRAND = 'CREATED BY CYRUS IRERI';
+  const LOCKED_CONTACT = '0720872582';
+  const BRAND_LINE = LOCKED_BRAND + ' · ' + LOCKED_CONTACT;
+  // Watermark over every timetable on screen and on every saved image. Built in, cannot be switched off.
+  const WATERMARK = '© Cyrus Ireri';
+  (function addBrandBar() {                      // frozen footer, always visible
+    const add = () => { if (document.getElementById('brandbar')) return; const f = document.createElement('div'); f.id = 'brandbar';
+      f.innerHTML = `<span>${LOCKED_BRAND}</span><b>${LOCKED_CONTACT}</b>`; document.body.appendChild(f); };
+    if (document.body) add(); else document.addEventListener('DOMContentLoaded', add);
+  })();
+  (function addWatermarkStyle() {
+    const st = document.createElement('style');
+    st.textContent = `#tt::after{content:"${WATERMARK}";position:fixed;left:0;right:0;top:50%;transform:translateY(-50%) rotate(-30deg);` +
+      `text-align:center;pointer-events:none;z-index:60;white-space:nowrap;font-family:Poppins,"Segoe UI",Arial,sans-serif;` +
+      `font-weight:600;font-size:clamp(26px,7.5vw,52px);letter-spacing:.06em;color:rgba(18,40,76,.06)}` +
+      `@media (prefers-color-scheme: dark){#tt::after{color:rgba(255,255,255,.06)}}` +
+      `@media print{#tt::after{position:absolute}}`;
+    (document.head || document.documentElement).appendChild(st);
+  })();
   const DATA_CACHE = 'ireri-data-v2';
 
   const $ = (s, r = document) => r.querySelector(s);
@@ -32,9 +52,53 @@
     free: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm-1.2 13.6 6.4-6.4-1.4-1.4-5 5-2.4-2.4L7 11.8l3.8 3.8Z',
     cover: 'M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 2c-2.7 0-6 1.3-6 3.5V19h7.5v-2.5c0-1 .4-2 1.2-2.8A9 9 0 0 0 8 13Zm8 0c-2.7 0-6 1.3-6 3.5V19h12v-2.5c0-2.2-3.3-3.5-6-3.5Z',
     pin: 'M12 2a7 7 0 0 1 7 7c0 5.2-7 13-7 13S5 14.2 5 9a7 7 0 0 1 7-7Zm0 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z',
+    rotate: 'M16.48 2.52c3.27 1.55 5.61 4.72 5.97 8.48h1.5C23.44 4.84 18.29 0 12 0l-.66.03 3.81 3.81 1.33-1.32zm-6.25-.77c-.59-.59-1.54-.59-2.12 0L1.75 8.11c-.59.59-.59 1.54 0 2.12l12.02 12.02c.59.59 1.54.59 2.12 0l6.36-6.36c.59-.59.59-1.54 0-2.12L10.23 1.75zm4.6 19.44L2.81 9.17l6.36-6.36 12.02 12.02-6.36 6.36zm-7.31.29C4.25 19.94 1.91 16.76 1.55 13H.05C.56 19.16 5.71 24 12 24l.66-.03-3.81-3.81-1.33 1.32z',
+    chart: 'M4 20V10h4v10H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z',
     wa: 'M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.3 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9 0-1.4.7-2 1-2.3.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.4 1.8 2.2 1.2 1.1 2.2 1.4 2.5 1.6.3.1.5.1.7-.1l.9-1.1c.2-.3.4-.2.7-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.3Z',
   };
   const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${I[n] || n}"/></svg>`;
+
+  // ------------------------------------------------------------------ schools directory (works with or without a school code)
+  // Every school's app reads Cyrus Ireri's list of ALL registered schools (also schools on their own GitHub).
+  const DIRECTORY = (self.IRERI_CONFIG && self.IRERI_CONFIG.directory) || 'https://irericyrus004.github.io/schools.json';
+  const schoolHref = x => `${x.site && x.site.startsWith('https://') ? x.site.replace(/\/$/, '') : ''}/s/${encodeURIComponent(x.code)}/`;
+  async function fetchSchools() {
+    try {
+      let r;
+      try { r = await fetch(DIRECTORY + '?v=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw 0; }
+      catch { r = await fetch('/schools.json?v=' + Date.now(), { cache: 'no-store' }); }
+      if (!r.ok) throw new Error('x');
+      const j = await r.json();
+      try { localStorage.setItem('ireri:schools', JSON.stringify(j)); } catch { }
+      return j;
+    } catch { try { return JSON.parse(localStorage.getItem('ireri:schools') || 'null'); } catch { return null; } }
+  }
+  function schoolsListHTML(j, cur, q) {
+    const list = ((j && j.schools) || []).filter(x => !q || `${x.name} ${x.institution}`.toLowerCase().includes(q.toLowerCase()));
+    if (!j) return '<p class="muted center-t">Could not load the list. Check your connection.</p>';
+    if (!list.length) return '<p class="muted center-t">No school matches.</p>';
+    return list.map(x => `<div class="school ${x.code === cur ? 'mine' : ''}">
+      <span class="av av-classes">${esc(String(x.name).replace(/[^A-Za-z0-9 ]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'S')}</span>
+      <span class="nm"><b>${esc(x.name)}</b>${x.code === cur ? ' <i class="me-tag">Your school</i>' : ''}<small>${esc(x.institution || '')}${x.institution ? ' · ' : ''}${[Number.isFinite(x.teachers) ? x.teachers + ' teachers' : '', Number.isFinite(x.classes) ? x.classes + ' classes' : ''].filter(Boolean).join(' · ')}</small>
+      ${x.updated ? `<small>Updated ${esc(fmtDate(x.updated))}</small>` : ''}</span>
+      <a class="btn small" href="${esc(schoolHref(x))}">Open</a></div>`).join('');
+  }
+  function wireSchoolSearch(j, cur) {
+    const inp = document.getElementById('sq'), box = document.getElementById('slist');
+    if (inp && box) inp.addEventListener('input', () => { box.innerHTML = schoolsListHTML(j, cur, inp.value.trim()); });
+  }
+  async function renderRootDirectory() {
+    const el = document.getElementById('app');
+    el.innerHTML = `<div class="splash"><div class="splash-logo"></div><h2>School timetables</h2><p>Loading schools…</p></div>`;
+    const j = await fetchSchools();
+    const n = j && j.schools ? j.schools.length : 0;
+    el.innerHTML = `<header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div><div class="titles"><h1>School Timetables</h1><p class="sub">${n} school${n === 1 ? '' : 's'} using this app</p></div></div></header>
+      <main class="page wide"><p class="hint-box">Tap your school to open its timetables.</p>
+      <div class="searchbox">${icon('search')}<input id="sq" type="search" autocomplete="off" placeholder="Search for your school…"></div>
+      <div id="slist">${schoolsListHTML(j, null, '')}</div>
+      <footer class="foot">${esc(BRAND_LINE)}</footer></main>`;
+    wireSchoolSearch(j, null);
+  }
 
   // ------------------------------------------------------------------ routing / storage
   const pathMatch = location.pathname.match(/^\/s\/([^\/]+)\/?/);
@@ -49,7 +113,7 @@
   if (!CODE) {
     let last = null; try { last = localStorage.getItem('ireri:last'); } catch { }
     if (last) { location.replace(`/s/${encodeURIComponent(last)}/`); return; }
-    document.getElementById('app').innerHTML = `<div class="splash"><div class="splash-logo"></div><h2>School timetables</h2><p>Open the link or scan the QR code your school shared with you.</p></div>`;
+    renderRootDirectory();
     return;
   }
   try { localStorage.setItem('ireri:last', CODE); } catch { }
@@ -57,7 +121,7 @@
   const state = {
     data: null, online: navigator.onLine, syncing: false, lastSync: 0, error: null, installEvt: null,
     layout: 'auto', day: null, slot: null, grade: 'all', query: {}, coverTeacher: null, coverSlot: null,
-    coverPick: false, navDepth: 0,
+    coverPick: false, navDepth: 0, force: false, meet: { ids: [], q: '', k: 1, pm: false }, an: { tab: 'teachers', sort: 'name', subj: 'all', q: '', sm: 'form', sub: 'all', gr: 'all' },
   };
   let B = null;           // timetable data
   let IDX = null;         // derived indexes
@@ -67,7 +131,7 @@
   const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const platformName = () => isIOS() ? 'ios' : /android/i.test(navigator.userAgent) ? 'android' : 'desktop';
   const linkFor = () => `${location.origin}/s/${encodeURIComponent(CODE)}/`;
-  const isLandscape = () => matchMedia('(orientation: landscape)').matches || innerWidth >= 760;
+  const isLandscape = () => state.force || matchMedia('(orientation: landscape)').matches || innerWidth >= 760;
   function fmtDate(iso) {
     if (!iso) return '';
     const d = new Date(iso); if (isNaN(d)) return iso;
@@ -92,7 +156,7 @@
     B.teachers.forEach(t => { tByCode[t.code] = t; });
     const byId = {};
     for (const k of ['teachers', 'classes', 'rooms', 'master']) (B[k] || []).forEach(x => { x.kind = k; byId[x.id] = x; });
-    const grades = [...new Set(B.classes.map(c => gradeOf(c.name)).filter(Boolean))].sort(natural);
+    const grades = [...new Set(B.classes.map(c => gradeOf(c.name)).filter(Boolean))]; // keep the school's own order: 10, 11, 4 …
     IDX = { P, D, lessons, tByCode, byId, grades };
   }
   function cellAt(item, d, j) {
@@ -163,18 +227,67 @@
     if (!pm.length) return [];
     return IDX.D.map((_, d) => d).filter(d => pm.every(j => { const c = cellAt(t, d, j); return c === '' || c === 'X'; }));
   }
+  const subjHue = s => { const k = String(s || '').replace(/\s*\d+$/, '').trim().toLowerCase(); let h = 7; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+  // FET's own subject colours (as exported), else a steady colour per subject
+  const fetColour = subj => { const C = (B && B.colours) || {}, k = String(subj || '').trim().toUpperCase();
+    return C[k] || C[k.split(/\s*[,+]\s*/)[0]] || C[k.replace(/\s*\d+$/, '')] || null; };
+  const hlStyle = c => { if (!(isLesson(c) && c.s)) return ''; const f = fetColour(c.s);
+    return f ? ` data-fc style="--hl:${subjHue(c.s)};--fb:${f[0]};--ff:${f[1]}"` : ` style="--hl:${subjHue(c.s)}"`; };
+  // longest run of lessons with no class after lunch (3 or 4 in a row = a free afternoon)
+  function afternoonFree(t, d) {
+    const pm = IDX.lessons.filter(j => IDX.P[j].pm); if (!pm.length) return null;
+    let best = [], cur = [];
+    for (const j of pm) { const c = cellAt(t, d, j); if (c === '' || c === 'X') { cur.push(j); if (cur.length > best.length) best = cur.slice(); } else cur = []; }
+    const need = Math.min(3, pm.length);
+    if (best.length < need) return null;
+    return { j0: best[0], j1: best[best.length - 1], n: best.length, full: best.length === pm.length };
+  }
+  const runLabel = r => r.full ? 'Whole afternoon' : `${IDX.P[r.j0].label}–${IDX.P[r.j1].label} · ${r.n} free`;
+  function candidates(item, d, j, c) {
+    let span = 1; while ((item.grid[d] || [])[j + span] === '^') span++;
+    const slots = Array.from({ length: span }, (_, k) => j + k);
+    const subj = (c.s || '').replace(/\s*\d+$/, '').trim();
+    let cls = (c.c || '').split(',').map(x => x.trim()).filter(Boolean);
+    if (!cls.length && item.kind === 'classes') cls = [item.name];
+    const ex = new Set(); if (item.kind === 'teachers') ex.add(item.id);
+    String(c.t || '').split(',').map(x => x.trim()).filter(Boolean).forEach(cd => { const t = IDX.tByCode[cd]; if (t) ex.add(t.id); });
+    const free = B.teachers.filter(t => !ex.has(t.id) && slots.every(k => cellAt(t, d, k) === ''))
+      .map(t => ({ t, same: !!subj && teacherSubjects(t).has(subj), knows: cls.some(x => teacherClasses(t).has(x)), load: lessonsOnDay(t, d), pmfree: afternoonFree(t, d) }))
+      .sort((a, b) => (b.same - a.same) || (b.knows - a.knows) || (a.load - b.load) || natural(a.t.code, b.t.code));
+    return { span, slots, subj, cls, free };
+  }
+  function coverRows(free, d) {
+    return free.map(x => `<li><button class="row" data-go="view/${esc(x.t.id)}"><span class="av av-teachers">${esc(String(x.t.code).slice(0, 4))}</span>
+      <span class="nm"><b>${esc(teacherLabel(x.t))}</b><small>${plural(x.load, 'lesson')} on ${esc(dayLabel(d))}</small>
+      <span class="badges">${x.same ? '<i class="bd g">Same subject</i>' : ''}${x.knows ? '<i class="bd b">Teaches this class</i>' : ''}${x.pmfree ? '<i class="bd y">Free afternoon</i>' : ''}</span></span>${icon('chev', 'chev')}</button></li>`).join('') || '<li class="empty">No teacher is free at that time.</li>';
+  }
+  function openCoverSheet(id, d, j) {
+    const item = IDX.byId[id]; if (!item) return;
+    const c = cellAt(item, d, j); if (!isLesson(c)) return;
+    const r = candidates(item, d, j, c);
+    const L = cellLines(item.kind === 'master' ? 'classes' : item.kind, c, item.name) || ['', ''];
+    openSheet(`<div class="grab"></div><h3>Who can be there?</h3>
+      <div class="cvinfo"><b>${esc(dayLabel(d))} · ${esc(pLabel(j))}${r.span > 1 ? ' · double lesson' : ''}</b><span>${esc(L[0])}${L[1] ? ' — ' + esc(L[1]) : ''}</span></div>
+      <p class="muted small"><b>${r.free.length}</b> teacher${r.free.length === 1 ? ' is' : 's are'} free at this time. Best matches first. Tap a name to see their timetable.</p>
+      <ul class="list cvlist">${coverRows(r.free, d)}</ul>
+      <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  }
   function teacherSubjects(t) { const s = new Set(); t.grid.forEach(r => r.forEach(c => { if (isLesson(c) && c.s) s.add(c.s.replace(/\s*\d+$/, '').trim()); })); return s; }
   function teacherClasses(t) { const s = new Set(); t.grid.forEach(r => r.forEach(c => { if (isLesson(c) && c.c) c.c.split(',').forEach(x => s.add(x.trim())); })); return s; }
 
   // ------------------------------------------------------------------ data
-  async function loadCached() {
-    try { if ('caches' in self) { const c = await caches.open(DATA_CACHE); const r = await c.match(`/__data/${CODE}.json`); if (r) return await r.json(); } } catch { }
-    try { const v = localStorage.getItem(`ireri:${CODE}:data2`); return v ? JSON.parse(v) : null; } catch { return null; }
+  // Each school can have several timetables (e.g. KIANDERI, KIANDERI WEEKDAY, END TERM EXAM).
+  const curTT = () => store.get('tt', '') || '';
+  const cacheKey = tt => `/__data/${CODE}/${tt || 'main'}.json`;
+  async function loadCached(tt = curTT()) {
+    try { if ('caches' in self) { const c = await caches.open(DATA_CACHE); const r = await c.match(cacheKey(tt)); if (r) return await r.json(); } } catch { }
+    try { const v = localStorage.getItem(`ireri:${CODE}:data3:${tt}`); return v ? JSON.parse(v) : null; } catch { return null; }
   }
   async function saveCached(obj) {
+    const tt = obj.tt || '';
     const body = JSON.stringify(obj);
-    try { if ('caches' in self) { const c = await caches.open(DATA_CACHE); await c.put(`/__data/${CODE}.json`, new Response(body, { headers: { 'Content-Type': 'application/json' } })); return; } } catch { }
-    try { localStorage.setItem(`ireri:${CODE}:data2`, body); } catch { }
+    try { if ('caches' in self) { const c = await caches.open(DATA_CACHE); await c.put(cacheKey(tt), new Response(body, { headers: { 'Content-Type': 'application/json' } })); return; } } catch { }
+    try { localStorage.setItem(`ireri:${CODE}:data3:${tt}`, body); } catch { }
   }
   class NotFound extends Error { }
   class Locked extends Error { }
@@ -192,13 +305,25 @@
     const had = !!state.data;
     try {
       const meta = await getJson('meta.json', Date.now());          // tiny file: has anything changed?
-      if (!state.data || state.data.version !== meta.version) {
-        const full = await getJson('data.json', meta.version);       // the timetables themselves
-        setData({ version: full.version || meta.version, school: full.school || meta, bundle: full.bundle, savedAt: Date.now() });
+      const list = Array.isArray(meta.timetables) ? meta.timetables : null;
+      state.tts = list || [];
+      try { localStorage.setItem(`ireri:${CODE}:tts`, JSON.stringify(state.tts)); } catch { }
+      if (list && !list.length) throw new NotFound('none');
+      let tt = '', ver = meta.version, path = 'data.json';
+      if (list) {
+        const want = curTT();
+        const t = list.find(x => x.id === want) || list[0];
+        tt = t.id; ver = t.version; path = `t/${encodeURIComponent(t.id)}/data.json`;
+        if (want !== tt) store.set('tt', tt);
+      }
+      if (!state.data || state.data.tt !== tt || state.data.version !== ver) {
+        const switching = state.data && state.data.tt !== tt;
+        const full = await getJson(path, ver);                       // the timetable itself
+        setData({ tt, ttName: (full.timetable || {}).name || '', version: full.version || ver, school: { ...(full.school || {}), ...meta, note: (full.school || {}).note || '' }, bundle: full.bundle, savedAt: Date.now() });
         await saveCached(state.data);
-        if (had) toast('Timetable updated to the latest version ✓');
+        if (had && !switching) toast('Timetable updated to the latest version ✓');
         state.error = null; render();
-      } else { state.data.school = { ...state.data.school, ...meta }; state.data.savedAt = Date.now(); saveCached(state.data); }
+      } else { state.data.school = { ...state.data.school, ...meta, note: state.data.school.note }; state.data.savedAt = Date.now(); saveCached(state.data); }
       state.online = true; state.lastSync = Date.now(); state.error = null;
     } catch (e) {
       state.online = navigator.onLine && !(e instanceof TypeError);
@@ -217,16 +342,23 @@
     const parts = h.split('/').map(decodeURIComponent);
     if (parts[0] === 'list') return { name: 'list', kind: parts[1] || 'teachers', pick: parts[2] === 'pick' };
     if (parts[0] === 'view') return { name: 'view', id: parts[1] };
+    if (parts[0] === 'analysis') return { name: 'analysis', id: parts[1] };
+    if (parts[0] === 'meet') return { name: 'meet' };
+    if (parts[0] === 'schools') return { name: 'schools' };
     return { name: parts[0] };
   }
   const go = h => { location.hash = h; };
   function render() {
     if (POSTER) return renderPoster();
+    if (state.force && route().name !== 'view') releaseRotate();
     if (state.error === 'locked') return renderMsg('Timetables not available', 'This school\'s timetable service is switched off. Please contact the school office.', false);
     if (!state.data) return renderEmpty();
     const r = route();
     if (r.name === 'list') return renderList(r.kind, r.pick);
     if (r.name === 'view' && IDX.byId[r.id]) return renderViewer(r.id);
+    if (r.name === 'analysis') { const k = r.id && IDX.byId[r.id] ? IDX.byId[r.id].kind : ''; return k === 'teachers' ? renderProfile(r.id) : k === 'classes' ? renderClassProfile(r.id) : renderAnalysis(); }
+    if (r.name === 'meet') return renderMeet();
+    if (r.name === 'schools') return renderSchools();
     if (r.name === 'master') return renderMaster();
     if (r.name === 'free') return renderFree();
     if (r.name === 'cover') return renderCover();
@@ -239,7 +371,7 @@
   }
   function renderStatus() {
     const el = $('#status'); if (!el || !state.data) return;
-    let s = `Updated ${esc(fmtDate(state.data.school?.updated || B?.published))}`;
+    let s = `${state.data.ttName ? esc(state.data.ttName) + ' · ' : ''}Updated ${esc(fmtDate(B?.published || state.data.school?.updated))}`;
     if (state.syncing) s += ` · <span class="pill">checking…</span>`;
     else if (!state.online) s += ` · <span class="pill off">offline · saved copy</span>`;
     else s += ` · <span class="pill ok">✓ latest</span>`;
@@ -268,22 +400,28 @@
     else if (n.status === 'before') when = `${dayLabel(n.d)} · first lesson at ${(IDX.P[n.j]?.time || '').split('-')[0]}`;
     else if (n.status === 'break') when = `${dayLabel(n.d)} · ${IDX.P[n.j].label} (${IDX.P[n.j].time})`;
     else if (n.status === 'between') when = `${dayLabel(n.d)} · next ${pLabel(n.j)}`;
-    else when = `${dayLabel(n.d)} · now ${pLabel(n.j)}`;
+    else when = `${dayLabel(n.d)} · CURRENT: ${pLabel(n.j)}`;
     let mine = '';
     if (me && n.d >= 0) {
       const cur = n.status === 'lesson' ? cellAt(me, n.d, n.j) : null;
       const after = n.status === 'after' ? 999 : n.status === 'before' ? n.j - 1 : n.j;
-      const nextJ = IDX.lessons.find(j => j > after && isLesson(cellAt(me, n.d, j)) && !isCont(me, n.d, j));
+      const nexts = IDX.lessons.filter(j => j > after && isLesson(cellAt(me, n.d, j)) && !isCont(me, n.d, j)).slice(0, 2);
       const L = cur && isLesson(cur) ? cellLines('teachers', cur) : null;
       const curTxt = cur === null ? '' : L ? `<b>${esc(L[0])}</b> ${esc(L[1])}` : cur === 'X' ? 'Not available' : '<b class="ok">Free</b>';
-      const N = nextJ != null ? cellLines('teachers', cellAt(me, n.d, nextJ)) : null;
+      const nextHTML = nexts.map((j, i) => { const N = cellLines('teachers', cellAt(me, n.d, j));
+        return `<span class="nx"><i>${i + 1}</i><b>${esc(N[0])}</b> ${esc(N[1])} <em>${esc(pLabel(j))}</em></span>`; }).join('');
       mine = `<div class="now-me">
-        ${curTxt ? `<div><small>You now</small><span>${curTxt}</span></div>` : ''}
-        <div><small>Your next lesson</small><span>${N ? `<b>${esc(N[0])}</b> ${esc(N[1])} <em>${esc(pLabel(nextJ))}</em>` : 'No more lessons today'}</span></div></div>`;
+        ${curTxt ? `<div class="nowcur"><small>● CURRENT LESSON</small><span>${curTxt}</span></div>` : ''}
+        <div><small>${nexts.length > 1 ? 'NEXT 2 LESSONS' : 'NEXT LESSON'}</small>${nextHTML || '<span>No more lessons today</span>'}</div></div>`;
     } else if (!me) {
       mine = `<button class="now-set" data-act="pickMe">${icon('starO')} Choose “My timetable” to see your lessons here</button>`;
     }
     return `<section class="now-card"><div class="now-when">${icon('clock', 'tiny')}<span>${esc(when)}</span></div>${mine}</section>`;
+  }
+  function schoolsCount() {
+    try { const j = JSON.parse(localStorage.getItem('ireri:schools') || 'null'); const n = j && j.schools ? j.schools.length : 0; if (n) return `${n} school${n === 1 ? '' : 's'}`; } catch { }
+    fetchSchools().then(j => { const el = document.querySelector('.t-schools small'); if (el && j && j.schools) el.textContent = `${j.schools.length} school${j.schools.length === 1 ? '' : 's'}`; });
+    return 'See all schools';
   }
   function renderHome() {
     const sch = state.data.school || {};
@@ -299,6 +437,9 @@
       ['free', 'free', 'Free teachers', 'Now & free afternoon', 'free'],
       ['cover', 'cover', 'Find cover', 'Who can stand in', 'cover'],
       ['where', 'pin', 'Where is…?', 'Find a teacher', 'where'],
+      ['meet', 'classes', 'Meeting finder', 'When are teachers all free', 'meet'],
+      ['analysis', 'chart', 'Staff analysis', 'Subjects, classes & load', 'analysis'],
+      ['schools', 'grid', 'Schools using this app', schoolsCount(), 'schools'],
     ];
     app.innerHTML = `
       <header class="top"><div class="brandrow">
@@ -307,23 +448,55 @@
         <button class="icon-btn" data-act="menu" aria-label="Menu">${icon('more')}</button></div>
       </header>
       <main class="home">
-        ${sch.institution ? `<p class="term">${esc(sch.institution)}</p>` : ''}
+        ${ttSwitcher()}
+        ${instBlock()}
         <div id="banners"></div>
         ${nowCard()}
         <nav class="tiles">${tiles.map(([k, ic, t, s, href]) => `
           <button class="tile t-${k}" ${href ? `data-go="${href}"` : 'data-act="pickMe"'}>
             <span class="tic">${icon(ic)}</span><strong>${esc(t)}</strong><small>${esc(s)}</small></button>`).join('')}
         </nav>
-        <footer class="foot">${esc(sch.footer || CFG.brand || 'Timetables by Ireri Venture')}${(sch.contact || CFG.contact) ? ' · ' + esc(sch.contact || CFG.contact) : ''}</footer>
+        <footer class="foot">${esc(BRAND_LINE)}</footer>
       </main>`;
     renderStatus(); renderBanners();
+    const on = $('.ttchip.on'); if (on && on.scrollIntoView) on.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+  // The school's name and term exactly as in FET, e.g. ST. BARBARA KIANDERI SEN. SCHOOL / TERM 1 2027 TIMETABLE
+  function instLines() {
+    if (B && Array.isArray(B.institution_lines) && B.institution_lines.length > 1) return B.institution_lines;
+    const whole = String((B && B.institution) || state.data?.school?.institution || '').replace(/\bSCH\b\.?/g, 'SCHOOL').toUpperCase();
+    if (!whole) return [];
+    const m = whole.match(/\s(TERM\b.*|END\b.*|\d{4}\b.*TIMETABLE.*)$/);
+    return m ? [whole.slice(0, m.index).trim(), m[1].trim()] : [whole];
+  }
+  function instBlock(extra = '') {
+    const L = instLines();
+    if (!L.length) return '';
+    return `<div class="inst ${extra}"><b>${esc(L[0])}</b>${L.slice(1).map(x => `<span>${esc(x)}</span>`).join('')}</div>`;
+  }
+  function ttSwitcher() {
+    const list = state.tts || [];
+    if (list.length < 2) return state.data && state.data.ttName ? `<p class="ttone">${esc(state.data.ttName)}</p>` : '';
+    return `<div class="ttswitch" role="tablist" aria-label="Choose timetable">${list.map(t => `<button class="ttchip ${t.id === state.data.tt ? 'on' : ''}" data-tt="${esc(t.id)}">${esc(t.name)}${isNewTT(t) ? '<i></i>' : ''}</button>`).join('')}</div>`;
+  }
+  const seenMap = () => store.get('seenTT', {}) || {};
+  const isNewTT = t => seenMap()[t.id] !== t.version;
+  async function switchTT(id) {
+    if (!id || (state.data && state.data.tt === id)) return;
+    store.set('tt', id);
+    const cached = await loadCached(id);
+    if (cached && cached.bundle && cached.bundle.format === 2 && cached.tt === id) { setData(cached); render(); }
+    else { toast('Loading timetable…', 1500); }
+    await sync('switch');
+    render();
   }
   function renderBanners() {
     const box = $('#banners'); if (!box || !state.data) return;
     const out = [];
-    if (store.get('seen') !== state.data.version) {
-      const note = state.data.school?.note || B.note;
-      out.push(`<div class="banner new"><div><strong>🆕 New timetable published</strong><span>${esc(fmtDate(state.data.school?.updated || B.published))}${note ? ' — ' + esc(note) : ''}</span></div><button class="txt-btn" data-act="seen">Got it</button></div>`);
+    const fresh = (state.tts && state.tts.length ? state.tts : [{ id: state.data.tt, version: state.data.version, name: state.data.ttName, updated: B.published, note: state.data.school?.note }]).filter(isNewTT);
+    if (fresh.length) {
+      const items = fresh.map(t => `<b>${esc(t.name || 'Timetable')}</b> · ${esc(fmtDate(t.updated))}${t.note ? ' — ' + esc(t.note) : ''}`).join('<br>');
+      out.push(`<div class="banner new"><div><strong>🆕 ${fresh.length > 1 ? 'New timetables published' : 'New timetable published'}</strong><span>${items}</span></div><button class="txt-btn" data-act="seen">Got it</button></div>`);
     }
     if (!isStandalone() && !store.get('hideInstallTip')) {
       if (state.installEvt) out.push(`<div class="banner tip"><div>${icon('install')}<span><strong>Install this app</strong> for one-tap access, even offline.</span></div><div class="banner-actions"><button class="btn small" data-act="install">Install</button><button class="txt-btn" data-act="hideInstall">Later</button></div></div>`);
@@ -359,9 +532,13 @@
       </main>`;
     const draw = () => {
       const me = String(store.get('me'));
-      const rows = listItems(kind);
+      let rows = listItems(kind);
+      if (kind === 'teachers') {                       // ★ My timetable always comes first
+        const mine = rows.find(x => String(x.code) === me);
+        if (mine) rows = [mine, ...rows.filter(x => x !== mine)];
+      }
       $('#list').innerHTML = rows.length ? rows.map(x => `
-        <li><button class="row" data-go="view/${esc(x.id)}">
+        <li${kind === 'teachers' && String(x.code) === me ? ' class="mine"' : ''}><button class="row" data-go="view/${esc(x.id)}">
           <span class="av av-${kind}">${kind === 'teachers' ? esc(String(x.code).slice(0, 4)) : kind === 'rooms' ? icon('lab') : esc(String(x.name).replace(/\s+/g, '').slice(0, 4))}</span>
           <span class="nm">${esc(kind === 'teachers' ? teacherLabel(x) : x.name)}${kind === 'teachers' ? `<small>${x.name ? 'No. ' + esc(x.code) + ' · ' : ''}${plural(x.load || 0, 'lesson')} a week</small>` : ''}</span>
           ${kind === 'teachers' && String(x.code) === me ? '<span class="me-tag">★ Me</span>' : ''}
@@ -391,9 +568,10 @@
       ${topBar(title, sub, kind === 'teachers' ? `<button class="icon-btn star ${isMe ? 'on' : ''}" data-act="me" aria-label="My timetable">${icon(isMe ? 'star' : 'starO')}</button>` : '')}
       <div class="vbar">
         <div class="seg"><button class="${layout === 'day' ? 'on' : ''}" data-layout="day">Day</button><button class="${layout === 'week' ? 'on' : ''}" data-layout="week">Week</button></div>
-        <button class="btn small ghost" data-act="save">${icon('save')} Save</button>
+        <button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>Rotate</span></button>
+        ${kind === 'teachers' ? `<button class="btn small ghost" data-go="analysis/${esc(item.id)}">${icon('chart')} Profile</button>` : ''}<button class="btn small ghost" data-act="save">${icon('save')} Save</button>
       </div>
-      <main class="tt" id="tt">${layout === 'day' ? dayView(item) : weekGrid(item)}</main>
+      <main class="tt" id="tt">${instBlock('small')}${layout === 'day' ? dayView(item) : weekGrid(item)}</main>
       <div class="vtools">
         <button class="icon-btn" data-act="prev" ${idx <= 0 ? 'disabled' : ''} aria-label="Previous">${icon('prev')}</button>
         <span class="vcount">${idx > 0 ? esc(nameOf(sib[idx - 1])) + ' ‹' : ''}</span><span class="vsep">${idx + 1}/${sib.length}</span><span class="vcount r">${idx < sib.length - 1 ? '› ' + esc(nameOf(sib[idx + 1])) : ''}</span>
@@ -401,25 +579,38 @@
       </div>`;
     if (layout === 'week') fitGrid();
   }
+  function releaseRotate() { try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch { } state.force = false; document.body.classList.remove('force-land'); }
+  async function toggleRotate() {
+    if (effectiveLayout() === 'day') {
+      state.layout = 'week';
+      let locked = false;
+      try { if (screen.orientation && screen.orientation.lock) { await screen.orientation.lock('landscape'); locked = true; } } catch { }
+      if (!locked && !matchMedia('(orientation: landscape)').matches) { state.force = true; document.body.classList.add('force-land'); }
+    } else { releaseRotate(); state.layout = 'day'; }
+    render();
+  }
   const nameOf = x => x.kind === 'teachers' ? (x.name ? x.name : 'Tr ' + x.code) : x.name;
   function dayTabs(sel, attr = 'day') {
     const today = todayIndex();
-    return `<div class="daytabs">${IDX.D.map((d, i) => `<button class="${i === sel ? 'on' : ''}" data-${attr}="${i}">${esc(d.label.slice(0, 3))}${i === today ? '<i></i>' : ''}</button>`).join('')}</div>`;
+    return `<div class="daytabs">${IDX.D.map((d, i) => `<button class="dc${i % 5} ${i === sel ? 'on' : ''}" data-${attr}="${i}">${esc(d.label.slice(0, 3))}${i === today ? '<i></i>' : ''}</button>`).join('')}</div>`;
   }
   function dayView(item) {
     const d = state.day, n = nowSlot();
     const rows = IDX.P.map((p, j) => {
-      if (p.brk) return `<li class="brk"><span>${esc(p.label)}</span><em>${esc(p.time)}</em></li>`;
-      const cls = n.d === d && n.j === j ? 'now' : '';
-      if (isCont(item, d, j)) return `<li class="cont ${cls}"><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div><div class="pc"><span class="muted">↳ continues (double lesson)</span></div></li>`;
+      const isNow = n.d === d && n.j === j && (n.status === 'lesson' || n.status === 'break');
+      const isNext = n.d === d && n.j === j && (n.status === 'before' || n.status === 'between');
+      const tag = isNow ? '<span class="curtag">● CURRENT</span>' : isNext ? '<span class="nexttag">NEXT</span>' : '';
+      if (p.brk) return `<li class="brk${isNow ? ' now' : ''}"><span>${esc(p.label)}${tag}</span><em>${esc(p.time)}</em></li>`;
+      const cls = (isNow ? 'now' : isNext ? 'next' : '') + (p.pm ? ' pm' : '');
+      if (isCont(item, d, j)) return `<li class="cont ${cls}"><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div><div class="pc">${tag}<span class="muted">↳ continues (double lesson)</span></div></li>`;
       const c = cellAt(item, d, j), L = cellLines(item.kind, c, item.name);
-      return `<li class="${cls}"><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div>
-        <div class="pc">${L ? `<strong>${esc(L[0])}</strong>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${isDoubleStart(item, d, j) ? '<span class="dbl">double</span>' : ''}` : c === 'X' ? '<span class="muted">Not available</span>' : '<span class="freec">Free</span>'}</div></li>`;
+      return `<li class="${cls}${L ? ' has tap' : ''}"${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c)}><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div>
+        <div class="pc">${tag}${L ? `<strong>${esc(L[0])}</strong>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${isDoubleStart(item, d, j) ? '<span class="dbl">double</span>' : ''}` : c === 'X' ? '<span class="muted">Not available</span>' : '<span class="freec">Free</span>'}</div></li>`;
     }).join('');
-    return `${dayTabs(d)}<ul class="dayview">${rows}</ul><p class="swipe-hint">Swipe left or right for the next ${item.kind === 'teachers' ? 'teacher' : item.kind === 'classes' ? 'class' : 'timetable'} · turn the phone to see the whole week</p>`;
+    return `${dayTabs(d)}<ul class="dayview dv-${item.kind}">${rows}</ul><p class="swipe-hint"><b>Tap a lesson</b> to see who can be there · swipe for the next ${item.kind === 'teachers' ? 'teacher' : item.kind === 'classes' ? 'class' : 'timetable'} · press <b>Rotate</b> for the whole week</p>`;
   }
   function headCells(d, n) {
-    return IDX.P.map((p, j) => `<th class="${p.brk ? 'b' : ''}${n.d === d && n.j === j ? ' nowcol' : ''}">${p.brk ? `<span class="vt">${esc(p.label)}</span>` : `<b>${esc(p.label)}</b><small>${esc(p.time)}</small>`}</th>`).join('');
+    return IDX.P.map((p, j) => `<th class="${p.brk ? 'b' : p.pm ? 'pmh' : 'amh'}${n.d === d && n.j === j ? ' nowcol' : ''}">${n.d === d && n.j === j && !p.brk ? '<span class="curtag sm">CURRENT</span>' : ''}${p.brk ? `<span class="vt">${esc(p.label)}</span>` : `<b>${esc(p.label)}</b><small>${esc(p.time)}</small>`}</th>`).join('');
   }
   function rowCells(item, kind, d, n) {
     let tds = '';
@@ -429,13 +620,13 @@
       let span = 1; while ((item.grid[d] || [])[j + span] === '^') span++;
       const c = cellAt(item, d, j), L = cellLines(kind, c, item.name);
       const nowc = n.d === d && n.j >= j && n.j < j + span ? ' now' : '';
-      tds += `<td${span > 1 ? ` colspan="${span}"` : ''} class="${L ? 'l' : c === 'X' ? 'x' : 'f'}${nowc}">${L ? `<b>${esc(L[0])}</b>${L[1] ? `<small>${esc(L[1])}</small>` : ''}` : ''}</td>`;
+      tds += `<td${span > 1 ? ` colspan="${span}"` : ''}${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c)} class="${L ? 'l' : c === 'X' ? 'x' : 'f'}${IDX.P[j].pm ? ' pmc' : ''}${nowc}">${nowc && n.status === 'lesson' ? '<span class="curtag sm">● CURRENT</span>' : ''}${L ? `<b>${esc(L[0])}</b>${L[1] ? `<small>${esc(L[1])}</small>` : ''}` : ''}</td>`;
     }
     return tds;
   }
   function weekGrid(item) {
     const n = nowSlot();
-    const body = IDX.D.map((dd, d) => `<tr class="${n.d === d ? 'today' : ''}"><th>${esc(dd.label)}</th>${rowCells(item, item.kind, d, n)}</tr>`).join('');
+    const body = IDX.D.map((dd, d) => `<tr class="dc${d % 5} ${n.d === d ? 'today' : ''}"><th>${esc(dd.label)}${n.d === d ? '<small>today</small>' : ''}</th>${rowCells(item, item.kind, d, n)}</tr>`).join('');
     return `<div class="gridwrap" id="gridwrap"><table class="wk" id="wk"><thead><tr><th></th>${headCells(-9, { d: -1 })}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
   function fitGrid() {
@@ -450,17 +641,19 @@
     if (state.day == null) state.day = Math.max(0, todayIndex());
     const d = state.day, n = nowSlot();
     const list = B.master.filter(m => state.grade === 'all' || gradeOf(m.name) === state.grade);
-    const body = list.map(m => `<tr><th>${esc(m.name)}</th>${rowCells(m, 'master', d, n)}</tr>`).join('');
+    const body = list.map((m, i) => `<tr class="${i > 0 && gradeOf(list[i - 1].name) !== gradeOf(m.name) ? 'gstart' : ''}"><th>${esc(m.name)}</th>${rowCells(m, 'master', d, n)}</tr>`).join('');
     document.title = 'Master · ' + dayLabel(d);
     app.innerHTML = `${topBar('Master timetable', esc(dayLabel(d)) + ' · all classes', `<button class="icon-btn" data-act="save" aria-label="Save">${icon('save')}</button>`)}
       <div class="mbar">${dayTabs(d)}${gradeChips()}</div>
-      <main class="tt"><div class="gridwrap" id="gridwrap"><table class="wk master" id="wk"><thead><tr><th>Class</th>${headCells(d, n)}</tr></thead><tbody>${body}</tbody></table></div>
+      <main class="tt"><div class="gridwrap" id="gridwrap"><table class="wk master dc${d % 5}" id="wk"><thead><tr><th>Class</th>${headCells(d, n)}</tr></thead><tbody>${body}</tbody></table></div>
       <p class="swipe-hint">Slide the table sideways · turn the phone for a wider view</p></main>`;
   }
 
   // ------------------------------------------------------------------ FREE TEACHERS + FREE AFTERNOON
   function slotPicker(sel) {
-    return `<div class="chips periods">${IDX.lessons.map(j => `<button class="chip ${sel === j ? 'on' : ''}" data-slot="${j}">${esc(IDX.P[j].label)}<small>${esc(IDX.P[j].time)}</small></button>`).join('')}</div>`;
+    const n = nowSlot(), sd = (state.slot || {}).d;
+    const curJ = n.status === 'lesson' && n.d === sd ? n.j : -1;
+    return `<div class="chips periods">${IDX.lessons.map(j => `<button class="chip ${sel === j ? 'on' : ''}${curJ === j ? ' cur' : ''}" data-slot="${j}">${curJ === j ? '<em>CURRENT</em>' : ''}${esc(IDX.P[j].label)}<small>${esc(IDX.P[j].time)}</small></button>`).join('')}</div>`;
   }
   function renderFree() {
     if (!state.slot) state.slot = defaultSlot();
@@ -474,16 +667,17 @@
         <ul class="list">${free.map(t => `<li><button class="row" data-go="view/${t.id}"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span>
           <span class="nm">${esc(teacherLabel(t))}<small>${plural(lessonsOnDay(t, d), 'lesson')} on ${esc(dayLabel(d))}</small></span>${icon('chev', 'chev')}</button></li>`).join('') || '<li class="empty">No teacher is free at this lesson.</li>'}</ul>`;
     } else {
-      const fa = B.teachers.map(t => ({ t, days: freeAfternoons(t) }));
-      const byDay = IDX.D.map((_, dd) => fa.filter(x => x.days.includes(dd)).map(x => x.t).sort((a, b) => natural(a.code, b.code)));
-      const none = fa.filter(x => !x.days.length).map(x => x.t);
-      const me = meTeacher(), myFA = me ? freeAfternoons(me) : null;
+      const me = meTeacher();
+      const byDay = IDX.D.map((_, dd) => B.teachers.map(t => ({ t, r: afternoonFree(t, dd) })).filter(x => x.r)
+        .sort((x, y) => (y.r.full - x.r.full) || (y.r.n - x.r.n) || natural(x.t.code, y.t.code)));
+      const none = B.teachers.filter(t => !IDX.D.some((_, dd) => afternoonFree(t, dd)));
+      const myFA = me ? IDX.D.map((_, dd) => dd).filter(dd => afternoonFree(me, dd)) : null;
       const nm = t => esc(t.name || 'Tr ' + t.code);
-      inner = `${myFA ? `<div class="hint-box">Your free afternoon: <b>${myFA.length ? myFA.map(dayLabel).join(', ') : 'none this week'}</b></div>` : ''}
-        ${IDX.D.map((dd, i) => `<h3 class="sect">${esc(dd.label)} afternoon · ${byDay[i].length} free</h3>
-          <div class="namegrid">${byDay[i].map(t => `<button data-go="view/${t.id}" class="${me && me.id === t.id ? 'me' : ''}">${nm(t)}</button>`).join('') || '<span class="muted">Nobody</span>'}</div>`).join('')}
-        ${none.length ? `<h3 class="sect warn">No free afternoon this week · ${none.length}</h3><div class="namegrid">${none.map(t => `<button data-go="view/${t.id}">${nm(t)}</button>`).join('')}</div>` : ''}
-        <p class="muted small">A free afternoon means no lessons after lunch on that day.</p>`;
+      inner = `${myFA ? `<div class="hint-box">Your free afternoons: <b>${myFA.length ? myFA.map(dayLabel).join(', ') : 'none this week'}</b></div>` : ''}
+        ${IDX.D.map((dd, i) => `<h3 class="sect dsect dc${i % 5}">${esc(dd.label)} afternoon · ${byDay[i].length} free</h3>
+          <div class="namegrid">${byDay[i].map(x => `<button data-go="view/${x.t.id}" class="${x.r.full ? 'full' : ''} ${me && me.id === x.t.id ? 'me' : ''}"><b>${nm(x.t)}</b><small>${esc(runLabel(x.r))}</small></button>`).join('') || '<span class="muted">Nobody</span>'}</div>`).join('')}
+        ${none.length ? `<h3 class="sect warn">No free afternoon this week · ${none.length}</h3><div class="namegrid">${none.map(t => `<button data-go="view/${t.id}"><b>${nm(t)}</b></button>`).join('')}</div>` : ''}
+        <p class="muted small">A free afternoon = 3 or more lessons in a row after lunch with no class. “Whole afternoon” means no class at all after lunch.</p>`;
     }
     app.innerHTML = `${topBar('Free teachers', 'At any lesson, and free afternoons')}
       <div class="seg wide-seg"><button class="${tab === 'now' ? 'on' : ''}" data-freetab="now">Free at a lesson</button><button class="${tab === 'pm' ? 'on' : ''}" data-freetab="pm">Free afternoon</button></div>
@@ -508,20 +702,8 @@
     const sel = state.coverSlot != null && mine.includes(state.coverSlot) ? state.coverSlot : null;
     let cands = '';
     if (sel != null) {
-      const c = cellAt(who, d, sel);
-      let span = 1; while ((who.grid[d] || [])[sel + span] === '^') span++;
-      const slots = Array.from({ length: span }, (_, k) => sel + k);
-      const subj = (c.s || '').replace(/\s*\d+$/, '').trim();
-      const cls = (c.c || '').split(',').map(x => x.trim()).filter(Boolean);
-      const free = B.teachers.filter(t => t.id !== who.id && slots.every(j => cellAt(t, d, j) === ''))
-        .map(t => ({ t, same: teacherSubjects(t).has(subj), knows: cls.some(x => teacherClasses(t).has(x)), load: lessonsOnDay(t, d) }))
-        .sort((a, b) => (b.same - a.same) || (b.knows - a.knows) || (a.load - b.load) || natural(a.t.code, b.t.code));
-      const msg = t => `Hello ${t.name || 'Tr ' + t.code}, could you please stand in for ${who.name || 'Tr ' + who.code} with ${classesText(c.c)} (${c.s || ''}) on ${dayLabel(d)}, ${pLabel(sel)}${span > 1 ? ' (double lesson)' : ''}? Thank you.`;
-      cands = `<h3 class="sect">2. Ask someone who is free — ${free.length} available</h3>
-        <ul class="list">${free.map(x => `<li><div class="row nolink"><span class="av av-teachers">${esc(String(x.t.code).slice(0, 4))}</span>
-          <span class="nm">${esc(teacherLabel(x.t))}<small>${plural(x.load, 'lesson')} on ${esc(dayLabel(d))}</small>
-          <span class="badges">${x.same ? '<i class="bd g">Same subject</i>' : ''}${x.knows ? '<i class="bd b">Teaches this class</i>' : ''}</span></span>
-          <a class="wa" href="https://wa.me/?text=${encodeURIComponent(msg(x.t))}" target="_blank" rel="noopener" aria-label="Ask on WhatsApp">${icon('wa')}</a></div></li>`).join('') || '<li class="empty">No teacher is free at that time.</li>'}</ul>`;
+      const c = cellAt(who, d, sel), r = candidates(who, d, sel, c);
+      cands = `<h3 class="sect">2. Free teachers — ${r.free.length} can be there</h3><ul class="list">${coverRows(r.free, d)}</ul>`;
     }
     app.innerHTML = `${topBar('Find cover', esc(tLabel(who)), `<button class="txt-btn light" data-act="coverWho">Change</button>`)}
       <main class="page">
@@ -541,20 +723,347 @@
       <main class="page">
         <div class="searchbox">${icon('search')}<input id="q" type="search" autocomplete="off" placeholder="Teacher number or name…" value="${esc(state.query.where || '')}"></div>
         ${dayTabs(d, 'sday')}${slotPicker(j)}
-        <h3 class="sect">${esc(dayLabel(d))} · ${esc(pLabel(j))}${n.d === d && n.j === j ? ' · <span class="ok">now</span>' : ''}</h3>
+        <h3 class="sect">${esc(dayLabel(d))} · ${esc(pLabel(j))}${n.d === d && n.j === j && n.status === 'lesson' ? ' <span class="curtag">● CURRENT LESSON</span>' : ''}</h3>
         <ul class="list" id="list"></ul>
       </main>`;
     const draw = () => {
       const q = (state.query.where || '').toLowerCase();
       $('#list').innerHTML = B.teachers.filter(t => !q || `${t.code} ${t.name}`.toLowerCase().includes(q)).map(t => {
         const c = cellAt(t, d, j), L = cellLines('teachers', c);
-        return `<li><button class="row" data-go="view/${t.id}"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span>
-          <span class="nm">${esc(teacherLabel(t))}</span>
-          <span class="where ${L ? 'in' : c === 'X' ? 'x' : 'fr'}">${L ? `<b>${esc(L[0])}</b><small>${esc(L[1])}</small>` : c === 'X' ? 'Not available' : 'Free'}</span></button></li>`;
+        const cls = isLesson(c) ? classesText(c.c) : '', subj = isLesson(c) ? [c.s, c.g].filter(Boolean).join(' ') : '';
+        return `<li><button class="row wrow" data-go="view/${t.id}"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span>
+          <span class="nm"><b class="wname">${esc(teacherLabel(t))}</b>
+          ${isLesson(c) ? `<span class="wh"><i class="wcls">${icon('classes')}${esc(cls || '—')}</i><i class="wsub"${hlStyle(c)}>${esc(subj || 'Lesson')}</i>${c.r ? `<i class="wroom">${esc(c.r)}</i>` : ''}</span>`
+            : c === 'X' ? '<span class="wh"><i class="wx">Not available</i></span>' : '<span class="wh"><i class="wfree">Free</i></span>'}</span></button></li>`;
       }).join('') || '<li class="empty">No teacher matches.</li>';
     };
     draw();
     $('#q').addEventListener('input', e => { state.query.where = e.target.value; draw(); });
+  }
+
+
+  // ------------------------------------------------------------------ STAFF ANALYSIS (principal's view)
+  const baseSubj = x => String(x || '').replace(/\s*\d+$/, '').trim() || 'Unnamed';
+  const classOrder = () => { const m = {}; B.classes.forEach((c, i) => { m[c.name] = i; }); return m; };
+  function analyse(t) {
+    if (t._an) return t._an;
+    const subj = {}, cls = {}, perDay = IDX.D.map(() => 0); let total = 0, doubles = 0;
+    IDX.D.forEach((_, d) => IDX.lessons.forEach(j => {
+      const c = cellAt(t, d, j); if (!isLesson(c)) return;
+      total++; perDay[d]++;
+      const sn = baseSubj(c.s);
+      const S = subj[sn] || (subj[sn] = { name: sn, periods: 0, doubles: 0, classes: {} });
+      S.periods++;
+      if (!isCont(t, d, j) && isDoubleStart(t, d, j)) { S.doubles++; doubles++; }
+      String(c.c || '').split(',').map(x => x.trim()).filter(Boolean).forEach(x => {
+        S.classes[x] = (S.classes[x] || 0) + 1;
+        const C = cls[x] || (cls[x] = { name: x, periods: 0, subjects: {} });
+        C.periods++; C.subjects[sn] = (C.subjects[sn] || 0) + 1;
+      });
+    }));
+    const ord = classOrder(), rank = n => ord[n] ?? 99999;
+    const subjects = Object.values(subj).sort((a, b) => b.periods - a.periods || natural(a.name, b.name));
+    subjects.forEach(S => { S.list = Object.entries(S.classes).sort((a, b) => rank(a[0]) - rank(b[0])); });
+    const classes = Object.values(cls).sort((a, b) => rank(a.name) - rank(b.name));
+    return (t._an = { total, doubles, perDay, subjects, classes });
+  }
+  const hueStyle = n => ` style="--hl:${subjHue(n)}"`;
+  const clsText = list => list.map(([n, k]) => `${esc(n)} <i>(${k})</i>`).join(', ') || '<span class="muted">—</span>';
+  function subjectIndex() {
+    const m = {};
+    B.teachers.forEach(t => analyse(t).subjects.forEach(S => {
+      const e = m[S.name] || (m[S.name] = { name: S.name, periods: 0, teachers: [], classes: new Set() });
+      e.periods += S.periods; e.teachers.push({ t, S }); S.list.forEach(([n]) => e.classes.add(n));
+    }));
+    return Object.values(m).sort((a, b) => natural(a.name, b.name));
+  }
+  function renderAnalysis() {
+    const A = state.an, rows = B.teachers.map(t => ({ t, a: analyse(t) }));
+    const loads = rows.map(r => r.a.total), max = Math.max(1, ...loads), sum = loads.reduce((x, y) => x + y, 0);
+    const avg = rows.length ? Math.round(sum / rows.length * 10) / 10 : 0;
+    const subs = subjectIndex();
+    document.title = 'Staff analysis';
+    app.innerHTML = `${topBar('Staff analysis', 'Subjects, classes and teaching load', `<button class="icon-btn" data-act="csv" aria-label="Download Excel">${icon('save')}</button>`)}
+      <main class="page wide">
+        <div class="stats"><div><b>${rows.length}</b><small>teachers</small></div><div><b>${sum}</b><small>lessons / week</small></div><div><b>${avg}</b><small>average load</small></div><div><b>${max}</b><small>highest load</small></div></div>
+        <div class="seg wide-seg four"><button class="${A.tab === 'teachers' ? 'on' : ''}" data-antab="teachers">Teachers</button><button class="${A.tab === 'subjects' ? 'on' : ''}" data-antab="subjects">Subjects</button><button class="${A.tab === 'sessions' ? 'on' : ''}" data-antab="sessions">Sessions</button><button class="${A.tab === 'classes' ? 'on' : ''}" data-antab="classes">Classes</button></div>
+        <div class="anbtns"><button class="btn small" data-act="csv">${icon('save')} Teachers (CSV)</button><button class="btn small ghost" data-act="print">${icon('print')} Print</button></div>
+        <div id="anbody"></div>
+      </main>`;
+    const draw = () => {
+      const box = $('#anbody'); if (!box) return;
+      if (A.tab === 'sessions') return drawSessions(box);
+      if (A.tab === 'classes') return drawClassList(box);
+      if (A.tab === 'subjects') {
+        box.innerHTML = `<div class="searchbox">${icon('search')}<input id="aq" type="search" placeholder="Search a subject…" value="${esc(A.q)}"></div><div id="alist"></div>`;
+        const dr = () => {
+          const q = (A.q || '').toLowerCase();
+          $('#alist').innerHTML = subs.filter(x => !q || x.name.toLowerCase().includes(q)).map(x => `<section class="subcard"${hueStyle(x.name)}>
+            <h3>${esc(x.name)}<span>${x.periods} lessons / week · ${x.teachers.length} teacher${x.teachers.length === 1 ? '' : 's'}</span></h3>
+            <table class="atable"><thead><tr><th>Teacher</th><th>Classes (lessons)</th><th>Lessons</th></tr></thead><tbody>${x.teachers.sort((a, b) => b.S.periods - a.S.periods).map(({ t, S }) => `<tr data-go="analysis/${esc(t.id)}"><td><b>${esc(teacherLabel(t))}</b></td><td>${clsText(S.list)}</td><td class="n">${S.periods}</td></tr>`).join('')}</tbody></table></section>`).join('') || '<p class="muted">Nothing matches.</p>';
+        };
+        dr(); $('#aq').addEventListener('input', e => { A.q = e.target.value; dr(); });
+        return;
+      }
+      box.innerHTML = `<div class="searchbox">${icon('search')}<input id="aq" type="search" placeholder="Search teacher or subject…" value="${esc(A.q)}"></div>
+        <div class="chips" id="schips">${['all', ...subs.map(x => x.name)].map(n => `<button class="chip ${A.subj === n ? 'on' : ''}" data-s="${esc(n)}">${n === 'all' ? 'All subjects' : esc(n)}</button>`).join('')}</div>
+        <div class="sortrow">Sort by <select id="asort"><option value="name">Teacher number / name</option><option value="high">Load: highest first</option><option value="low">Load: lowest first</option><option value="subj">Main subject</option></select></div>
+        <div id="alist"></div>`;
+      $('#asort').value = A.sort;
+      const dr = () => {
+        const q = (A.q || '').toLowerCase();
+        let list = rows.filter(r => (A.subj === 'all' || r.a.subjects.some(S => S.name === A.subj)) &&
+          (!q || `${r.t.code} ${r.t.name} ${r.a.subjects.map(S => S.name).join(' ')}`.toLowerCase().includes(q)));
+        list = list.slice().sort((x, y) => A.sort === 'high' ? y.a.total - x.a.total : A.sort === 'low' ? x.a.total - y.a.total :
+          A.sort === 'subj' ? natural(x.a.subjects[0]?.name || 'zzz', y.a.subjects[0]?.name || 'zzz') || natural(x.t.code, y.t.code) : natural(x.t.code, y.t.code));
+        $('#alist').innerHTML = list.map(({ t, a }) => `<button class="acard" data-go="analysis/${esc(t.id)}">
+          <div class="ahead"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span><span class="nm"><b>${esc(teacherLabel(t))}</b><small>${t.name ? 'No. ' + esc(t.code) + ' · ' : ''}${a.subjects.length} subject${a.subjects.length === 1 ? '' : 's'} · ${a.classes.length} class${a.classes.length === 1 ? '' : 'es'}</small></span>
+          <span class="load"><b>${a.total}</b><small>lessons/wk</small></span></div>
+          <div class="bar"><i style="width:${Math.round(a.total / max * 100)}%"></i></div>
+          <div class="asubj">${a.subjects.map(S => `<em${hueStyle(S.name)}>${esc(S.name)} <b>${S.periods}</b></em>`).join('') || '<span class="muted">No lessons</span>'}</div>
+          <div class="acls"><b>Classes:</b> ${a.classes.map(C => esc(C.name)).join(', ') || '—'}</div></button>`).join('') || '<p class="muted">No teacher matches.</p>';
+      };
+      dr();
+      $('#aq').addEventListener('input', e => { A.q = e.target.value; dr(); });
+      $('#asort').addEventListener('change', e => { A.sort = e.target.value; dr(); });
+      $$('#schips .chip').forEach(b => b.addEventListener('click', () => { A.subj = b.dataset.s; $$('#schips .chip').forEach(x => x.classList.toggle('on', x === b)); dr(); }));
+    };
+    draw();
+    $$('[data-antab]').forEach(b => b.addEventListener('click', () => { A.tab = b.dataset.antab; A.q = ''; renderAnalysis(); }));
+  }
+
+  // ------------------------------------------------------------------ SESSIONS per subject, FORM-wise and CLASS-wise + CLASS profiles
+  const tShort = cd => { const t = IDX.tByCode[cd]; return t ? (t.name || (/^\d+$/.test(cd) ? 'Tr ' + cd : cd)) : cd; };
+  function classModel() {
+    if (IDX.cm) return IDX.cm;
+    const subjSet = new Set();
+    const classes = B.classes.map(c => {
+      const subj = {}; let total = 0;
+      IDX.D.forEach((_, d) => IDX.lessons.forEach(j => {
+        const c0 = cellAt(c, d, j); if (!isLesson(c0)) return;
+        total++; const sn = baseSubj(c0.s); subjSet.add(sn);
+        const S = subj[sn] || (subj[sn] = { name: sn, periods: 0, teachers: {} }); S.periods++;
+        String(c0.t || '').split(',').map(x => x.trim()).filter(Boolean).forEach(cd => { S.teachers[cd] = (S.teachers[cd] || 0) + 1; });
+      }));
+      return { item: c, id: c.id, name: c.name, grade: gradeOf(c.name), subj, total };
+    });
+    const grades = [...IDX.grades]; if (classes.some(c => !c.grade)) grades.push('');
+    const groups = grades.map(g => ({ g, label: g ? 'Grade ' + g : 'Other', cls: classes.filter(c => c.grade === g) })).filter(x => x.cls.length);
+    return (IDX.cm = { classes, groups, subjects: [...subjSet].sort(natural) });
+  }
+  const sess = (c, sn) => c.subj[sn] ? c.subj[sn].periods : 0;
+  const teachersOf = (c, sn, withN) => { const S = c.subj[sn]; if (!S) return '<span class="muted">—</span>'; const e = Object.entries(S.teachers).sort((a, b) => b[1] - a[1]);
+    return e.map(([cd, n]) => `<b>${esc(tShort(cd))}</b>${withN && e.length > 1 ? ` <i>(${n})</i>` : ''}`).join(', ') || '<span class="muted">not assigned</span>'; };
+  function drawSessions(box) {
+    const A = state.an, M = classModel();
+    if (A.sub !== 'all' && !M.subjects.includes(A.sub)) A.sub = 'all';
+    box.innerHTML = `<div class="seg wide-seg"><button class="${A.sm === 'form' ? 'on' : ''}" data-sm="form">Form-wise</button><button class="${A.sm === 'class' ? 'on' : ''}" data-sm="class">Class-wise</button></div>
+      <div class="chips" id="schips">${['all', ...M.subjects].map(n => `<button class="chip ${A.sub === n ? 'on' : ''}" data-sub="${esc(n)}">${n === 'all' ? 'All subjects' : esc(n)}</button>`).join('')}</div>
+      <div class="anbtns"><button class="btn small" data-act="csv2">${icon('save')} Sessions per class (CSV)</button></div>
+      <div id="sbody" class="gridwrap2"></div>`;
+    const body = $('#sbody'), sn = A.sub;
+    const head = '<p class="muted small keyline"><b class="redkey">Red</b> = some classes in that form have fewer sessions than the others · numbers are lessons per week (a double counts as 2)</p>';
+    if (sn === 'all' && A.sm === 'form') {
+      body.innerHTML = `<table class="atable mx"><thead><tr><th>Subject</th>${M.groups.map(x => `<th class="c">${esc(x.label)}<small>${x.cls.length} class${x.cls.length > 1 ? 'es' : ''}</small></th>`).join('')}</tr></thead><tbody>
+        ${M.subjects.map(n => `<tr><th class="sj"${hueStyle(n)}>${esc(n)}</th>${M.groups.map(({ cls }) => {
+          const v = cls.map(c => sess(c, n)), mx = Math.max(...v), mn = Math.min(...v);
+          if (!mx) return '<td class="z">–</td>';
+          return `<td class="c ${mn < mx ? 'warn' : ''}" data-asub="${esc(n)}"><b>${mn < mx ? mn + '–' + mx : mx}</b></td>`; }).join('')}</tr>`).join('')}
+        <tr class="tot"><td>All lessons / week</td>${M.groups.map(({ cls }) => { const v = cls.map(c => c.total); const mn = Math.min(...v), mx = Math.max(...v); return `<td class="c">${mn < mx ? mn + '–' + mx : mx}</td>`; }).join('')}</tr></tbody></table>${head}<p class="muted small">Tap a number to see that subject class by class.</p>`;
+    } else if (sn === 'all') {
+      body.innerHTML = `<table class="atable mx"><thead><tr><th rowspan="2">Subject</th>${M.groups.map((x, gi) => `<th class="c gs g${gi % 2}" colspan="${x.cls.length}">${esc(x.label)}</th>`).join('')}<th rowspan="2" class="c">Total</th></tr>
+        <tr>${M.groups.map((x, gi) => x.cls.map((c, k) => `<th class="c ${k === 0 ? 'gs' : ''} g${gi % 2}">${esc(c.name)}</th>`).join('')).join('')}</tr></thead><tbody>
+        ${M.subjects.map(n => `<tr><th class="sj"${hueStyle(n)}>${esc(n)}</th>${M.groups.map((x, gi) => { const mx = Math.max(...x.cls.map(c => sess(c, n)));
+          return x.cls.map((c, k) => { const v = sess(c, n); const w = mx > 0 && v < mx; return `<td class="c ${k === 0 ? 'gs' : ''} g${gi % 2} ${w ? 'warn' : ''}" data-asub="${esc(n)}">${v ? `<b>${v}</b>` : w ? '<b>0</b>' : '–'}</td>`; }).join(''); }).join('')}
+          <td class="c tot2"><b>${M.classes.reduce((a, c) => a + sess(c, n), 0)}</b></td></tr>`).join('')}
+        <tr class="tot"><td>All lessons</td>${M.groups.map(x => x.cls.map((c, k) => `<td class="c ${k === 0 ? 'gs' : ''}">${c.total}</td>`).join('')).join('')}<td class="c">${M.classes.reduce((a, c) => a + c.total, 0)}</td></tr></tbody></table>${head}`;
+    } else if (A.sm === 'form') {
+      body.innerHTML = `<h3 class="sect">${esc(sn)} · form by form</h3><table class="atable"><thead><tr><th>Form</th><th>Classes</th><th>Sessions per class</th><th>Total sessions</th><th>Teachers (classes)</th></tr></thead><tbody>
+        ${M.groups.map(({ label, cls }) => { const v = cls.map(c => sess(c, sn)), mx = Math.max(...v), mn = Math.min(...v);
+          const tm = {}; cls.forEach(c => Object.keys((c.subj[sn] || { teachers: {} }).teachers).forEach(cd => (tm[cd] = tm[cd] || []).push(c.name)));
+          const less = cls.filter((c, i) => v[i] < mx).map(c => `${esc(c.name)} (${sess(c, sn)})`);
+          return `<tr class="${mn < mx ? 'warnrow' : ''}"><th class="gh">${esc(label)}</th><td>${cls.map(c => esc(c.name)).join(', ')}</td>
+          <td class="c"><b>${mx ? (mn < mx ? mn + '–' + mx : mx) : '–'}</b>${less.length && mx ? `<small class="redt">Less: ${less.join(', ')}</small>` : ''}</td><td class="c"><b>${v.reduce((a, b) => a + b, 0)}</b></td>
+          <td>${Object.entries(tm).map(([cd, cn]) => `<b>${esc(tShort(cd))}</b> <i>(${cn.map(esc).join(', ')})</i>`).join('<br>') || '<span class="muted">—</span>'}</td></tr>`; }).join('')}</tbody></table>${head}`;
+    } else {
+      body.innerHTML = `<h3 class="sect">${esc(sn)} · teachers class by class</h3><table class="atable"><thead><tr><th>Form</th><th>Class</th><th>Sessions</th><th>Teacher(s)</th><th>Status</th></tr></thead><tbody>
+        ${M.groups.map(({ label, cls }) => { const mx = Math.max(...cls.map(c => sess(c, sn)));
+          return cls.map((c, k) => { const v = sess(c, sn), w = mx > 0 && v < mx;
+            return `<tr class="${k === 0 ? 'gs' : ''} ${w ? 'warnrow' : ''}">${k === 0 ? `<th class="gh" rowspan="${cls.length}">${esc(label)}</th>` : ''}<td><b>${esc(c.name)}</b></td><td class="c"><b>${v || '–'}</b></td><td>${teachersOf(c, sn, true)}</td>
+            <td>${!mx ? '<span class="muted">not taught</span>' : v === mx ? '<span class="okt">✓ full</span>' : `<span class="redt">⚠ ${v ? (mx - v) + ' less than rest of form' : 'not on timetable'}</span>`}</td></tr>`; }).join(''); }).join('')}
+        <tr class="tot"><td colspan="2">Total sessions</td><td class="c">${M.classes.reduce((a, c) => a + sess(c, sn), 0)}</td><td colspan="2"></td></tr></tbody></table>${head}`;
+    }
+    $$('[data-sm]', box).forEach(b => b.addEventListener('click', () => { A.sm = b.dataset.sm; drawSessions(box); }));
+    $$('[data-sub]', box).forEach(b => b.addEventListener('click', () => { A.sub = b.dataset.sub; drawSessions(box); }));
+    $$('[data-asub]', box).forEach(b => b.addEventListener('click', () => { A.sub = b.dataset.asub; drawSessions(box); window.scrollTo(0, 0); }));
+  }
+  function drawClassList(box) {
+    const A = state.an, M = classModel();
+    box.innerHTML = `<div class="chips" id="gchips">${['all', ...IDX.grades].map(g => `<button class="chip ${A.gr === g ? 'on' : ''}" data-g="${esc(g)}">${g === 'all' ? 'All' : 'Grade ' + esc(g)}</button>`).join('')}</div><div id="alist"></div>`;
+    const dr = () => {
+      const list = M.classes.filter(c => A.gr === 'all' || c.grade === A.gr);
+      $('#alist').innerHTML = list.map(c => { const subs = Object.values(c.subj).sort((a, b) => b.periods - a.periods);
+        const tset = new Set(); subs.forEach(S => Object.keys(S.teachers).forEach(x => tset.add(x)));
+        return `<button class="acard" data-go="analysis/${esc(c.id)}"><div class="ahead"><span class="av av-classes">${esc(String(c.name).replace(/\s+/g, '').slice(0, 4))}</span>
+          <span class="nm"><b>Class ${esc(c.name)}</b><small>${subs.length} subjects · ${tset.size} teachers</small></span><span class="load"><b>${c.total}</b><small>lessons/wk</small></span></div>
+          <div class="asubj">${subs.map(S => `<em${hueStyle(S.name)}>${esc(S.name)} <b>${S.periods}</b></em>`).join('')}</div></button>`; }).join('') || '<p class="muted">No classes.</p>';
+    };
+    dr(); $$('#gchips .chip').forEach(b => b.addEventListener('click', () => { A.gr = b.dataset.g; $$('#gchips .chip').forEach(x => x.classList.toggle('on', x === b)); dr(); }));
+  }
+  function renderClassProfile(id) {
+    const M = classModel(), c = M.classes.find(x => x.id === id), grp = M.classes.filter(x => x.grade === c.grade);
+    document.title = 'Class ' + c.name;
+    const names = [...new Set([...Object.keys(c.subj), ...grp.flatMap(x => Object.keys(x.subj))])];
+    const rows = names.map(n => { const v = sess(c, n), mx = Math.max(...grp.map(x => sess(x, n))); return { n, v, mx }; }).sort((a, b) => (b.v - a.v) || natural(a.n, b.n));
+    const tm = {}; Object.values(c.subj).forEach(S => Object.entries(S.teachers).forEach(([cd, k]) => { const e = tm[cd] || (tm[cd] = { subs: {}, total: 0 }); e.subs[S.name] = k; e.total += k; }));
+    const trs = Object.entries(tm).sort((a, b) => b[1].total - a[1].total);
+    const flags = rows.filter(r => r.v < r.mx).length;
+    app.innerHTML = `${topBar('Class ' + c.name, 'Teachers and subjects' + (c.grade ? ' · Grade ' + esc(c.grade) : ''), `<button class="icon-btn" data-act="print" aria-label="Print">${icon('print')}</button>`)}
+      <main class="page wide">
+        <div class="stats big"><div class="hi"><b>${c.total}</b><small>lessons / week</small></div><div><b>${Object.keys(c.subj).length}</b><small>subjects</small></div><div><b>${trs.length}</b><small>teachers</small></div><div class="${flags ? 'bad' : ''}"><b>${flags}</b><small>fewer than form</small></div></div>
+        <h3 class="sect">Subjects, teachers and sessions</h3>
+        <div class="gridwrap2"><table class="atable"><thead><tr><th>Subject</th><th>Teacher(s)</th><th>Sessions</th><th>Other classes in form</th></tr></thead><tbody>
+          ${rows.map(r => `<tr${hueStyle(r.n)} class="sr ${r.v < r.mx ? 'warnrow' : ''}"><td><b>${esc(r.n)}</b></td><td>${teachersOf(c, r.n, true)}</td><td class="n">${r.v}</td>
+            <td>${r.v < r.mx ? `<span class="redt">⚠ ${r.v ? (r.mx - r.v) + ' fewer than' : 'missing, others have'} ${r.mx}</span>` : '<span class="okt">✓</span>'}</td></tr>`).join('')}
+          <tr class="tot"><td colspan="2">TOTAL</td><td class="n">${c.total}</td><td></td></tr></tbody></table></div>
+        <h3 class="sect">All teachers of this class</h3>
+        <div class="gridwrap2"><table class="atable"><thead><tr><th>Teacher</th><th>Subjects taught (sessions)</th><th>Sessions</th></tr></thead><tbody>
+          ${trs.map(([cd, e]) => { const t = IDX.tByCode[cd]; return `<tr ${t ? `data-go="analysis/${esc(t.id)}"` : ''}><td><b>${esc(tShort(cd))}</b></td><td>${Object.entries(e.subs).map(([n, k]) => `<em class="sx"${hueStyle(n)}>${esc(n)} <b>${k}</b></em>`).join(' ')}</td><td class="n">${e.total}</td></tr>`; }).join('') || '<tr><td colspan="3" class="muted">No teachers found</td></tr>'}</tbody></table></div>
+        <div class="anbtns"><button class="btn" data-go="view/${esc(c.id)}">Open class timetable</button><button class="btn ghost" data-go="analysis">Back to analysis</button></div>
+      </main>`;
+  }
+  function downloadSessionsCsv() {
+    const M = classModel(), q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const out = [['Subject', 'Grade', 'Class', 'Sessions per week', 'Most sessions in this grade', 'Teachers'].map(q).join(',')];
+    M.subjects.forEach(n => M.groups.forEach(({ g, cls }) => { const mx = Math.max(...cls.map(c => sess(c, n))); if (!mx) return;
+      cls.forEach(c => out.push([n, g, c.name, sess(c, n), mx, Object.keys((c.subj[n] || { teachers: {} }).teachers).map(tShort).join(' / ')].map(q).join(','))); }));
+    const blob = new Blob(['\ufeff' + out.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${(state.data.school?.name || 'School').replace(/[^\w\- ]+/g, '').trim()}-sessions-per-class.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Saved to your Downloads ✓');
+  }
+
+  function renderProfile(id) {
+    const t = IDX.byId[id], a = analyse(t), max = Math.max(1, ...a.perDay);
+    document.title = teacherLabel(t) + ' · Profile';
+    const busy = a.perDay.indexOf(Math.max(...a.perDay));
+    app.innerHTML = `${topBar(teacherLabel(t), 'Teaching profile' + (t.name ? ' · No. ' + esc(t.code) : ''), `<button class="icon-btn" data-act="print" aria-label="Print">${icon('print')}</button>`)}
+      <main class="page wide">
+        <div class="stats big"><div class="hi"><b>${a.total}</b><small>total lessons / week</small></div><div><b>${a.subjects.length}</b><small>subjects</small></div><div><b>${a.classes.length}</b><small>classes</small></div><div><b>${a.doubles}</b><small>double lessons</small></div></div>
+        <h3 class="sect">Subjects taught · lessons per subject</h3>
+        <div class="gridwrap2"><table class="atable"><thead><tr><th>Subject</th><th>Classes (lessons each)</th><th>Lessons</th><th>Doubles</th></tr></thead><tbody>
+          ${a.subjects.map(S => `<tr${hueStyle(S.name)} class="sr"><td><b>${esc(S.name)}</b></td><td>${clsText(S.list)}</td><td class="n">${S.periods}</td><td class="n">${S.doubles || '–'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No lessons</td></tr>'}
+          <tr class="tot"><td colspan="2">TOTAL LOAD</td><td class="n">${a.total}</td><td class="n">${a.doubles || '–'}</td></tr></tbody></table></div>
+        <h3 class="sect">Classes taught</h3>
+        <div class="gridwrap2"><table class="atable"><thead><tr><th>Class</th><th>Subjects (lessons)</th><th>Lessons</th></tr></thead><tbody>
+          ${a.classes.map(C => `<tr><td><b>${esc(C.name)}</b></td><td>${Object.entries(C.subjects).map(([n, k]) => `<em class="sx"${hueStyle(n)}>${esc(n)} <b>${k}</b></em>`).join(' ')}</td><td class="n">${C.periods}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">No classes</td></tr>'}</tbody></table></div>
+        <h3 class="sect">Load per day</h3>
+        <div class="daybars">${IDX.D.map((dd, i) => `<div class="dc${i % 5}"><span>${esc(dd.label.slice(0, 3))}</span><i style="height:${Math.round(a.perDay[i] / max * 80) + 4}px"></i><b>${a.perDay[i]}</b></div>`).join('')}</div>
+        <p class="muted small">Busiest day: <b>${esc(dayLabel(busy))}</b> (${a.perDay[busy]} lessons). Double lessons count as 2 lessons.</p>
+        <div class="anbtns"><button class="btn" data-go="view/${esc(t.id)}">Open timetable</button><button class="btn ghost" data-go="analysis">All teachers</button></div>
+      </main>`;
+  }
+  function downloadCsv() {
+    const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const out = [['Teacher No', 'Teacher Name', 'Subject', 'Class', 'Lessons per week (subject+class)', 'Subject total', 'Teacher total load'].map(q).join(',')];
+    B.teachers.forEach(t => { const a = analyse(t);
+      if (!a.subjects.length) out.push([t.code, t.name, '', '', 0, 0, 0].map(q).join(','));
+      a.subjects.forEach(S => { if (!S.list.length) out.push([t.code, t.name, S.name, '', S.periods, S.periods, a.total].map(q).join(','));
+        S.list.forEach(([c, k]) => out.push([t.code, t.name, S.name, c, k, S.periods, a.total].map(q).join(','))); }); });
+    const blob = new Blob(['\ufeff' + out.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const nm = `${(state.data.school?.name || 'School').replace(/[^\w\- ]+/g, '').trim()}-teacher-analysis.csv`;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nm; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Saved to your Downloads ✓');
+  }
+
+
+  // ------------------------------------------------------------------ SCHOOLS using the app
+  async function renderSchools() {
+    const cur = CODE;
+    document.title = 'Schools using Timetables';
+    app.innerHTML = `${topBar('Schools using this app', 'Loading…')}<main class="page wide"><p class="muted center-t">Loading schools…</p></main>`;
+    const j = await fetchSchools();
+    if (route().name !== 'schools') return;
+    const n = j && j.schools ? j.schools.length : 0;
+    app.innerHTML = `${topBar('Schools using this app', `${n} school${n === 1 ? '' : 's'}`)}
+      <main class="page wide">
+        <div class="stats three"><div><b>${n}</b><small>schools</small></div><div><b>${(j?.schools || []).reduce((a, x) => a + (x.teachers || 0), 0)}</b><small>teachers</small></div><div><b>${(j?.schools || []).reduce((a, x) => a + (x.classes || 0), 0)}</b><small>classes</small></div></div>
+        <div class="searchbox">${icon('search')}<input id="sq" type="search" autocomplete="off" placeholder="Search a school…"></div>
+        <div id="slist">${schoolsListHTML(j, cur, '')}</div>
+      </main>`;
+    wireSchoolSearch(j, cur);
+  }
+
+  // ------------------------------------------------------------------ MEETING FINDER
+  function meetBlocks(d, sel, k, pmOnly) {
+    // windows of k adjacent lessons (not split by lunch) in which every chosen teacher is free
+    const L = IDX.lessons.filter(j => !pmOnly || IDX.P[j].pm), out = [];
+    const lunchBetween = (a, b) => { for (let x = a + 1; x < b; x++) if (IDX.P[x].brk && /lunch/i.test(IDX.P[x].label || '')) return true; return false; };
+    for (let i = 0; i + k <= L.length; i++) {
+      const w = L.slice(i, i + k); let ok = true;
+      for (let q = 1; q < w.length; q++) if (lunchBetween(w[q - 1], w[q])) ok = false;
+      if (ok && w.every(j => sel.every(t => cellAt(t, d, j) === ''))) out.push(w);
+    }
+    return out;
+  }
+  const timeRange = (j0, j1) => { const a = String(IDX.P[j0].time || '').split(/\s*[-–]\s*/)[0], b = String(IDX.P[j1].time || '').split(/\s*[-–]\s*/).pop(); return a && b ? `${a}–${b}` : ''; };
+  function renderMeet() {
+    const M = state.meet;
+    document.title = 'Meeting finder';
+    app.innerHTML = `${topBar('Meeting finder', 'Find a time when everyone is free')}
+      <main class="page wide">
+        <h3 class="sect">1. Who must attend?</h3>
+        <div id="mchosen" class="chosen"></div>
+        <div class="searchbox">${icon('search')}<input id="mq" type="search" autocomplete="off" placeholder="Search teacher to add…" value="${esc(M.q)}"></div>
+        <ul class="list mlist" id="mlist"></ul>
+        <h3 class="sect">2. Meeting length</h3>
+        <div class="optrow"><div class="seg" id="mk">${[1, 2, 3].map(k => `<button class="${M.k === k ? 'on' : ''}" data-k="${k}">${k} lesson${k > 1 ? 's' : ''}</button>`).join('')}</div>
+        <label class="chk"><input type="checkbox" id="mpm" ${M.pm ? 'checked' : ''}> After lunch only</label></div>
+        <h3 class="sect">3. Times when all are free</h3>
+        <div id="mres"></div>
+      </main>`;
+    const sel = () => M.ids.map(id => IDX.byId[id]).filter(Boolean);
+    const drawChosen = () => {
+      const me = meTeacher();
+      $('#mchosen').innerHTML = (sel().map(t => `<button class="chosenchip" data-del="${esc(t.id)}">${esc(nameOf(t))} <b>✕</b></button>`).join('') || '<span class="muted">Nobody chosen yet. Search below and tap a name.</span>') +
+        (me && !M.ids.includes(me.id) ? `<button class="chip" data-addme="1">+ Add me</button>` : '') + (M.ids.length ? '<button class="txt-btn" data-clear="1">Clear all</button>' : '');
+    };
+    const drawList = () => {
+      const q = (M.q || '').toLowerCase();
+      const rows = B.teachers.filter(t => !q || `${t.code} ${t.name}`.toLowerCase().includes(q)).slice(0, q ? 60 : 12);
+      $('#mlist').innerHTML = rows.map(t => { const on = M.ids.includes(t.id);
+        return `<li><button class="row" data-mt="${esc(t.id)}"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span><span class="nm">${esc(teacherLabel(t))}</span><span class="tick ${on ? 'on' : ''}">${on ? '✓' : '+'}</span></button></li>`; }).join('') +
+        (!q && B.teachers.length > 12 ? '<li class="empty">Type a name or number to find more teachers.</li>' : '') || '<li class="empty">No teacher matches.</li>';
+    };
+    const drawRes = () => {
+      const T = sel(), box = $('#mres');
+      if (T.length < 2) { box.innerHTML = '<p class="hint-box">Choose at least two teachers to see when they are all free.</p>'; return; }
+      const days = IDX.D.map((dd, d) => ({ d, dd, blocks: meetBlocks(d, T, M.k, M.pm) }));
+      const total = days.reduce((a, x) => a + x.blocks.length, 0);
+      const ps = M.pm ? IDX.lessons.filter(j => IDX.P[j].pm) : IDX.lessons;
+      const head = `<div class="bestbox ${total ? 'good' : 'none'}"><b>${total ? `${total} time${total === 1 ? '' : 's'} found` : 'No common time found'}</b><span>${T.length} teachers · ${M.k} lesson${M.k > 1 ? 's' : ''}${M.pm ? ' · after lunch' : ''}</span></div>`;
+      const found = days.filter(x => x.blocks.length).map(x => `<div class="mday dc${x.d % 5}"><h4>${esc(x.dd.label)}</h4><div>${x.blocks.map(w => `<span class="slotchip"><b>${esc(IDX.P[w[0]].label)}${w.length > 1 ? '–' + esc(IDX.P[w[w.length - 1]].label) : ''}</b><small>${esc(timeRange(w[0], w[w.length - 1]))}</small></span>`).join('')}</div></div>`).join('');
+      const grid = `<div class="gridwrap2"><table class="atable mx"><thead><tr><th></th>${ps.map(j => `<th class="c">${esc(IDX.P[j].label)}<small>${esc(IDX.P[j].time)}</small></th>`).join('')}</tr></thead><tbody>
+        ${IDX.D.map((dd, d) => `<tr class="dc${d % 5}"><th class="dh">${esc(dd.label.slice(0, 3))}</th>${ps.map(j => { const busy = T.filter(t => cellAt(t, d, j) !== ''); const all = !busy.length;
+          return `<td class="c ${all ? 'allfree' : busy.length === 1 ? 'one' : 'busy'}" data-mb="${d}|${j}">${all ? '✓' : `<small>${busy.length} busy</small>`}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>
+        <p class="muted small"><b class="okt">✓ green</b> = every chosen teacher is free · tap any slot to see who is busy.</p>`;
+      box.innerHTML = head + found + '<h3 class="sect">Week at a glance</h3>' + grid;
+      $$('[data-mb]', box).forEach(td => td.addEventListener('click', () => { const [d, j] = td.dataset.mb.split('|').map(Number);
+        const rows = T.map(t => { const c = cellAt(t, d, j), L = cellLines('teachers', c); return `<li><div class="row nolink"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span><span class="nm">${esc(teacherLabel(t))}</span><span class="where ${L ? 'in' : c === 'X' ? 'x' : 'fr'}">${L ? `<b>${esc(L[0])}</b><small>${esc(L[1])}</small>` : c === 'X' ? 'Not available' : 'Free'}</span></div></li>`; }).join('');
+        openSheet(`<div class="grab"></div><h3>${esc(dayLabel(d))} · ${esc(pLabel(j))}</h3><ul class="list">${rows}</ul><button class="btn ghost wide" data-act="closeSheet">Close</button>`); }));
+    };
+    const all = () => { drawChosen(); drawList(); drawRes(); };
+    all();
+    $('#mq').addEventListener('input', e => { M.q = e.target.value; drawList(); });
+    $('#mpm').addEventListener('change', e => { M.pm = e.target.checked; drawRes(); });
+    $$('#mk button').forEach(b => b.addEventListener('click', () => { M.k = +b.dataset.k; $$('#mk button').forEach(x => x.classList.toggle('on', x === b)); drawRes(); }));
+    $('#mlist').addEventListener('click', e => { const b = e.target.closest('[data-mt]'); if (!b) return; const id = b.dataset.mt;
+      M.ids = M.ids.includes(id) ? M.ids.filter(x => x !== id) : [...M.ids, id]; all(); });
+    $('#mchosen').addEventListener('click', e => {
+      const del = e.target.closest('[data-del]'), me = e.target.closest('[data-addme]'), clr = e.target.closest('[data-clear]');
+      if (del) M.ids = M.ids.filter(x => x !== del.dataset.del);
+      else if (me) { const m = meTeacher(); if (m && !M.ids.includes(m.id)) M.ids.push(m.id); }
+      else if (clr) M.ids = [];
+      else return; all(); });
   }
 
   // ------------------------------------------------------------------ SAVE as picture
@@ -584,14 +1093,15 @@
     const ctx = cv.getContext('2d'); ctx.scale(scale, scale);
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, width, height);
     ctx.fillStyle = '#12284C'; ctx.fillRect(0, 0, width, 72); ctx.fillStyle = '#C9A227'; ctx.fillRect(0, 72, width, 4);
-    ctx.fillStyle = '#fff'; ctx.font = '600 22px Poppins, Arial'; ctx.fillText(title, pad, 34);
-    ctx.font = '13px Poppins, Arial'; ctx.fillStyle = '#E8D48A';
-    ctx.fillText(`${state.data.school?.name || ''}${state.data.school?.institution ? ' · ' + state.data.school.institution : ''}`, pad, 56);
+    const IL = instLines();
+    ctx.fillStyle = '#fff'; ctx.font = '700 20px Poppins, Arial'; ctx.fillText((IL[0] || state.data.school?.name || '').toUpperCase(), pad, 30);
+    ctx.font = '700 14px Poppins, Arial'; ctx.fillStyle = '#E8D48A';
+    ctx.fillText([IL.slice(1).join(' '), String(title).toUpperCase()].filter(Boolean).join('   ·   '), pad, 56);
     let x = pad + headW; const y0 = top; const colX = [];
     P.forEach((p, j) => {
       const w = p.brk ? brkW : colW; colX[j] = [x, w];
-      ctx.fillStyle = p.brk ? '#EEE8D8' : '#F3EEDF'; ctx.fillRect(x, y0, w, 44); ctx.strokeStyle = '#C9BFA4'; ctx.strokeRect(x, y0, w, 44);
-      if (!p.brk) { ctx.fillStyle = '#12284C'; ctx.font = '600 12px Poppins, Arial'; ctx.fillText(p.label, x + 6, y0 + 18); ctx.font = '11px Poppins, Arial'; ctx.fillStyle = '#555'; ctx.fillText(p.time, x + 6, y0 + 34); }
+      ctx.fillStyle = p.brk ? '#EEE8D8' : '#F3EEDF'; ctx.fillRect(x, y0, w, 44); ctx.strokeStyle = '#5F6B82'; ctx.strokeRect(x, y0, w, 44);
+      if (!p.brk) { ctx.textAlign = 'center'; ctx.fillStyle = '#12284C'; ctx.font = '800 13px Poppins, Arial'; ctx.fillText(p.label, x + w / 2, y0 + 18); ctx.font = '700 11px Poppins, Arial'; ctx.fillStyle = '#1B2333'; ctx.fillText(p.time, x + w / 2, y0 + 35); ctx.textAlign = 'left'; }
       x += w;
     });
     rows.forEach((row, ri) => {
@@ -600,23 +1110,32 @@
       wrapText(ctx, row.head, headW - 10).slice(0, 3).forEach((ln, k) => ctx.fillText(ln, pad + 6, y + 22 + k * 15));
       for (let j = 0; j < P.length; j++) {
         const [cx, w] = colX[j];
-        if (P[j].brk) { ctx.fillStyle = '#EEE8D8'; ctx.fillRect(cx, y, w, rowH); ctx.strokeStyle = '#C9BFA4'; ctx.strokeRect(cx, y, w, rowH); continue; }
+        if (P[j].brk) { ctx.fillStyle = '#EEE8D8'; ctx.fillRect(cx, y, w, rowH); ctx.strokeStyle = '#5F6B82'; ctx.strokeRect(cx, y, w, rowH); continue; }
         if (isCont(row.item, row.d, j)) continue;
         let span = 1; while ((row.item.grid[row.d] || [])[j + span] === '^') span++;
         const cw = colX[j + span - 1][0] + colX[j + span - 1][1] - cx;
         const c = cellAt(row.item, row.d, j), L = cellLines(kind, c, row.item.name);
-        ctx.fillStyle = L ? '#ffffff' : c === 'X' ? '#F2F2F2' : '#FBFAF6'; ctx.fillRect(cx, y, cw, rowH);
-        ctx.strokeStyle = '#C9BFA4'; ctx.strokeRect(cx, y, cw, rowH);
+        const fc = L && isLesson(c) ? fetColour(c.s) : null;
+        ctx.fillStyle = fc ? fc[0] : L ? '#ffffff' : c === 'X' ? '#F2F2F2' : '#FBFAF6'; ctx.fillRect(cx, y, cw, rowH);
+        ctx.lineWidth = 1.5; ctx.strokeStyle = '#2B3447'; ctx.strokeRect(cx, y, cw, rowH); ctx.lineWidth = 1;
         if (L) {
-          ctx.fillStyle = '#1B2333'; ctx.font = '600 12px Poppins, Arial';
-          const a = wrapText(ctx, L[0], cw - 10).slice(0, 2); a.forEach((ln, k) => ctx.fillText(ln, cx + 5, y + 18 + k * 14));
-          ctx.font = '11px Poppins, Arial'; ctx.fillStyle = '#5B6475';
-          wrapText(ctx, L[1] || '', cw - 10).slice(0, 2).forEach((ln, k) => ctx.fillText(ln, cx + 5, y + 18 + a.length * 14 + k * 13));
+          ctx.textAlign = 'center'; ctx.font = '700 12px Poppins, Arial';
+          const a = wrapText(ctx, L[0], cw - 10).slice(0, 2);
+          ctx.font = '600 11px Poppins, Arial'; const b2 = wrapText(ctx, L[1] || '', cw - 10).slice(0, 2);
+          let ty = y + rowH / 2 - ((a.length * 14 + b2.length * 13) / 2) + 11;
+          ctx.fillStyle = fc ? fc[1] : '#1B2333'; ctx.font = '700 12px Poppins, Arial'; a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 14; });
+          ctx.font = '600 11px Poppins, Arial'; ctx.fillStyle = fc ? fc[1] : '#3A4356'; b2.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 13; });
+          ctx.textAlign = 'left';
         }
       }
     });
+    ctx.save(); const gh = 44 + rows.length * rowH, gw = width - pad * 2;
+    let fs = Math.min(80, gh * 0.3); ctx.font = `600 ${fs}px Poppins, Arial`;
+    while (ctx.measureText(WATERMARK).width > Math.min(gw, gh * 1.6) * 0.75 && fs > 18) { fs -= 2; ctx.font = `600 ${fs}px Poppins, Arial`; }
+    ctx.globalAlpha = 0.07; ctx.fillStyle = '#12284C'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.translate(width / 2, top + gh / 2); ctx.rotate(-Math.PI / 6); ctx.fillText(WATERMARK, 0, 0); ctx.restore();
     ctx.fillStyle = '#667085'; ctx.font = '11px Poppins, Arial';
-    ctx.fillText(`${state.data.school?.footer || CFG.brand || 'Timetables by Ireri Venture'} · saved ${new Date().toLocaleString('en-GB')}`, pad, height - 18);
+    ctx.fillText(`${WATERMARK} · ${BRAND_LINE} · saved ${new Date().toLocaleString('en-GB')}`, pad, height - 18);
     const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
     const file = new File([blob], fname + '.png', { type: 'image/png' });
     try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: fname }); return; } }
@@ -637,7 +1156,8 @@
       <button class="mrow" data-act="refresh">${icon('refresh')}<span>Check for new timetable<small>${state.lastSync ? 'Last checked ' + ago(state.lastSync) : ''}</small></span></button>
       <button class="mrow" data-act="share">${icon('share')}<span>Share with colleagues<small>QR code, WhatsApp or copy link</small></span></button>
       ${!isStandalone() && (state.installEvt || isIOS()) ? `<button class="mrow" data-act="install">${icon('install')}<span>Install app<small>Add to your home screen</small></span></button>` : ''}
-      <button class="mrow" data-act="about">${icon('info')}<span>About<small>${esc(CFG.brand || 'Timetables by Ireri Venture')}</small></span></button>
+      <button class="mrow" data-go="schools">${icon('classes')}<span>Schools using this app<small>See the other schools on Timetables</small></span></button>
+      <button class="mrow" data-act="about">${icon('info')}<span>About<small>${esc(BRAND_LINE)}</small></span></button>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   function loadQR() { if (self.qrcode) return Promise.resolve(); return new Promise((res, rej) => { const s = document.createElement('script'); s.src = '/qrcode.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
@@ -655,7 +1175,7 @@
   }
   function openAbout() {
     openSheet(`<div class="grab"></div><h3>About</h3><p>${esc(state.data?.school?.name || '')} timetables. This app shows the latest version published by the school and updates itself when you open it, and keeps a copy for offline use.</p>
-      <p class="muted">${esc(state.data?.school?.institution || '')}<br>${esc(CFG.brand || 'Timetables by Ireri Venture')}${CFG.contact ? '<br>' + esc(CFG.contact) : ''}<br>App version ${esc(CFG.build || '')}</p>
+      <p class="muted">${esc(state.data?.school?.institution || '')}<br>${esc(LOCKED_BRAND)}<br>${esc(LOCKED_CONTACT)}<br>App version ${esc(CFG.build || '')}</p>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   async function renderPoster() {
@@ -666,7 +1186,7 @@
         <li><b>Scan</b> this QR code with your phone camera.</li>
         <li><b>Add to Home Screen</b> — Android: tap <b>Install</b>. iPhone: Share ⬆ → <b>Add to Home Screen</b>.</li>
         <li>Tap <b>My timetable</b>, find your name and tap <b>☆</b> to make it <b>My timetable</b>.</li></ol></div>
-      <p class="plink">${esc(link)}</p><p class="pfoot">${esc(state.data?.school?.footer || CFG.brand || 'Timetables by Ireri Venture')}${CFG.contact ? ' · ' + esc(CFG.contact) : ''}</p>
+      <p class="plink">${esc(link)}</p><p class="pfoot">${esc(BRAND_LINE)}</p>
       <button class="btn noprint" onclick="window.print()">Print poster</button></div>`;
     $('#pqr').innerHTML = await qrSvg(link);
   }
@@ -678,7 +1198,9 @@
     if (sib[i]) location.replace('#view/' + encodeURIComponent(sib[i].id));
   }
   document.addEventListener('click', async e => {
-    const g = e.target.closest('[data-go]'); if (g) { go(g.dataset.go); return; }
+    const g = e.target.closest('[data-go]'); if (g) { closeSheet(); go(g.dataset.go); return; }
+    const ttb = e.target.closest('[data-tt]'); if (ttb) { switchTT(ttb.dataset.tt); return; }
+    const cv = e.target.closest('[data-cv]'); if (cv) { const [id, d, j] = cv.dataset.cv.split('|'); openCoverSheet(id, +d, +j); return; }
     const b = e.target.closest('[data-act],[data-layout],[data-day],[data-sday],[data-slot],[data-grade],[data-freetab],[data-coverslot],[data-covert]');
     if (!b) return;
     const ds = b.dataset;
@@ -692,6 +1214,10 @@
     if (ds.covert) { state.coverTeacher = ds.covert; state.coverPick = false; state.coverSlot = null; render(); return; }
     switch (ds.act) {
       case 'back': if (state.navDepth > 0) history.back(); else location.hash = ''; break;
+      case 'rotate': toggleRotate(); break;
+      case 'csv': downloadCsv(); break;
+      case 'csv2': downloadSessionsCsv(); break;
+      case 'print': window.print(); break;
       case 'prev': stepItem(-1); break;
       case 'next': stepItem(1); break;
       case 'save': toast('Preparing picture…', 1500); saveImage().catch(err => toast('Could not save: ' + err.message)); break;
@@ -703,7 +1229,7 @@
       }
       case 'pickMe': state.query.teachers = ''; go('list/teachers/pick'); break;
       case 'coverWho': state.coverPick = true; state.coverSlot = null; render(); break;
-      case 'seen': store.set('seen', state.data.version); renderBanners(); break;
+      case 'seen': { const m = seenMap(); (state.tts && state.tts.length ? state.tts : [{ id: state.data.tt, version: state.data.version }]).forEach(t => { m[t.id] = t.version; }); store.set('seenTT', m); render(); break; }
       case 'hideInstall': store.set('hideInstallTip', true); renderBanners(); break;
       case 'install':
         closeSheet();
@@ -736,7 +1262,7 @@
     if (state.data) render(); window.scrollTo(0, 0);
   });
   const mq = matchMedia('(orientation: landscape)');
-  const onRotate = () => { if (state.data && route().name === 'view') { state.layout = 'auto'; render(); } };
+  const onRotate = () => { releaseRotate(); if (state.data && route().name === 'view') { state.layout = 'auto'; render(); } };
   if (mq.addEventListener) mq.addEventListener('change', onRotate); else if (mq.addListener) mq.addListener(onRotate);
   addEventListener('resize', () => { if (state.data && route().name === 'view' && effectiveLayout() === 'week') fitGrid(); });
   addEventListener('online', () => { state.online = true; sync('online'); });
@@ -755,6 +1281,7 @@
 
   // ------------------------------------------------------------------ start
   (async () => {
+    try { state.tts = JSON.parse(localStorage.getItem(`ireri:${CODE}:tts`) || '[]'); } catch { state.tts = []; }
     const cached = await loadCached();
     if (cached && cached.bundle && cached.bundle.format === 2) setData(cached);
     if (state.data || POSTER) render();
