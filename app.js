@@ -22,8 +22,9 @@
   (function brandSplash() {                      // PREPFIX logo every time the app opens, on every device
     const t0 = Date.now();
     const hide = () => { const el = document.getElementById('brandsplash'); if (!el) return; el.classList.add('out'); setTimeout(() => el.remove(), 600); };
-    addEventListener('load', () => setTimeout(hide, Math.max(0, 1700 - (Date.now() - t0))));
-    setTimeout(hide, 4000);
+    addEventListener('load', () => setTimeout(hide, Math.max(0, 3100 - (Date.now() - t0))));   // long enough for the P animation to finish
+    setTimeout(hide, 5000);
+    const sp = document.getElementById('brandsplash'); if (sp) sp.addEventListener('click', hide);   // tap to skip
   })();
   (function addBrandBar() {                      // frozen footer, always visible
     const add = () => { if (document.getElementById('brandbar')) return; const f = document.createElement('div'); f.id = 'brandbar';
@@ -147,6 +148,8 @@
   const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const platformName = () => isIOS() ? 'ios' : /android/i.test(navigator.userAgent) ? 'android' : 'desktop';
   const linkFor = () => `${location.origin}/s/${encodeURIComponent(CODE)}/`;
+  // SAMPLE edition: a school whose name contains SAMPLE or DEMO shows a "get PREPFIX" banner and marks saved/printed pages SAMPLE
+  const isDemo = () => /\b(SAMPLE|DEMO)\b/i.test((state.data && state.data.school && state.data.school.name) || '');
   const isLandscape = () => state.force || matchMedia('(orientation: landscape)').matches || innerWidth >= 760;
   function fmtDate(iso) {
     if (!iso) return '';
@@ -154,6 +157,12 @@
     return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) + ', ' +
       d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
   }
+  // "Timetable generated with FET 6.x.x · <time FET stamped on it>" — read from the FET export by the Publisher
+  function fetText() {
+    const f = (B && B.fet) || (state.data && state.data.fet) || {};
+    return 'Timetable generated with FET' + (f.version ? ' ' + f.version : '') + (f.when ? ' · ' + f.when : '');
+  }
+  const fetFoot = () => `<p class="fetfoot">${esc(fetText())}</p>`;   // same place as in FET: under the table
   const ago = ms => { const s = Math.round((Date.now() - ms) / 1000); return s < 60 ? 'just now' : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`; };
   const natural = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
   async function sha256hex(s) {
@@ -196,11 +205,9 @@
     if (list.length > max) return `${list.length} teachers`;
     return list.map(c => { const t = IDX.tByCode[c]; return t ? (t.name || (/^\d+$/.test(c) ? `Tr ${c}` : c)) : c; }).join(', ');
   }
-  function classesText(c, max = 3) {
+  function classesText(c) {                              // every class is named, never summarised as "All 10s" or "6 classes"
     if (!c) return '';
-    const list = String(c).split(',').map(s => s.trim()).filter(Boolean);
-    if (list.length > max) { const g = [...new Set(list.map(gradeOf))]; return g.length === 1 && g[0] ? `All ${g[0]}s (${list.length} classes)` : `${list.length} classes`; }
-    return list.join(', ');
+    return [...new Set(String(c).split(',').map(s => s.trim()).filter(Boolean))].join(', ');
   }
   // Text for a lesson cell in each kind of timetable: [main line, small line]
   function cellLines(kind, c, ownName) {
@@ -209,7 +216,7 @@
     if (kind === 'teachers') return [classesText(c.c) || c.s || '', [c.c ? c.s : '', tag.trim(), c.r].filter(Boolean).join(' · ')];
     if (kind === 'classes' || kind === 'master') {
       const others = c.c ? c.c.split(',').map(s => s.trim()).filter(x => x !== ownName) : [];
-      return [(c.s || '') + tag, [c.r, others.length && others.length < 3 ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · '), teachersText(c.t)];
+      return [(c.s || '') + tag, [c.r, others.length ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · '), teachersText(c.t)];
     }
     return [[classesText(c.c), c.s].filter(Boolean).join(' · '), '', teachersText(c.t)];
   }
@@ -251,14 +258,19 @@
   const colKey = (kind, c, own) => `${(kind === 'classes' || kind === 'master') ? own : (c.c || '')}|${c.s || ''}`.toUpperCase().replace(/\s+/g, ' ');
   function hslHex(h, s, l) { s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
     const f = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, '0'); return `#${f(0)}${f(8)}${f(4)}`; }
+  // pick black or white text for any background, whichever is easier to read (WCAG contrast)
+  function lum(hex) { const m = String(hex).replace('#', ''); if (m.length < 6) return 1;
+    return [0, 2, 4].map(i => parseInt(m.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+      .reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); }
+  const inkFor = bg => { const Lb = lum(bg); return (Lb + 0.05) / 0.05 >= 1.05 / (Lb + 0.05) ? '#000000' : '#FFFFFF'; };
   function buildColours() {
     const keys = new Set();
     B.teachers.forEach(t => t.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey('teachers', c)); })));
     ['classes', 'master', 'rooms'].forEach(k => (B[k] || []).forEach(it => it.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey(k, c, it.name)); }))));
-    const L = [74, 60, 84, 67, 52], S = [78, 70, 85, 62, 72], map = {};
-    [...keys].sort().forEach((k, i) => { const h = (i * 137.508) % 360, l = L[i % 5], sat = S[(i >> 1) % 5];
-      const light = l >= 66 || (h > 40 && h < 200 && l >= 60);
-      map[k] = [hslHex(h, sat, l), light ? '#0B1B36' : '#FFFFFF']; });
+    // Colour rule: soft, clearly different backgrounds that always carry BLACK text (never a colour on a colour)
+    const L = [80, 72, 86, 76, 83], S = [72, 64, 80, 58, 68], map = {};
+    [...keys].sort().forEach((k, i) => { const h = (i * 137.508) % 360, bg = hslHex(h, S[(i >> 1) % 5], L[i % 5]);
+      map[k] = [bg, inkFor(bg)]; });
     IDX.colours = map;
   }
   const colourFor = (kind, c, own) => (isLesson(c) && IDX.colours) ? IDX.colours[colKey(kind === 'master' ? 'master' : kind, c, own)] || null : null;
@@ -665,7 +677,7 @@
       </header>
       <main class="home">
         ${ttSwitcher()}
-        ${instBlock()}
+        ${instBlock('', null, true)}
         <div id="banners"></div>
         ${nowCard()}
         <nav class="tiles">${tiles.map(([k, ic, t, s, href]) => `
@@ -685,10 +697,18 @@
     const m = whole.match(/\s(TERM\b.*|END\b.*|\d{4}\b.*TIMETABLE.*)$/);
     return m ? [whole.slice(0, m.index).trim(), m[1].trim()] : [whole];
   }
-  function instBlock(extra = '', owner = null) {
-    const L = instLines();
-    if (!L.length) return '';
-    return `<div class="inst ${extra}${owner ? ' has-owner' : ''}"><img class="inst-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX"><b>${esc(L[0])}</b>${L.slice(1).map(x => `<span>${esc(x)}</span>`).join('')}${owner ? `<div class="owner"><i>${esc(owner.tag)}</i><strong>${esc(owner.name)}</strong></div>` : ''}</div>`;
+  // The tagline animates when a timetable is opened; later redraws of the same page (day tabs, clock) keep it still
+  function logoElapsed() {
+    const k = location.hash || '#', n = Date.now();
+    if (state.logoKey !== k) { state.logoKey = k; state.logoT = n; }
+    return Math.min(9, (n - state.logoT) / 1000).toFixed(2);
+  }
+  function instBlock(extra = '', owner = null, noSchool = false) {
+    const all = instLines();
+    if (!all.length) return '';
+    const L = noSchool ? all.slice(1) : all;            // noSchool: the school name is already the page heading, so show it only once
+    const el = logoElapsed(), LG = '/brand/prepfix-logo-600.png';
+    return `<div class="inst ${extra}${owner ? ' has-owner' : ''}"><div class="alogo inst-logo" role="img" aria-label="PREPFIX — Prepare. Perfect. Present." style="--el:${el}s"><img class="a0" src="${LG}" alt=""><img class="w w1" src="${LG}" alt=""><img class="w w2" src="${LG}" alt=""><img class="w w3" src="${LG}" alt=""></div>${L.length ? `<b>${esc(L[0])}</b>` : ''}${L.slice(1).map(x => `<span>${esc(x)}</span>`).join('')}${owner ? owner.map((x, i) => `<strong class="ol${owner.length > 1 && i === 0 ? ' code' : ''}">${esc(x)}</strong>`).join('') : ''}</div>`;
   }
   function ttSwitcher() {
     const list = state.tts || [];
@@ -747,6 +767,7 @@
   function renderBanners() {
     const box = $('#banners'); if (!box || !state.data) return;
     const out = [];
+    if (isDemo()) out.push(`<div class="banner new"><div><strong>🎓 SAMPLE VERSION · fictional school and teachers</strong><span>Open any teacher, class or the master timetable, try Free teachers, Find cover and Rotate. Like it? Get PREPFIX for your school.</span></div><div class="banner-actions"><a class="btn small" href="tel:${esc(LOCKED_CONTACT)}">Call ${esc(LOCKED_CONTACT)}</a><a class="btn small ghost" href="https://wa.me/254${esc(LOCKED_CONTACT.replace(/^0/, ''))}?text=${encodeURIComponent('Hello, I tried the PREPFIX sample and I would like it for my school.')}" target="_blank" rel="noopener">WhatsApp</a></div></div>`);
     if (state.appNew) out.push(`<div class="banner new"><div><strong>⬆ PREPFIX has been improved</strong><span>Tap Update to get the newest version — your timetables stay as they are.</span></div><div class="banner-actions"><button class="btn small" data-act="appUpdate">Update</button></div></div>`);
     const fresh = (state.tts && state.tts.length ? state.tts : [{ id: state.data.tt, version: state.data.version, name: state.data.ttName, updated: B.published, note: state.data.school?.note }]).filter(isNewTT);
     if (fresh.length) {
@@ -817,22 +838,21 @@
     const sib = siblings(item), idx = sib.findIndex(x => x.id === id);
     const isMe = kind === 'teachers' && String(store.get('me')) === String(item.code);
     const title = kind === 'teachers' ? teacherLabel(item) : item.name;
-    const sub = `${KIND[kind]?.title || 'Master'} · ${idx + 1} of ${sib.length}${kind === 'teachers' && item.name ? ' · No. ' + esc(item.code) : ''}`;
-    const titleHTML = kind === 'teachers' ? `<span class="tcode">${esc(item.code)}</span>${esc(title)}` : '';
+    const sub = '';
     if (state.day == null) state.day = Math.max(0, todayIndex());
     const layout = effectiveLayout();
     document.title = title + ' · Timetable';
     app.innerHTML = `
-      ${topBar(title, sub, kind === 'teachers' ? `<button class="icon-btn star ${isMe ? 'on' : ''}" data-act="me" aria-label="My timetable">${icon(isMe ? 'star' : 'starO')}</button>` : '', titleHTML)}
+      ${topBar(KIND[kind]?.title || 'Timetable', sub, kind === 'teachers' ? `<button class="icon-btn star ${isMe ? 'on' : ''}" data-act="me" aria-label="My timetable">${icon(isMe ? 'star' : 'starO')}</button>` : '')}
       <div class="vbar">
         <div class="seg"><button class="${layout === 'day' ? 'on' : ''}" data-layout="day">Day</button><button class="${layout === 'week' ? 'on' : ''}" data-layout="week">Week</button></div>
         <button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit full screen' : 'Rotate'}</span></button>
         ${kind === 'teachers' ? `<button class="btn small ghost" data-go="analysis/${esc(item.id)}">${icon('chart')} Profile</button>` : ''}<button class="btn small ghost" data-act="save">${icon('save')} Save</button>
       </div>
-      <main class="tt" id="tt">${instBlock('small', ownerLine(kind, item))}${layout === 'day' ? dayView(item) : weekGrid(item)}</main>
+      <main class="tt" id="tt">${instBlock('small', ownerLines(kind, item))}${layout === 'day' ? dayView(item) : weekGrid(item)}${fetFoot()}</main>
       <div class="vtools">
         <button class="icon-btn" data-act="prev" ${idx <= 0 ? 'disabled' : ''} aria-label="Previous">${icon('prev')}</button>
-        <span class="vcur">${kind === 'teachers' ? `<i class="sc">${esc(item.code)}</i>` : ''}<b>${esc(kind === 'teachers' ? teacherLabel(item) : item.name)}</b><small>${idx + 1} of ${sib.length}</small></span>
+        <span class="vcur"><small>${idx + 1} of ${sib.length}</small></span>
         <button class="icon-btn" data-act="next" ${idx >= sib.length - 1 ? 'disabled' : ''} aria-label="Next">${icon('next')}</button>
       </div>`;
     if (layout === 'week') fitGrid();
@@ -916,7 +936,7 @@
       let lo = 0.2, hi = 1.5;                            // largest size at which the whole week still fits
       for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (at(mid) <= H) lo = mid; else hi = mid; }
       const MIN = 0.85;                                  // never too small to read: below this, scroll instead
-      if (lo < MIN) { tb.style.zoom = MIN; tb.style.width = ''; tb.style.minWidth = (W / MIN) + 'px'; wrap.classList.add('scroll2'); return; }
+      if (lo < MIN) { tb.style.zoom = MIN; tb.style.minWidth = ''; tb.style.width = (W / MIN) + 'px'; wrap.classList.add('scroll2'); return; }
       wrap.classList.remove('scroll2'); tb.style.minWidth = '';
       const z = lo, h = at(z);
       if (h < H - 4 && rows.length) {                   // spread the rows to use the whole height
@@ -936,9 +956,9 @@
     const list = B.master.filter(m => state.grade === 'all' || gradeOf(m.name) === state.grade);
     const body = list.map((m, i) => `<tr class="${i > 0 && gradeOf(list[i - 1].name) !== gradeOf(m.name) ? 'gstart' : ''}"><th>${esc(m.name)}</th>${rowCells(m, 'master', d, n, i, list.length, 34)}</tr>`).join('');
     document.title = 'Master · ' + dayLabel(d);
-    app.innerHTML = `${topBar('Master timetable', esc(dayLabel(d)) + ' · all classes', `<button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit' : 'Rotate'}</span></button><button class="icon-btn" data-act="save" aria-label="Save">${icon('save')}</button>`)}
+    app.innerHTML = `${topBar('Master', '', `<button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit' : 'Rotate'}</span></button><button class="icon-btn" data-act="save" aria-label="Save">${icon('save')}</button>`)}
       <div class="mbar">${dayTabs(d)}${gradeChips()}</div>
-      <main class="tt"><div class="gridwrap" id="gridwrap"><table class="wk master dc${d % 5}" id="wk"><thead><tr><th>Class</th>${headCells(d, n)}</tr></thead><tbody>${body}</tbody></table></div>
+      <main class="tt">${instBlock('small', ownerLines('master', null, d))}<div class="gridwrap" id="gridwrap"><table class="wk master dc${d % 5}" id="wk"><thead><tr><th>Class</th>${headCells(d, n)}</tr></thead><tbody>${body}</tbody></table></div>${fetFoot()}
       <p class="swipe-hint">Slide the table sideways · press Rotate to see the whole day on one screen</p></main>`;
     if (fillOn()) fitGrid();
   }
@@ -1425,32 +1445,33 @@
   }
   const currentTarget = () => { const r = route(); return r.name === 'master' ? { master: true, d: state.day, grade: state.grade } : { id: r.id }; };
   // who/what the page is for, written big at the top — exactly as in the FET timetables
-  function ownerLine(kind, item, d) {
-    if (kind === 'master') return { tag: 'MASTER TIMETABLE', name: dayLabel(d).toUpperCase() };
-    if (kind === 'teachers') return { tag: 'TEACHER', name: `${item.code}${item.name ? '  ·  ' + item.name : ''}` };
-    if (kind === 'classes') return { tag: 'CLASS', name: item.name };
-    return { tag: 'LAB / FIELD', name: item.name };
+  // Lines under the school name and timetable name: teacher = code, then name (4 lines in all); class / lab / master = 1 line (3 in all)
+  function ownerLines(kind, item, d) {
+    if (kind === 'master') return [`MASTER TIMETABLE · ${dayLabel(d).toUpperCase()}`];
+    if (kind === 'teachers') return [String(item.code), item.name].filter(Boolean);
+    return [item.name];
   }
   function drawTimetablePage(bw, tgt = currentTarget(), logoImg = null, SCALE = 2.2) {
     let title, rows, kind, own;
     if (tgt.master) {
       const d = tgt.d; kind = 'master'; title = `Master timetable — ${dayLabel(d)}`;
       rows = B.master.filter(m => !tgt.grade || tgt.grade === 'all' || gradeOf(m.name) === tgt.grade).map(m => ({ head: m.name, item: m, d }));
-      own = ownerLine('master', null, d);
+      own = ownerLines('master', null, d);
     } else {
       const item = IDX.byId[tgt.id]; kind = item.kind;
       title = kind === 'teachers' ? `${item.code}. ${teacherLabel(item)}` : item.name;
       rows = IDX.D.map((dd, d) => ({ head: dd.label, item, d }));
-      own = ownerLine(kind, item);
+      own = ownerLines(kind, item);
     }
     const P = IDX.P;
+    const TOPH = 98 + (own.length - 1) * 30 + 28;                // header height: school, term, then 1 or 2 owner lines
     const PW = 1600, PH = Math.round(1600 / Math.SQRT2);        // A4 landscape proportions
     const mctx = document.createElement('canvas').getContext('2d');
     const nL = P.filter(p => !p.brk).length, nB = P.length - nL;
     // fit everything onto one page: shrink the drawing (f) only if the content is taller than the page
     let f = 1, lay;
     for (let it = 0; it < 8; it++) {
-      const W = PW / f, H = PH / f, pad = 28, top = 156, foot = 46, headW = kind === 'master' ? 96 : 84, brkW = 40;
+      const W = PW / f, H = PH / f, pad = 28, top = TOPH, foot = 62, headW = kind === 'master' ? 96 : 84, brkW = 40;
       const colW = (W - pad * 2 - headW - nB * brkW) / nL;
       const colWs = P.map(p => p.brk ? brkW : colW);
       const cellText = (row, j) => {
@@ -1467,7 +1488,10 @@
         const t = cellText(row, j); h = Math.max(h, t.a.length * 18 + t.b.length * 15 + (t.t.length ? t.t.length * 14 + 10 : 0) + 22); } return h; });
       const bodyAvail = H - top - 52 - foot, sum = need.reduce((a, b) => a + b, 0);
       if (sum > bodyAvail * 1.001 && f > 0.42) { f = Math.max(0.42, f * Math.sqrt(bodyAvail / sum) * 0.98); continue; }
-      const extra = Math.max(0, bodyAvail - sum), RH = need.map(h => h + extra / rows.length);
+      // don't blow the grid up to fill the page: teachers use at most 3/4 of the page, classes/rooms 85%
+      const cap = kind === 'teachers' ? 0.75 : kind === 'master' ? 1 : 0.85;
+      const capBody = Math.min(bodyAvail, H * cap - 52);
+      const extra = Math.max(0, capBody - sum), RH = need.map(h => h + extra / rows.length);
       lay = { W, H, pad, top, foot, headW, brkW, colWs, cellText, RH }; break;
     }
     const { W, H, pad, top, foot, headW, colWs, cellText, RH } = lay;
@@ -1481,21 +1505,17 @@
     const IL = instLines();
     const lh = 82, lw = logoImg ? lh * logoImg.width / logoImg.height : 0;
     if (logoImg) { ctx.save(); if (bw) ctx.filter = 'grayscale(1) contrast(1.15)'; ctx.drawImage(logoImg, W - pad - lw, 8, lw, lh); ctx.restore(); }
-    const textW = W - pad * 2 - lw - 20;
-    ctx.fillStyle = NAVY; ctx.font = '800 30px Poppins, Arial';
+    const textW = W - 2 * (pad + lw + 20), mid = W / 2;           // centred text stays clear of the logo
+    ctx.textAlign = 'center'; ctx.fillStyle = NAVY; ctx.font = '800 30px Poppins, Arial';
     const sname = (IL[0] || state.data.school?.name || '').toUpperCase();
     let sfs = 30; while (ctx.measureText(sname).width > textW && sfs > 18) { sfs -= 1; ctx.font = `800 ${sfs}px Poppins, Arial`; }
-    ctx.fillText(sname, pad, 44);
+    ctx.fillText(sname, mid, 38);
     ctx.font = '700 18px Poppins, Arial'; ctx.fillStyle = bw ? INK : '#1E7F5C';
-    ctx.fillText([IL.slice(1).join(' ').toUpperCase(), (state.data.ttName || '').toUpperCase()].filter((v, i, a) => v && a.indexOf(v) === i).join('   ·   '), pad, 74);
-    ctx.fillStyle = GOLD; ctx.fillRect(pad, 94, W - pad * 2, 4);
-    ctx.fillStyle = bw ? '#000' : NAVY; ctx.fillRect(pad, 104, W - pad * 2, 42);
-    ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
-    ctx.font = '700 15px Poppins, Arial'; const tagW = ctx.measureText(own.tag + '   ').width;
-    ctx.font = '800 26px Poppins, Arial'; const nmW = ctx.measureText(own.name).width;
-    const sx = W / 2 - (tagW + nmW) / 2;
-    ctx.textAlign = 'left'; ctx.font = '700 15px Poppins, Arial'; ctx.fillStyle = bw ? '#fff' : '#E8D48A'; ctx.fillText(own.tag, sx, 131);
-    ctx.font = '800 26px Poppins, Arial'; ctx.fillStyle = '#fff'; ctx.fillText(own.name, sx + tagW, 134);
+    ctx.fillText([IL.slice(1).join(' ').toUpperCase(), (state.data.ttName || '').toUpperCase()].filter((v, i, a) => v && a.indexOf(v) === i).join('   ·   '), mid, 66);
+    ctx.fillStyle = NAVY;
+    own.forEach((ln, i) => { let fs = 26; ctx.font = `800 ${fs}px Poppins, Arial`; while (ctx.measureText(ln).width > W - pad * 2 && fs > 14) { fs--; ctx.font = `800 ${fs}px Poppins, Arial`; } ctx.fillText(ln, mid, 98 + i * 30); });
+    ctx.fillStyle = GOLD; ctx.fillRect(pad, TOPH - 18, W - pad * 2, 4);
+    ctx.textAlign = 'left';
     // column headings
     const colX = []; let x = pad + headW;
     P.forEach((p, j) => {
@@ -1551,13 +1571,16 @@
         }
       }
     });
-    // footer (always) — no diagonal watermark on saved or printed pages
+    if (isDemo()) { ctx.save(); ctx.globalAlpha = 0.09; ctx.fillStyle = bw ? '#000' : NAVY; ctx.font = '800 170px Poppins, Arial'; ctx.textAlign = 'center'; ctx.translate(W / 2, H / 2 + 60); ctx.rotate(-0.35); ctx.fillText('SAMPLE', 0, 0); ctx.restore(); }
+    // footer (always) — no diagonal watermark on saved or printed pages of real schools
     const fy = H - foot + 8;
     ctx.fillStyle = bw ? '#000' : NAVY; ctx.fillRect(pad, fy, W - pad * 2, 30);
     ctx.fillStyle = '#fff'; ctx.font = '800 14px Poppins, Arial'; ctx.textAlign = 'center';
     ctx.fillText(`${LOCKED_BRAND}  ·  ${LOCKED_CONTACT}  ·  ${WATERMARK}`, W / 2, fy + 20);
     ctx.textAlign = 'right'; ctx.font = '600 10.5px Poppins, Arial'; ctx.fillStyle = '#9AA8C2';
-    ctx.fillText(`PREPFIX · ${new Date().toLocaleString('en-GB')}`, W - pad - 8, fy + 20); ctx.textAlign = 'left';
+    ctx.fillText(`PREPFIX · ${new Date().toLocaleString('en-GB')}`, W - pad - 8, fy + 20);
+    ctx.textAlign = 'center'; ctx.font = '600 11px Poppins, Arial'; ctx.fillStyle = bw ? '#000' : '#4a5a78';
+    ctx.fillText(fetText(), W / 2, fy + 46); ctx.textAlign = 'left';
     return cv;
   }
   // Minimal PDF writer: one A4 landscape page per picture
@@ -1733,14 +1756,14 @@
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   function openAbout() {
-    openSheet(`<div class="grab"></div><img class="about-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX — Prepare. Perfect. Present."><h3>About</h3><p>${esc(state.data?.school?.name || '')} timetables. This app shows the latest version published by the school and updates itself when you open it, and keeps a copy for offline use.</p>
+    openSheet(`<div class="grab"></div><div class="alogo about-logo" role="img" aria-label="PREPFIX — Prepare. Perfect. Present."><img class="a0" src="/brand/prepfix-logo-600.png" alt=""><img class="w w1" src="/brand/prepfix-logo-600.png" alt=""><img class="w w2" src="/brand/prepfix-logo-600.png" alt=""><img class="w w3" src="/brand/prepfix-logo-600.png" alt=""></div><h3>About</h3><p>${esc(state.data?.school?.name || '')} timetables. This app shows the latest version published by the school and updates itself when you open it, and keeps a copy for offline use.</p>
       <p class="muted">${esc(state.data?.school?.institution || '')}<br>${esc(LOCKED_BRAND)}<br>${esc(LOCKED_CONTACT)}<br>App version ${esc(CFG.build || '')}</p>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   async function renderPoster() {
     const link = linkFor(), name = state.data?.school?.name || '';
     document.body.classList.add('poster-mode');
-    app.innerHTML = `<div class="poster"><img class="plogo" src="/brand/prepfix-logo-600.png" alt="PREPFIX — Prepare. Perfect. Present."><div class="ptop"><div class="logo big"></div><div><h1>${esc(name || 'School')} Timetables</h1><p>On your phone · Always up to date · Works offline</p></div></div>
+    app.innerHTML = `<div class="poster"><div class="alogo plogo" role="img" aria-label="PREPFIX — Prepare. Perfect. Present."><img class="a0" src="/brand/prepfix-logo-600.png" alt=""><img class="w w1" src="/brand/prepfix-logo-600.png" alt=""><img class="w w2" src="/brand/prepfix-logo-600.png" alt=""><img class="w w3" src="/brand/prepfix-logo-600.png" alt=""></div><div class="ptop"><div class="logo big"></div><div><h1>${esc(name || 'School')} Timetables</h1><p>On your phone · Always up to date · Works offline</p></div></div>
       <div class="pmain"><div class="pqr" id="pqr"></div><ol>
         <li><b>Scan</b> this QR code with your phone camera.</li>
         <li><b>Get the app</b> — Android (Chrome): tap <b>Install</b>. iPhone (Safari): Share ⬆ → <b>Add to Home Screen</b>. Computer (Chrome/Edge): click <b>Install</b> in the address bar.</li>
