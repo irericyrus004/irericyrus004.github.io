@@ -707,9 +707,47 @@
     await sync('switch');
     render();
   }
+  // ---- PREPFIX app updates: teachers get every improvement without reinstalling
+  async function remoteBuild() {
+    try { const t = await (await fetch('/config.js?v=' + Date.now(), { cache: 'no-store' })).text(); const m = t.match(/"build"\s*:\s*"([^"]+)"/); return m ? m[1] : ''; } catch { return ''; }
+  }
+  async function applyAppUpdate() {
+    const box = document.createElement('div'); box.className = 'alarm-bg';
+    box.innerHTML = `<div class="alarm"><div class="abell">⬆</div><h3>Updating PREPFIX…</h3><p class="awhen">A moment, please</p></div>`;
+    document.body.appendChild(box);
+    try {
+      const files = ['/app.js', '/app.css', '/config.js', '/sw.js', '/qrcode.js', location.pathname];
+      await Promise.all(files.map(f => fetch(f + (f.includes('?') ? '&' : '?') + 'u=' + Date.now(), { cache: 'reload' }).catch(() => { })));
+      await Promise.all(files.map(f => fetch(f, { cache: 'reload' }).catch(() => { })));
+      if (navigator.serviceWorker) { const reg = await navigator.serviceWorker.getRegistration(); if (reg) await reg.update().catch(() => { }); }
+      if (self.caches) { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith('ireri-shell')).map(k => caches.delete(k))); }
+      try { sessionStorage.setItem('prepfix:updated', CFG.build || '1'); } catch { }
+    } catch { }
+    location.reload();
+  }
+  async function checkUpdates() {
+    if (!state.online) { toast('No internet — try again when you are online'); return; }
+    toast('Checking for updates…', 1500);
+    const rb = await remoteBuild();
+    if (rb && CFG.build && rb !== CFG.build) {
+      openSheet(`<div class="grab"></div><h3>⬆ PREPFIX has been improved</h3><p>A newer version of the app is ready with the latest improvements.</p>
+        <button class="btn wide" data-act="appUpdate">Update now</button><button class="btn ghost wide" data-act="closeSheet">Later</button>`);
+      return;
+    }
+    await sync('manual');
+    if (state.online) toast('✓ You have the newest PREPFIX and the latest timetables');
+  }
+  async function autoCheckApp() {                       // quietly, at most every 30 minutes
+    const last = +(store.get('appChk') || 0); if (Date.now() - last < 30 * 60000 || !state.online) return;
+    store.set('appChk', Date.now());
+    const rb = await remoteBuild();
+    state.appNew = !!(rb && CFG.build && rb !== CFG.build);
+    if (state.appNew && route().name === 'home') renderBanners();
+  }
   function renderBanners() {
     const box = $('#banners'); if (!box || !state.data) return;
     const out = [];
+    if (state.appNew) out.push(`<div class="banner new"><div><strong>⬆ PREPFIX has been improved</strong><span>Tap Update to get the newest version — your timetables stay as they are.</span></div><div class="banner-actions"><button class="btn small" data-act="appUpdate">Update</button></div></div>`);
     const fresh = (state.tts && state.tts.length ? state.tts : [{ id: state.data.tt, version: state.data.version, name: state.data.ttName, updated: B.published, note: state.data.school?.note }]).filter(isNewTT);
     if (fresh.length) {
       const items = fresh.map(t => `<b>${esc(t.name || 'Timetable')}</b> · ${esc(fmtDate(t.updated))}${t.note ? ' — ' + esc(t.note) : ''}`).join('<br>');
@@ -813,7 +851,7 @@
   async function toggleRotate() {
     if (state.full) { releaseRotate(); render(); return; }
     state.full = true; document.body.classList.add('fullv');          // same arrangement — only the viewing angle changes
-    try { const el = document.documentElement; if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' }); } catch { }
+    // no browser full-screen request: it makes the browser show its own "…github.io is full screen" notice
     try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch { }
     applyForce(); render();
     setTimeout(() => { applyForce(); fitGrid(); }, 350);
@@ -1644,7 +1682,7 @@
   function closeSheet() { $$('.sheet-bg').forEach(n => n.remove()); }
   function openMenu() {
     openSheet(`<div class="grab"></div>
-      <button class="mrow" data-act="refresh">${icon('refresh')}<span>Check for new timetable<small>${state.lastSync ? 'Last checked ' + ago(state.lastSync) : ''}</small></span></button>
+      <button class="mrow" data-act="refresh">${icon('refresh')}<span>Check for updates<small>New timetables and PREPFIX improvements · ${state.lastSync ? 'Last checked ' + ago(state.lastSync) : ''}</small></span></button>
       <button class="mrow" data-act="share">${icon('share')}<span>Share with colleagues<small>QR code, WhatsApp or copy link</small></span></button>
       ${!isStandalone() ? `<button class="mrow" data-act="getapp">${icon('install')}<span>Get the app<small>Android · iPhone · Computer</small></span></button>` : ''}
       <button class="mrow" data-go="schools">${icon('classes')}<span>Schools using this app<small>See the other schools on Timetables</small></span></button>
@@ -1773,7 +1811,8 @@
       case 'menu': openMenu(); break;
       case 'remToggle': await remToggle(); break;
       case 'remCal': remCalendar(); break;
-      case 'refresh': closeSheet(); toast('Checking…', 1200); await sync('manual'); if (state.online) toast('You have the latest timetable ✓'); break;
+      case 'refresh': closeSheet(); await checkUpdates(); break;
+      case 'appUpdate': await applyAppUpdate(); break;
       case 'share': openShare(); break;
       case 'copy': try { await navigator.clipboard.writeText(linkFor()); toast('Link copied'); } catch { toast(linkFor(), 6000); } break;
       case 'nativeShare': try { await navigator.share({ title: 'School timetables', url: linkFor() }); } catch { } break;
@@ -1821,11 +1860,14 @@
   });
   setInterval(() => { if (document.visibilityState === 'visible' && state.data && route().name === 'home') { const c = $('.now-card'); if (c) c.outerHTML = nowCard(); } }, 60000);
   setInterval(checkReminders, 15000);
+  try { if (sessionStorage.getItem('prepfix:updated')) { sessionStorage.removeItem('prepfix:updated'); setTimeout(() => toast('✓ PREPFIX updated to the newest version', 3500), 2200); } } catch { }
+  setTimeout(() => autoCheckApp(), 4000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') autoCheckApp(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkReminders(); });
   addEventListener('beforeinstallprompt', e => { e.preventDefault(); state.installEvt = e; if (state.data && route().name === 'home') renderBanners(); });
   addEventListener('appinstalled', () => { state.installEvt = null; toast('Installed ✓'); });
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(err => console.warn('SW', err));
+    navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch(err => console.warn('SW', err));
   }
 
   // ------------------------------------------------------------------ start

@@ -1,5 +1,5 @@
 /* Ireri Timetables service worker: keeps the app working offline. */
-const SHELL = 'ireri-shell-v38';
+const SHELL = 'ireri-shell-v42';
 const SHELL_FILES = ['/app.css', '/app.js', '/config.js', '/qrcode.js',
   '/icons/icon-192.png', '/icons/icon-512.png', '/brand/prepfix-logo-600.png', '/brand/prepfix-mark.png'];
 
@@ -28,6 +28,8 @@ self.addEventListener('fetch', event => {
 
   // Timetable data is always fetched live; the app keeps its own saved copy for offline use.
   if (url.origin === location.origin && /\/(meta|data|schools)\.json$/.test(url.pathname)) return;
+  // Update checks always go to the website, never to the saved copy
+  if (url.origin === location.origin && (url.searchParams.has('v') || url.searchParams.has('u') || /\/(config\.js|shell\.json)$/.test(url.pathname) && req.cache === 'no-store')) return;
 
   // Pages: network first (so updates show), fall back to the saved page when offline.
   if (req.mode === 'navigate' && url.origin === location.origin) {

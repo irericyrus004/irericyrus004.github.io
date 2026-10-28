@@ -752,3 +752,19 @@ body.fullv .inst .inst-logo{position:static;height:20px;order:3}
 body.fullv .inst{padding:2px 8px!important}
 body.fullv .inst .owner{margin:0;padding:1px 8px}body.fullv .inst .owner strong{font-size:12px}
 html.theme-dark .inst .inst-logo{background:#fff;border-radius:6px;padding:2px 4px}
+/* Dark mode: names in clear white, good weight */
+html.theme-dark .tile strong{color:#FFFFFF!important;font-weight:700;font-size:16px;letter-spacing:.01em}
+html.theme-dark .tile small{color:#C3CDE0}
+html.theme-dark .tile .tic{box-shadow:0 0 0 1.5px rgba(255,255,255,.25)}
+html.theme-dark .page b,html.theme-dark .page strong,html.theme-dark .sect,html.theme-dark .cvh,html.theme-dark .svh,html.theme-dark .ttl-h,
+html.theme-dark .allpick .ap b,html.theme-dark .school b,html.theme-dark .stats b,html.theme-dark .copt b,html.theme-dark .gcard b,
+html.theme-dark .lessonpick b,html.theme-dark .lessonpick span,html.theme-dark table.atable td,html.theme-dark table.atable th,html.theme-dark .acard b,
+html.theme-dark .subcard b,html.theme-dark .row .nm,html.theme-dark .namegrid b,html.theme-dark .dayview .pc strong:not([style]),html.theme-dark .alarm h3{color:#FFFFFF}
+html.theme-dark .page small,html.theme-dark .row small,html.theme-dark .namegrid small{color:#C3CDE0}
+html.theme-dark .namegrid button{background:var(--card);border-color:var(--line);color:#fff}
+html.theme-dark .chip{color:#E7ECF5}html.theme-dark .chip.on{background:var(--gold)!important;color:#0B1B36!important}
+html.theme-dark .seg button{color:#C3CDE0}html.theme-dark .seg button.on{background:#2A3E66;color:#fff}
+html.theme-dark .daytabs button.on{color:#fff}
+html.theme-dark .av{box-shadow:0 0 0 1.5px rgba(255,255,255,.3)}
+html.theme-dark .acls,html.theme-dark .acls b,html.theme-dark .sortrow,html.theme-dark .acard,html.theme-dark .acard small{color:#DCE4F2!important}
+html.theme-dark .sortrow select{background:var(--card);color:#fff;border-color:var(--line)}
