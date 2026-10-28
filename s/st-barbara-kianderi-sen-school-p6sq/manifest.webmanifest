@@ -28,5 +28,28 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "lang": "en",
+  "dir": "ltr",
+  "categories": [
+    "education",
+    "productivity"
+  ],
+  "prefer_related_applications": false,
+  "screenshots": [
+    {
+      "src": "/brand/screen-phone.jpg",
+      "sizes": "540x1169",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "PREPFIX dashboard"
+    },
+    {
+      "src": "/brand/screen-wide.jpg",
+      "sizes": "1440x900",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "A teacher's week"
+    }
   ]
 }

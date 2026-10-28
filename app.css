@@ -640,3 +640,115 @@ body.fullv .gridwrap.scroll2 table.wk{table-layout:auto}
 body.fullv .gridwrap.scroll2 table.wk td.l{min-width:110px}
 body.fullv .gridwrap.scroll2 table.wk thead th{position:sticky;top:0;z-index:3}
 body.fullv .gridwrap.scroll2 table.wk tbody th{position:sticky;left:0;z-index:2}
+/* No lesson = plain white (only real lessons carry colour) */
+table.wk td.f,table.wk td.x,table.wk tr td.f,table.wk tr.today td.f{background:#fff!important}
+.dayview li:not(.has):not(.brk){background:#fff!important}
+.dayview li.now:not(.has){background:#FFF6D6!important}
+/* Teacher names: their own colour, never confused with the subject */
+.tn{display:inline-block;margin-top:4px;padding:2px 8px;border-radius:8px;background:#fff;color:#0B3D91!important;font-weight:700;font-size:12px;line-height:1.3;border:1.5px solid #0B3D91;box-shadow:0 1px 0 rgba(0,0,0,.08)}
+.dayview .pc .tn{display:block;width:max-content;max-width:100%;margin:5px auto 0;white-space:normal}
+table.wk td.l small.tn{display:block;color:#0B3D91!important;background:rgba(255,255,255,.92);border:1px solid #0B3D91;border-radius:6px;padding:1px 4px;margin-top:3px;font-weight:700;font-size:10px}
+/* Break names: letters spread down the whole column */
+table.wk td.bl{position:relative;padding:0!important}
+table.wk td.bl .stk{position:absolute;inset:8px 0;justify-content:space-evenly;line-height:1}
+table.wk td.bl .stk i.sp{height:auto;flex:0 0 .5em}
+/* Left pop-out menu */
+#railtab{position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:46;width:22px;height:64px;border-radius:0 14px 14px 0;background:var(--navy);border:2px solid var(--gold);border-left:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;box-shadow:2px 2px 10px rgba(0,0,0,.25);opacity:.85}
+#railtab span{display:block;width:10px;height:2px;border-radius:2px;background:#fff}
+body.rail-open #railtab{opacity:0;pointer-events:none}
+#rail{position:fixed;left:0;top:0;bottom:calc(var(--brandh) + var(--safe-b));z-index:47;width:88px;background:var(--navy);border-right:3px solid var(--gold);padding:calc(10px + var(--safe-t)) 6px 10px;display:flex;flex-direction:column;gap:4px;overflow-y:auto;transform:translateX(-110%);transition:transform .22s ease;box-shadow:6px 0 24px rgba(0,0,0,.3)}
+#rail.open{transform:none}
+#rail .ri{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 2px;border-radius:12px;color:#DCE4F2;font-size:10.5px;font-weight:600;text-align:center;line-height:1.15}
+#rail .ri .ic{width:22px;height:22px;fill:currentColor}
+#rail .ri.on{background:var(--gold);color:var(--navy)}
+#rail .ri:active{background:rgba(255,255,255,.15)}
+body.rail-open::after{content:"";position:fixed;inset:0;z-index:46;background:rgba(11,27,54,.35)}
+body.force-land #railtab,body.force-land #rail{display:none}
+@media print{#railtab,#rail{display:none!important}}
+.vtools .vcur{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;text-align:center}
+.vtools .vcur b{font-size:16px;font-weight:800;color:var(--navy);letter-spacing:.02em}
+.vtools .vcur small{font-size:11px;color:var(--muted);font-weight:600;flex-basis:100%;margin-top:-2px}
+.vtools .vcur .sc{font-style:normal;min-width:26px;height:26px;padding:0 6px;border-radius:8px;background:var(--gold);color:var(--navy);display:grid;place-items:center;font-size:14px;font-weight:800}
+body.fullv .vtools .vcur b{font-size:13px}body.fullv .vtools .vcur small{display:none}
+.cvh{margin:12px 2px 6px;font-size:13px;color:var(--green);font-weight:800}
+.cvmore{margin-top:10px;border:1.5px dashed var(--line);border-radius:12px;padding:6px 8px}
+.cvmore summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--muted);padding:4px}
+.chips.sess .chip{display:flex;flex-direction:column;align-items:center;padding:6px 12px}
+.chips.sess .chip small{font-size:10.5px;opacity:.8}
+/* ===== Fill the screen: full screen (Rotate) and every desktop/laptop ===== */
+body.fillv{overflow:hidden}
+body.fillv #app{display:flex;flex-direction:column;height:calc(100dvh - var(--brandh) - var(--safe-b));overflow:hidden}
+body.fillv.force-land #app{height:100vw}
+body.fillv .vtop{position:static}
+body.fillv main.tt{flex:1;min-height:0;display:flex;flex-direction:column;max-width:none;width:100%;box-sizing:border-box;overflow:auto;padding:6px 10px 4px}
+body.fillv main.tt > .dayview{flex:none}
+body.fillv .gridwrap{flex:1;min-height:0;overflow:hidden;max-height:none!important}
+body.fillv .gridwrap.scroll2{overflow:auto!important}
+body.fillv .vtools{position:static}
+body.fillv .swipe-hint{display:none}
+body.fillv table.wk{table-layout:fixed;min-width:0}
+body.fillv table.wk td.l{min-width:0;white-space:normal;word-break:break-word;overflow:hidden}
+body.fillv table.wk thead th{white-space:normal}
+body.fillv table.wk thead th:first-child,body.fillv table.wk tbody th{width:56px}
+body.fillv .gridwrap.scroll2 table.wk{table-layout:auto}
+body.fillv .gridwrap.scroll2 table.wk td.l{min-width:110px}
+body.fillv .mbar{flex:none}
+/* Desktop: use the whole wide screen */
+body.desk .home,body.desk .page{max-width:1500px}
+body.desk .tiles{grid-template-columns:repeat(6,1fr)}
+body.desk .page.wide{max-width:1500px}
+body.desk .dayview{max-width:900px;margin:0 auto}
+/* Schools list: information only */
+.school .sstat{display:flex;gap:10px;flex:none;text-align:center}
+.school .sstat b{display:block;font-size:18px;font-weight:800;color:var(--navy);line-height:1.1}
+.school .sstat small{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.school .sstat > *{display:block}
+/* ===== Dark mode ===== */
+html.theme-dark{--cream:#0E1626;--card:#16213A;--ink:#E7ECF5;--muted:#9AA8C2;--line:#2A3858;--soft:#1E2B48;--shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.35);color-scheme:dark}
+html.theme-dark body{background:var(--cream);color:var(--ink)}
+html.theme-dark .tile,html.theme-dark .inst,html.theme-dark .daytabs,html.theme-dark .vbar,html.theme-dark .vtools,html.theme-dark .list,html.theme-dark .list li,html.theme-dark .row,
+html.theme-dark .searchbox,html.theme-dark .school,html.theme-dark .sheet,html.theme-dark .mbar,html.theme-dark .ttrow,html.theme-dark .banner,html.theme-dark .dayview,html.theme-dark .chip,
+html.theme-dark .seg,html.theme-dark .card,html.theme-dark .acard,html.theme-dark .subcard,html.theme-dark .stats > div,html.theme-dark .lessonpick button,html.theme-dark .gcard,html.theme-dark .copt,html.theme-dark .hint-box{background:var(--card)!important;color:var(--ink);border-color:var(--line)!important}
+html.theme-dark .searchbox input,html.theme-dark input,html.theme-dark select{background:transparent;color:var(--ink)}
+html.theme-dark .tile h3,html.theme-dark .tile b,html.theme-dark .nm,html.theme-dark .nm b,html.theme-dark .ttrow .ttn b,html.theme-dark .inst b,html.theme-dark h3,html.theme-dark h2,html.theme-dark .pt b,html.theme-dark .vtools .vcur b,html.theme-dark .school .sstat b,html.theme-dark .alesson b,html.theme-dark .alarm h3{color:#F2F5FB!important}
+html.theme-dark .inst span{color:#5FD3A0}
+html.theme-dark .pt em{color:#C9D3E6}
+html.theme-dark .daytabs button{color:var(--muted)}
+html.theme-dark .dayview li:not(.has):not(.brk),html.theme-dark table.wk td.f,html.theme-dark table.wk td.x{background:#121C31!important}
+html.theme-dark .dayview li.brk{background:#2B2A20!important;color:#E8D48A}
+html.theme-dark table.wk thead th{background:#1E2B48!important;color:#E7ECF5}
+html.theme-dark table.wk thead th small,html.theme-dark .bt{color:#C9D3E6!important}
+html.theme-dark table.wk td.bl,html.theme-dark table.wk th.b{background:#2B2A20!important}
+html.theme-dark .stk{color:#E8D48A}
+html.theme-dark table.wk th,html.theme-dark table.wk td{border-color:#3A4A6E!important}
+html.theme-dark .ttrow.on{background:#22365F!important}
+html.theme-dark .freec{background:#163A2B;color:#7EE2B0;border-color:#2C6B4F}
+html.theme-dark .btn.ghost,html.theme-dark .btn.small.ghost{background:var(--soft);color:var(--ink);border-color:var(--line)}
+html.theme-dark .alarm-bg .alarm{background:var(--card)}
+html.theme-dark .mrow{color:var(--ink)}
+html.theme-dark .mrow small,html.theme-dark .muted{color:var(--muted)}
+.svh{margin:12px 2px 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.seg.sv{margin-bottom:4px}.seg.sv button{padding:10px 6px;font-size:14px;font-weight:700}
+html.theme-dark .banner,html.theme-dark .banner *{color:var(--ink)}
+html.theme-dark .banner strong,html.theme-dark .banner b{color:#F2D37A!important}
+html.theme-dark .banner .txt-btn{color:#5FD3A0}
+.allpick{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.allpick .ap{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px 10px 38px;border-radius:12px;border:1.5px solid var(--line);background:#fff;position:relative;text-align:left}
+.allpick .ap i{position:absolute;left:10px;top:12px;width:20px;height:20px;border-radius:6px;border:2px solid #9AA4B8;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:13px;color:#fff}
+.allpick .ap.on{border-color:var(--navy);background:#EEF3FB}.allpick .ap.on i{background:var(--navy);border-color:var(--navy)}
+.allpick .ap b{font-size:14px;color:var(--navy)}.allpick .ap small{font-size:11.5px;color:var(--muted)}
+.t-printall .tic{background:#334155;color:#fff}
+html.theme-dark .allpick .ap{background:var(--card)}html.theme-dark .allpick .ap.on{background:#22365F}
+/* PREPFIX logo at the top-right of every timetable; owner written big under the school */
+.inst{position:relative}
+.inst .inst-logo{position:absolute;top:6px;right:8px;height:34px;width:auto;opacity:.95}
+.inst.small .inst-logo{height:28px}
+.inst{padding-right:110px!important;padding-left:110px!important}
+.inst .owner{margin:8px auto 0;display:inline-flex;align-items:baseline;gap:10px;background:var(--navy);color:#fff;border-radius:10px;padding:5px 14px}
+.inst .owner i{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--gold-2)}
+.inst .owner strong{font-size:17px;font-weight:800;letter-spacing:.03em}
+@media (max-width:520px){.inst{padding-left:12px!important;padding-right:12px!important;padding-top:34px!important}.inst .inst-logo{left:50%;right:auto;transform:translateX(-50%);height:24px}}
+body.fullv .inst .inst-logo{position:static;height:20px;order:3}
+body.fullv .inst{padding:2px 8px!important}
+body.fullv .inst .owner{margin:0;padding:1px 8px}body.fullv .inst .owner strong{font-size:12px}
+html.theme-dark .inst .inst-logo{background:#fff;border-radius:6px;padding:2px 4px}

@@ -1,5 +1,5 @@
 /* Ireri Timetables service worker: keeps the app working offline. */
-const SHELL = 'ireri-shell-v30';
+const SHELL = 'ireri-shell-v38';
 const SHELL_FILES = ['/app.css', '/app.js', '/config.js', '/qrcode.js',
   '/icons/icon-192.png', '/icons/icon-512.png', '/brand/prepfix-logo-600.png', '/brand/prepfix-mark.png'];
 
@@ -65,4 +65,22 @@ self.addEventListener('notificationclick', event => {
     for (const c of list) { if ('focus' in c) return c.focus(); }
     return clients.openWindow ? clients.openWindow(url) : null;
   }));
+});
+
+// Lesson reminder pushed by the PREPFIX reminder service: the phone works out which lesson it is
+self.addEventListener('push', event => {
+  event.waitUntil((async () => {
+    let plan = null;
+    try { const c = await caches.open('prepfix-rem'); const r = await c.match('/__reminders'); if (r) plan = await r.json(); } catch (e) { }
+    const now = new Date(), wd = now.getDay(), m = now.getHours() * 60 + now.getMinutes();
+    const L = plan && (plan.lessons || []).filter(x => x.wd === wd && x.start - m >= 2 && x.start - m <= 17).sort((a, b) => a.start - b.start)[0];
+    const fmt = mm => { const h = Math.floor(mm / 60); return `${h > 12 ? h - 12 : h}:${String(mm % 60).padStart(2, '0')}`; };
+    const mins = L ? L.start - m : (plan && plan.min) || 10;
+    const title = L ? `⏰ Lesson in ${mins} minutes — ${L.label} at ${fmt(L.start)}` : '⏰ Your next lesson starts soon';
+    const body = L ? [L.title, L.body].filter(Boolean).join(' · ') : 'Open PREPFIX Timetables to see it.';
+    await self.registration.showNotification(title, {
+      body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: L ? `lesson-${L.wd}-${L.start}` : 'lesson-next',
+      renotify: true, requireInteraction: true, vibrate: [400, 150, 400, 150, 800], data: { url: (plan && plan.url) || '/' },
+    });
+  })());
 });

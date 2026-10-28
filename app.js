@@ -9,6 +9,16 @@
   const BRAND_LINE = LOCKED_BRAND + ' · ' + LOCKED_CONTACT;
   // Watermark over every timetable on screen and on every saved image. Built in, cannot be switched off.
   const WATERMARK = '© Cyrus Ireri';
+  // Appearance: Light / Dark / Auto (follows the phone)
+  const THEMES = ['auto', 'light', 'dark'];
+  const getTheme = () => { try { return localStorage.getItem('ireri:theme') || 'auto'; } catch { return 'auto'; } };
+  function applyTheme() {
+    const t = getTheme(), dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('theme-dark', dark);
+    const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', dark ? '#0B1220' : '#12284C');
+  }
+  applyTheme();
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme); } catch { }
   (function brandSplash() {                      // PREPFIX logo every time the app opens, on every device
     const t0 = Date.now();
     const hide = () => { const el = document.getElementById('brandsplash'); if (!el) return; el.classList.add('out'); setTimeout(() => el.remove(), 600); };
@@ -87,7 +97,7 @@
       <span class="av av-classes">${esc(String(x.name).replace(/[^A-Za-z0-9 ]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'S')}</span>
       <span class="nm"><b>${esc(x.name)}</b>${x.code === cur ? ' <i class="me-tag">Your school</i>' : ''}<small>${esc(x.institution || '')}${x.institution ? ' · ' : ''}${[Number.isFinite(x.teachers) ? x.teachers + ' teachers' : '', Number.isFinite(x.classes) ? x.classes + ' classes' : ''].filter(Boolean).join(' · ')}</small>
       ${x.updated ? `<small>Updated ${esc(fmtDate(x.updated))}</small>` : ''}</span>
-      <a class="btn small" href="${esc(schoolHref(x))}">Open</a></div>`).join('');
+      <span class="sstat">${Number.isFinite(x.teachers) ? `<span><b>${x.teachers}</b><small>teachers</small></span>` : ''}${Number.isFinite(x.classes) ? `<span><b>${x.classes}</b><small>classes</small></span>` : ''}</span></div>`).join('');
   }
   function wireSchoolSearch(j, cur) {
     const inp = document.getElementById('sq'), box = document.getElementById('slist');
@@ -99,7 +109,7 @@
     const j = await fetchSchools();
     const n = j && j.schools ? j.schools.length : 0;
     el.innerHTML = `<header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div><div class="titles"><h1>PREPFIX Timetables</h1><p class="sub">${n} school${n === 1 ? '' : 's'} using this app</p></div></div></header>
-      <main class="page wide"><p class="hint-box">Tap your school to open its timetables.</p>
+      <main class="page wide"><p class="hint-box">Schools using PREPFIX Timetables. To open your school's timetables, use the link or QR code from your school.</p>
       <div class="searchbox">${icon('search')}<input id="sq" type="search" autocomplete="off" placeholder="Search for your school…"></div>
       <div id="slist">${schoolsListHTML(j, null, '')}</div>
       <footer class="foot">${esc(BRAND_LINE)}</footer></main>`;
@@ -199,9 +209,9 @@
     if (kind === 'teachers') return [classesText(c.c) || c.s || '', [c.c ? c.s : '', tag.trim(), c.r].filter(Boolean).join(' · ')];
     if (kind === 'classes' || kind === 'master') {
       const others = c.c ? c.c.split(',').map(s => s.trim()).filter(x => x !== ownName) : [];
-      return [(c.s || '') + tag, [teachersText(c.t), c.r, others.length && others.length < 3 ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · ')];
+      return [(c.s || '') + tag, [c.r, others.length && others.length < 3 ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · '), teachersText(c.t)];
     }
-    return [[classesText(c.c), c.s].filter(Boolean).join(' · '), teachersText(c.t)];
+    return [[classesText(c.c), c.s].filter(Boolean).join(' · '), '', teachersText(c.t)];
   }
   const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
   function todayIndex() { const wd = new Date().getDay(); return IDX.D.findIndex(d => d.wd === wd); }
@@ -237,8 +247,23 @@
   // FET's own subject colours (as exported), else a steady colour per subject
   const fetColour = subj => { const C = (B && B.colours) || {}, k = String(subj || '').trim().toUpperCase();
     return C[k] || C[k.split(/\s*[,+]\s*/)[0]] || C[k.replace(/\s*\d+$/, '')] || null; };
-  const hlStyle = c => { if (!(isLesson(c) && c.s)) return ''; const f = fetColour(c.s);
-    return f ? ` data-fc style="--hl:${subjHue(c.s)};--fb:${f[0]};--ff:${f[1]}"` : ` style="--hl:${subjHue(c.s)}"`; };
+  // One colour for each CLASS + SUBJECT pair, so a teacher's 11 I CHEM and 4 B CHEM look different
+  const colKey = (kind, c, own) => `${(kind === 'classes' || kind === 'master') ? own : (c.c || '')}|${c.s || ''}`.toUpperCase().replace(/\s+/g, ' ');
+  function hslHex(h, s, l) { s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+    const f = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, '0'); return `#${f(0)}${f(8)}${f(4)}`; }
+  function buildColours() {
+    const keys = new Set();
+    B.teachers.forEach(t => t.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey('teachers', c)); })));
+    ['classes', 'master', 'rooms'].forEach(k => (B[k] || []).forEach(it => it.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey(k, c, it.name)); }))));
+    const L = [74, 60, 84, 67, 52], S = [78, 70, 85, 62, 72], map = {};
+    [...keys].sort().forEach((k, i) => { const h = (i * 137.508) % 360, l = L[i % 5], sat = S[(i >> 1) % 5];
+      const light = l >= 66 || (h > 40 && h < 200 && l >= 60);
+      map[k] = [hslHex(h, sat, l), light ? '#0B1B36' : '#FFFFFF']; });
+    IDX.colours = map;
+  }
+  const colourFor = (kind, c, own) => (isLesson(c) && IDX.colours) ? IDX.colours[colKey(kind === 'master' ? 'master' : kind, c, own)] || null : null;
+  const hlStyle = (c, kind = 'teachers', own = '') => { if (!isLesson(c)) return ''; const f = colourFor(kind, c, own);
+    return f ? ` data-fc style="--hl:${subjHue(c.s || '')};--fb:${f[0]};--ff:${f[1]}"` : ''; };
   // longest run of lessons with no class after lunch (3 or 4 in a row = a free afternoon)
   function afternoonFree(t, d) {
     const pm = IDX.lessons.filter(j => IDX.P[j].pm); if (!pm.length) return null;
@@ -266,15 +291,21 @@
       <span class="nm"><b>${esc(teacherLabel(x.t))}</b><small>${plural(x.load, 'lesson')} on ${esc(dayLabel(d))}</small>
       <span class="badges">${x.same ? '<i class="bd g">Same subject</i>' : ''}${x.knows ? '<i class="bd b">Teaches this class</i>' : ''}${x.pmfree ? '<i class="bd y">Free afternoon</i>' : ''}</span></span>${icon('chev', 'chev')}</button></li>`).join('') || '<li class="empty">No teacher is free at that time.</li>';
   }
+  // Cover: teachers who teach THAT class come first; anyone else free is tucked away below
+  function coverSplit(free, d, cls) {
+    const same = free.filter(x => x.knows), other = free.filter(x => !x.knows);
+    return `<h4 class="cvh">✓ Teach ${esc(cls.join(', ') || 'this class')} and are free · ${same.length}</h4>
+      <ul class="list cvlist">${coverRows(same, d)}</ul>
+      ${other.length ? `<details class="cvmore"><summary>Other free teachers (they don't teach this class) · ${other.length}</summary><ul class="list cvlist">${coverRows(other, d)}</ul></details>` : ''}`;
+  }
   function openCoverSheet(id, d, j) {
     const item = IDX.byId[id]; if (!item) return;
     const c = cellAt(item, d, j); if (!isLesson(c)) return;
     const r = candidates(item, d, j, c);
     const L = cellLines(item.kind === 'master' ? 'classes' : item.kind, c, item.name) || ['', ''];
     openSheet(`<div class="grab"></div><h3>Who can be there?</h3>
-      <div class="cvinfo"><b>${esc(dayLabel(d))} · ${esc(pLabel(j))}${r.span > 1 ? ' · double lesson' : ''}</b><span>${esc(L[0])}${L[1] ? ' — ' + esc(L[1]) : ''}</span></div>
-      <p class="muted small"><b>${r.free.length}</b> teacher${r.free.length === 1 ? ' is' : 's are'} free at this time. Best matches first. Tap a name to see their timetable.</p>
-      <ul class="list cvlist">${coverRows(r.free, d)}</ul>
+      <div class="cvinfo"><b>${esc(dayLabel(d))} · ${esc(pLabel(j))}${r.span > 1 ? ' · double lesson' : ''}</b><span>${esc(L[0])}${L[1] ? ' — ' + esc(L[1]) : ''}${L[2] ? ' — ' + esc(L[2]) : ''}</span></div>
+      ${coverSplit(r.free, d, r.cls)}
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   function teacherSubjects(t) { const s = new Set(); t.grid.forEach(r => r.forEach(c => { if (isLesson(c) && c.s) s.add(c.s.replace(/\s*\d+$/, '').trim()); })); return s; }
@@ -303,7 +334,7 @@
     if (!r.ok) throw new Error(`Server said ${r.status}`);
     return r.json();
   }
-  function setData(d) { state.data = d; B = d.bundle; buildIndex(); }
+  function setData(d) { state.data = d; B = d.bundle; buildIndex(); buildColours(); if (remOn()) setTimeout(() => pushSubscribe(false), 1500); }
   async function sync(reason = '') {
     if (state.syncing) return;
     state.syncing = true; renderStatus();
@@ -352,9 +383,49 @@
     if (parts[0] === 'schools') return { name: 'schools' };
     return { name: parts[0] };
   }
-  const go = h => { location.hash = h; };
+  // Navigation: every page knows how deep it is, so the dashboard is always "home"
+  let pushing = false;
+  const go = h => { pushing = true; location.hash = h; };
+  const depthNow = () => (history.state && history.state.d) || 0;
+  if (!history.state) history.replaceState({ d: 0 }, '');
+  state.lastDepth = depthNow();
+  // Left pop-out menu: tap the tab on the left edge (or swipe from the edge) to jump anywhere
+  function railItems() {
+    const me = meTeacher();
+    return [['home', 'grid', 'Dashboard', ''], ['me', 'star', 'My timetable', me ? `view/${me.id}` : ''], ['teachers', 'teacher', 'Teachers', 'list/teachers'],
+      ['classes', 'classes', 'Classes', 'list/classes'], ['master', 'grid', 'Master', 'master'], ['rooms', 'lab', 'Labs & Fields', 'list/rooms'],
+      ['free', 'free', 'Free teachers', 'free'], ['cover', 'cover', 'Find cover', 'cover'], ['where', 'pin', 'Where is…?', 'where'],
+      ['meet', 'classes', 'Meeting', 'meet'], ['analysis', 'chart', 'Analysis', 'analysis'], ['printall', 'print', 'Print all', '@allSheet'], ['schools', 'info', 'Schools', 'schools']];
+  }
+  function ensureRail() {
+    if (POSTER || !state.data || $('#railtab')) return;
+    const tab = document.createElement('button'); tab.id = 'railtab'; tab.type = 'button'; tab.setAttribute('data-act', 'rail'); tab.setAttribute('aria-label', 'Menu');
+    tab.innerHTML = '<span></span><span></span><span></span>';
+    const rail = document.createElement('nav'); rail.id = 'rail'; rail.setAttribute('aria-label', 'Go to');
+    document.body.append(tab, rail);
+  }
+  function toggleRail() {
+    const rail = $('#rail'); if (!rail) return;
+    if (rail.classList.contains('open')) return closeRail();
+    const here = route().name;
+    rail.innerHTML = railItems().map(([k, ic, label, href]) => `<button type="button" class="ri ${here === k || (k === 'home' && here === 'home') ? 'on' : ''}" ${k === 'home' ? 'data-act="home"' : href.startsWith('@') ? `data-act="${href.slice(1)}"` : href ? `data-go="${href}"` : 'data-act="pickMe"'}>${icon(ic)}<span>${label}</span></button>`).join('');
+    rail.classList.add('open'); document.body.classList.add('rail-open');
+  }
+  function closeRail() { const r = $('#rail'); if (r) r.classList.remove('open'); document.body.classList.remove('rail-open'); }
+  document.addEventListener('click', e => { if (document.body.classList.contains('rail-open') && !e.target.closest('#rail,#railtab')) closeRail(); }, true);
+  let edgeX = null;
+  document.addEventListener('touchstart', e => { const t = e.touches[0]; edgeX = t.clientX < 18 ? t.clientX : null; }, { passive: true });
+  document.addEventListener('touchend', e => { if (edgeX == null) return; const dx = e.changedTouches[0].clientX - edgeX; edgeX = null; if (dx > 50 && !document.body.classList.contains('rail-open')) toggleRail(); }, { passive: true });
+  function goHome() {
+    closeSheet(); closeRail();
+    const d = depthNow();
+    if (d > 0) { state.homing = true; history.go(-d); } else if (location.hash) { history.replaceState({ d: 0 }, '', location.pathname + location.search); render(); window.scrollTo(0, 0); }
+  }
   function render() {
     if (POSTER) return renderPoster();
+    ensureRail();
+    document.body.classList.toggle('desk', isDesk());
+    document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name));
     if ((state.full || state.force) && !['view', 'master'].includes(route().name)) releaseRotate();
     if (state.error === 'locked') return renderMsg('Timetables not available', 'This school\'s timetable service is switched off. Please contact the school office.', false);
     if (!state.data) return renderEmpty();
@@ -460,7 +531,7 @@
     try { navigator.vibrate && navigator.vibrate([400, 150, 400, 150, 800]); } catch { }
     try {
       if ('Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker) {
-        navigator.serviceWorker.ready.then(reg => reg.showNotification(title, { body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: 'lesson-' + L.j, renotify: true, requireInteraction: true, vibrate: [400, 150, 400, 150, 800], data: { url: location.href } })).catch(() => { });
+        navigator.serviceWorker.ready.then(reg => reg.showNotification(title, { body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: `lesson-${IDX.D[todayIndex()]?.wd}-${L.start}`, renotify: true, requireInteraction: true, vibrate: [400, 150, 400, 150, 800], data: { url: location.href } })).catch(() => { });
       }
     } catch { }
     if (document.visibilityState === 'visible') {
@@ -475,17 +546,66 @@
       document.body.appendChild(box);
     }
   }
+  // ---- reminders that arrive when the app is CLOSED: the phone registers with the reminder service
+  const PUSH = (CFG.push || '').replace(/\/$/, '');
+  const pushPossible = () => !!(PUSH && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+  const b64ToBytes = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+  function myAlarmPlan() {
+    const me = meTeacher(); if (!me) return null;
+    const tz = new Date().getTimezoneOffset(), lessons = [], alarms = [];
+    IDX.D.forEach((dd, d) => { if (dd.wd < 0) return; myLessonsOn(me, d).forEach(L => {
+      const local = dd.wd * 1440 + L.start - REMIND_MIN;
+      alarms.push(((local + tz) % 10080 + 10080) % 10080);
+      lessons.push({ wd: dd.wd, start: L.start, label: IDX.P[L.j].label, time: IDX.P[L.j].time, title: L.lines[0], body: [L.lines[1], L.cell.r].filter(Boolean).join(' · ') });
+    }); });
+    return { me, alarms, lessons };
+  }
+  async function saveReminderCache(plan) {
+    try { const c = await caches.open('prepfix-rem');
+      if (!plan) { await c.delete('/__reminders'); return; }
+      await c.put('/__reminders', new Response(JSON.stringify({ min: REMIND_MIN, url: location.origin + location.pathname, teacher: teacherLabel(plan.me), school: state.data?.school?.name || '', lessons: plan.lessons }), { headers: { 'Content-Type': 'application/json' } }));
+    } catch { }
+  }
+  async function pushSubscribe(force, perm) {
+    const plan = myAlarmPlan(); if (!plan) return 'none';
+    await saveReminderCache(plan);
+    if (!pushPossible()) return 'unsupported';
+    if (isIOS() && !isStandalone()) return 'ios-install';
+    if ((perm || Notification.permission) !== 'granted') return 'blocked';
+    const sig = `${state.data.tt}|${state.data.version}|${plan.me.code}|${plan.alarms.join(',')}`;
+    if (!force && store.get('pushSig') === sig) return 'ok';
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) { const k = await (await fetch(PUSH + '/vapid')).json(); sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(k.key) }); }
+      const r = await fetch(PUSH + '/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sub: sub.toJSON(), alarms: plan.alarms, school: CODE, teacher: plan.me.code }) });
+      if (!r.ok) throw new Error('service');
+      store.set('pushSig', sig); return 'ok';
+    } catch { return 'error'; }
+  }
+  async function pushUnsubscribe() {
+    store.del('pushSig'); await saveReminderCache(null);
+    try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+      if (sub) { fetch(PUSH + '/unsubscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => { }); await sub.unsubscribe(); } } catch { }
+  }
   async function remToggle() {
-    if (remOn()) { store.set('remind', false); toast('Lesson reminder OFF'); render(); return; }
+    if (remOn()) { store.set('remind', false); pushUnsubscribe(); toast('Lesson reminder OFF'); render(); return; }
     store.set('remind', true);
     let perm = 'default';
     try { if ('Notification' in window) perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission(); } catch { }
     render();
+    const ps = perm === 'granted' ? await pushSubscribe(true, perm) : 'blocked';
+    const msg = {
+      ok: '<p class="okline">✓ Alerts will come even when the app is CLOSED.</p>',
+      'ios-install': '<p class="warnline">On iPhone: first add this app to your Home Screen (Share ⬆ → Add to Home Screen), open it from there and switch the reminder on again — then alerts come even when it is closed.</p>',
+      blocked: '<p class="warnline">Notifications are blocked — allow notifications for this app in your phone settings, then switch the reminder on again.</p>',
+      unsupported: '<p class="muted small">Alerts come while the app is open or was used recently. For alerts at any time, add your lessons to your calendar below.</p>',
+      error: '<p class="warnline">Could not reach the reminder service now (check internet). It will try again next time you open the app.</p>',
+    }[ps] || '';
     openSheet(`<div class="grab"></div><h3>⏰ Lesson reminder is ON</h3>
-      <p>You will get an alarm <b>${REMIND_MIN} minutes before each of your lessons</b> (${esc(teacherLabel(meTeacher()))}), with sound and vibration.</p>
-      ${perm === 'granted' ? '<p class="okline">✓ Notifications allowed</p>' : '<p class="warnline">Notifications are blocked — allow them for this app in your phone settings so the reminder shows on the lock screen.</p>'}
-      <p class="muted small">Phones can stop a closed app from running. To be sure you never miss an alarm — even when the app is closed — also add your lessons to your phone's calendar:</p>
-      <button class="btn wide" data-act="remCal">📅 Add my lessons to my phone calendar</button>
+      <p>You will get an alert <b>${REMIND_MIN} minutes before each of your lessons</b> (${esc(teacherLabel(meTeacher()))}), with sound and vibration.</p>
+      ${msg}
+      ${ps === 'ok' ? '' : `<button class="btn wide" data-act="remCal">📅 Add my lessons to my phone calendar</button>`}
       <button class="btn ghost wide" data-act="closeSheet">Done</button>`);
     checkReminders();
   }
@@ -534,6 +654,7 @@
       ['where', 'pin', 'Where is…?', 'Find a teacher', 'where'],
       ['meet', 'classes', 'Meeting finder', 'When are teachers all free', 'meet'],
       ['analysis', 'chart', 'Staff analysis', 'Subjects, classes & load', 'analysis'],
+      ['printall', 'print', 'Print all timetables', 'Colour or black & white', ''],
       ['schools', 'grid', 'Schools using this app', schoolsCount(), 'schools'],
     ];
     app.innerHTML = `
@@ -548,7 +669,7 @@
         <div id="banners"></div>
         ${nowCard()}
         <nav class="tiles">${tiles.map(([k, ic, t, s, href]) => `
-          <button class="tile t-${k}" ${href ? `data-go="${href}"` : 'data-act="pickMe"'}>
+          <button class="tile t-${k}" ${k === 'printall' ? 'data-act="allSheet"' : href ? `data-go="${href}"` : 'data-act="pickMe"'}>
             <span class="tic">${icon(ic)}</span><strong>${esc(t)}</strong><small>${esc(s)}</small></button>`).join('')}
         </nav>
         <footer class="foot">${esc(BRAND_LINE)}</footer>
@@ -564,10 +685,10 @@
     const m = whole.match(/\s(TERM\b.*|END\b.*|\d{4}\b.*TIMETABLE.*)$/);
     return m ? [whole.slice(0, m.index).trim(), m[1].trim()] : [whole];
   }
-  function instBlock(extra = '') {
+  function instBlock(extra = '', owner = null) {
     const L = instLines();
     if (!L.length) return '';
-    return `<div class="inst ${extra}"><b>${esc(L[0])}</b>${L.slice(1).map(x => `<span>${esc(x)}</span>`).join('')}</div>`;
+    return `<div class="inst ${extra}${owner ? ' has-owner' : ''}"><img class="inst-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX"><b>${esc(L[0])}</b>${L.slice(1).map(x => `<span>${esc(x)}</span>`).join('')}${owner ? `<div class="owner"><i>${esc(owner.tag)}</i><strong>${esc(owner.name)}</strong></div>` : ''}</div>`;
   }
   function ttSwitcher() {
     const list = state.tts || [];
@@ -604,7 +725,7 @@
   // ------------------------------------------------------------------ LISTS with filters
   const KIND = {
     teachers: { title: 'Teachers', ph: 'Search by number or name…' },
-    classes: { title: 'Classes', ph: 'Search a class…' },
+    classes: { title: 'Classes', ph: 'Search a class…', one: 'Class' },
     rooms: { title: 'Labs & Fields', ph: 'Search a lab or field…' },
   };
   function listItems(kind) {
@@ -650,7 +771,9 @@
     const list = ['classes', 'teachers', 'rooms'].includes(item.kind) ? listItems(item.kind) : B[item.kind];
     return list.some(x => x.id === item.id) ? list : B[item.kind];
   }
-  const effectiveLayout = () => state.layout === 'auto' ? (isLandscape() ? 'week' : 'day') : state.layout;
+  const isDesk = () => matchMedia('(pointer: fine)').matches && innerWidth >= 1000;
+  const fillOn = () => state.full || isDesk();
+  const effectiveLayout = () => state.layout === 'auto' ? (isDesk() ? 'week' : 'day') : state.layout;
   function renderViewer(id) {
     const item = IDX.byId[id], kind = item.kind;
     const sib = siblings(item), idx = sib.findIndex(x => x.id === id);
@@ -668,10 +791,10 @@
         <button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit full screen' : 'Rotate'}</span></button>
         ${kind === 'teachers' ? `<button class="btn small ghost" data-go="analysis/${esc(item.id)}">${icon('chart')} Profile</button>` : ''}<button class="btn small ghost" data-act="save">${icon('save')} Save</button>
       </div>
-      <main class="tt" id="tt">${instBlock('small')}${layout === 'day' ? dayView(item) : weekGrid(item)}</main>
+      <main class="tt" id="tt">${instBlock('small', ownerLine(kind, item))}${layout === 'day' ? dayView(item) : weekGrid(item)}</main>
       <div class="vtools">
         <button class="icon-btn" data-act="prev" ${idx <= 0 ? 'disabled' : ''} aria-label="Previous">${icon('prev')}</button>
-        <span class="vcount">${idx > 0 ? sibName(sib[idx - 1]) : ''}</span><span class="vsep">${idx + 1}/${sib.length}</span><span class="vcount r">${idx < sib.length - 1 ? sibName(sib[idx + 1]) : ''}</span>
+        <span class="vcur">${kind === 'teachers' ? `<i class="sc">${esc(item.code)}</i>` : ''}<b>${esc(kind === 'teachers' ? teacherLabel(item) : item.name)}</b><small>${idx + 1} of ${sib.length}</small></span>
         <button class="icon-btn" data-act="next" ${idx >= sib.length - 1 ? 'disabled' : ''} aria-label="Next">${icon('next')}</button>
       </div>`;
     if (layout === 'week') fitGrid();
@@ -688,8 +811,8 @@
     state.full = false; state.force = false; document.body.classList.remove('force-land', 'fullv');
   }
   async function toggleRotate() {
-    if (state.full) { releaseRotate(); if (route().name === 'view') state.layout = 'day'; render(); return; }
-    state.full = true; state.layout = 'week'; document.body.classList.add('fullv');
+    if (state.full) { releaseRotate(); render(); return; }
+    state.full = true; document.body.classList.add('fullv');          // same arrangement — only the viewing angle changes
     try { const el = document.documentElement; if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' }); } catch { }
     try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch { }
     applyForce(); render();
@@ -711,8 +834,8 @@
       const cls = (isNow ? 'now' : isNext ? 'next' : '') + (p.pm ? ' pm' : '');
       if (isCont(item, d, j)) return `<li class="cont ${cls}"><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div><div class="pc">${tag}<span class="muted">↳ continues (double lesson)</span></div></li>`;
       const c = cellAt(item, d, j), L = cellLines(item.kind, c, item.name);
-      return `<li class="${cls}${L ? ' has tap' : ''}"${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c)}><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div>
-        <div class="pc">${tag}${L ? `<strong>${esc(L[0])}</strong>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${isDoubleStart(item, d, j) ? '<span class="dbl">double</span>' : ''}` : c === 'X' ? '<span class="muted">Not available</span>' : '<span class="freec">Free</span>'}</div></li>`;
+      return `<li class="${cls}${L ? ' has tap' : ''}"${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c, item.kind, item.name)}><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div>
+        <div class="pc">${tag}${L ? `<strong>${esc(L[0])}</strong>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${L[2] ? `<span class="tn">${esc(L[2])}</span>` : ''}${isDoubleStart(item, d, j) ? '<span class="dbl">double</span>' : ''}` : c === 'X' ? '<span class="muted">Not available</span>' : '<span class="freec">Free</span>'}</div></li>`;
     }).join('');
     return `${dayTabs(d)}<ul class="dayview dv-${item.kind}">${rows}</ul><p class="swipe-hint"><b>Tap a lesson</b> to see who can be there · swipe for the next ${item.kind === 'teachers' ? 'teacher' : item.kind === 'classes' ? 'class' : 'timetable'} · press <b>Rotate</b> for the whole week</p>`;
   }
@@ -736,7 +859,7 @@
       let span = 1; while ((item.grid[d] || [])[j + span] === '^') span++;
       const c = cellAt(item, d, j), L = cellLines(kind, c, item.name);
       const nowc = n.d === d && n.j >= j && n.j < j + span ? ' now' : '';
-      tds += `<td${span > 1 ? ` colspan="${span}"` : ''}${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c)} class="${L ? 'l' : c === 'X' ? 'x' : 'f'}${IDX.P[j].pm ? ' pmc' : ''}${nowc}">${nowc && n.status === 'lesson' ? '<span class="curtag sm">● CURRENT</span>' : ''}${L ? `<b>${esc(L[0])}</b>${L[1] ? `<small>${esc(L[1])}</small>` : ''}` : ''}</td>`;
+      tds += `<td${span > 1 ? ` colspan="${span}"` : ''}${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c, kind, item.name)} class="${L ? 'l' : c === 'X' ? 'x' : 'f'}${IDX.P[j].pm ? ' pmc' : ''}${nowc}">${nowc && n.status === 'lesson' ? '<span class="curtag sm">● CURRENT</span>' : ''}${L ? `<b>${esc(L[0])}</b>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${L[2] ? `<small class="tn">${esc(L[2])}</small>` : ''}` : ''}</td>`;
     }
     return tds;
   }
@@ -748,7 +871,7 @@
   function fitGrid() {
     const wrap = $('#gridwrap'), tb = $('#wk'); if (!wrap || !tb) return;
     tb.style.zoom = 1; tb.style.width = '';
-    if (state.full) {                                   // whole week on one screen: fill the width, fit the height
+    if (fillOn()) {                                     // whole week on one screen: fill the width, fit the height
       const W = wrap.clientWidth - 2, H = wrap.clientHeight - 2, rows = $$('tbody tr', tb);
       rows.forEach(r => { r.style.height = ''; });
       const at = z => { tb.style.zoom = z; tb.style.width = (W / z) + 'px'; return tb.offsetHeight * z; };
@@ -779,7 +902,7 @@
       <div class="mbar">${dayTabs(d)}${gradeChips()}</div>
       <main class="tt"><div class="gridwrap" id="gridwrap"><table class="wk master dc${d % 5}" id="wk"><thead><tr><th>Class</th>${headCells(d, n)}</tr></thead><tbody>${body}</tbody></table></div>
       <p class="swipe-hint">Slide the table sideways · press Rotate to see the whole day on one screen</p></main>`;
-    if (state.full) fitGrid();
+    if (fillOn()) fitGrid();
   }
 
   // ------------------------------------------------------------------ FREE TEACHERS + FREE AFTERNOON
@@ -818,13 +941,40 @@
   }
 
   // ------------------------------------------------------------------ FIND COVER
+  function sessions() {                     // lessons grouped between breaks: Session 1, 2, 3 …
+    const out = []; let cur = [];
+    IDX.P.forEach((p, j) => { if (p.brk) { if (cur.length) out.push(cur); cur = []; } else cur.push(j); });
+    if (cur.length) out.push(cur);
+    return out.map((js, i) => ({ i, js, label: `Session ${i + 1}`, time: `${(IDX.P[js[0]].time || '').split('-')[0]}–${(IDX.P[js[js.length - 1]].time || '').split('-')[1] || ''}` }));
+  }
+  function renderCoverByTime() {
+    if (state.day == null) state.day = Math.max(0, todayIndex());
+    const d = state.day, S = sessions();
+    const n = nowSlot();
+    if (state.coverSess == null) { const k = S.findIndex(x => x.js.includes(n.j)); state.coverSess = k >= 0 ? k : 0; }
+    const ses = S[Math.min(state.coverSess, S.length - 1)];
+    const j = state.coverTime != null && ses.js.includes(state.coverTime) ? state.coverTime : (ses.js.includes(n.j) ? n.j : ses.js[0]);
+    const free = B.teachers.filter(t => cellAt(t, d, j) === '').map(t => ({ t, same: false, knows: false, load: lessonsOnDay(t, d), pmfree: afternoonFree(t, d) }))
+      .sort((a, b) => a.load - b.load || natural(a.t.code, b.t.code));
+    app.innerHTML = `${topBar('Find cover', 'By day, session and time')}
+      <div class="seg wide-seg"><button data-covermode="teacher">By teacher</button><button class="on" data-covermode="time">By day & time</button></div>
+      <main class="page">
+        <h3 class="sect">1. Day</h3>${dayTabs(d)}
+        <h3 class="sect">2. Session</h3><div class="chips sess">${S.map(x => `<button class="chip ${x === ses ? 'on' : ''}" data-coversess="${x.i}"><b>${x.label}</b><small>${esc(x.time)}</small></button>`).join('')}</div>
+        <h3 class="sect">3. Time</h3><div class="chips periods">${ses.js.map(k => `<button class="chip ${k === j ? 'on' : ''}" data-covertime="${k}">${esc(IDX.P[k].label)}<small>${esc(IDX.P[k].time)}</small></button>`).join('')}</div>
+        <h3 class="sect">${free.length} teacher${free.length === 1 ? ' is' : 's are'} free · ${esc(dayLabel(d))} · ${esc(pLabel(j))}</h3>
+        <ul class="list cvlist">${coverRows(free, d)}</ul>
+      </main>`;
+  }
   function renderCover() {
+    if (store.get('coverMode', 'teacher') === 'time') return renderCoverByTime();
     const me = meTeacher();
     const who = state.coverPick ? null : (state.coverTeacher ? IDX.byId[state.coverTeacher] : me);
     if (state.day == null) state.day = Math.max(0, todayIndex());
     const d = state.day;
     if (!who) {
       app.innerHTML = `${topBar('Find cover', 'Who can stand in for a lesson')}
+        <div class="seg wide-seg"><button class="on" data-covermode="teacher">By teacher</button><button data-covermode="time">By day & time</button></div>
         <main class="page"><p class="hint-box">Who needs someone to stand in? Choose the teacher.</p>
         <div class="searchbox">${icon('search')}<input id="q" type="search" placeholder="Search by number or name…"></div>
         <ul class="list" id="list"></ul></main>`;
@@ -836,9 +986,10 @@
     let cands = '';
     if (sel != null) {
       const c = cellAt(who, d, sel), r = candidates(who, d, sel, c);
-      cands = `<h3 class="sect">2. Free teachers — ${r.free.length} can be there</h3><ul class="list">${coverRows(r.free, d)}</ul>`;
+      cands = `<h3 class="sect">2. Who can be there</h3>${coverSplit(r.free, d, r.cls)}`;
     }
     app.innerHTML = `${topBar('Find cover', esc(tLabel(who)), `<button class="txt-btn light" data-act="coverWho">Change</button>`)}
+      <div class="seg wide-seg"><button class="on" data-covermode="teacher">By teacher</button><button data-covermode="time">By day & time</button></div>
       <main class="page">
         ${dayTabs(d)}
         <h3 class="sect">1. Tap the lesson that needs someone</h3>
@@ -866,7 +1017,7 @@
         const cls = isLesson(c) ? classesText(c.c) : '', subj = isLesson(c) ? [c.s, c.g].filter(Boolean).join(' ') : '';
         return `<li><button class="row wrow" data-go="view/${t.id}"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span>
           <span class="nm"><b class="wname">${esc(teacherLabel(t))}</b>
-          ${isLesson(c) ? `<span class="wh"><i class="wcls">${icon('classes')}${esc(cls || '—')}</i><i class="wsub"${hlStyle(c)}>${esc(subj || 'Lesson')}</i>${c.r ? `<i class="wroom">${esc(c.r)}</i>` : ''}</span>`
+          ${isLesson(c) ? `<span class="wh"><i class="wcls">${icon('classes')}${esc(cls || '—')}</i><i class="wsub"${hlStyle(c, 'teachers')}>${esc(subj || 'Lesson')}</i>${c.r ? `<i class="wroom">${esc(c.r)}</i>` : ''}</span>`
             : c === 'X' ? '<span class="wh"><i class="wx">Not available</i></span>' : '<span class="wh"><i class="wfree">Free</i></span>'}</span></button></li>`;
       }).join('') || '<li class="empty">No teacher matches.</li>';
     };
@@ -1205,112 +1356,284 @@
     for (const w of words) { const t = cur ? cur + ' ' + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; }
     if (cur) lines.push(cur); return lines;
   }
-  async function saveImage() {
-    const r = route();
-    let title, rows, kind, fname;
-    if (r.name === 'master') {
-      const d = state.day; kind = 'master';
-      title = `Master timetable — ${dayLabel(d)}`; fname = `Master timetable ${dayLabel(d)}`;
-      rows = B.master.filter(m => state.grade === 'all' || gradeOf(m.name) === state.grade).map(m => ({ head: m.name, item: m, d }));
+  // ------------------------------------------------------------------ SAVE: picture (PNG) or PDF · coloured or black & white · fills an A4 page
+  function openSaveSheet() {
+    const fmt = store.get('saveFmt', 'image'), col = store.get('saveCol', 'colour');
+    openSheet(`<div class="grab"></div><h3>Save this timetable</h3>
+      <p class="muted small">${esc(saveName().base)}</p>
+      <h4 class="svh">Save as</h4>
+      <div class="seg wide-seg sv"><button class="${fmt === 'image' ? 'on' : ''}" data-savefmt="image">🖼 Picture (PNG)</button><button class="${fmt === 'pdf' ? 'on' : ''}" data-savefmt="pdf">📄 PDF</button><button class="${fmt === 'print' ? 'on' : ''}" data-savefmt="print">🖨 Print now</button></div>
+      <h4 class="svh">Colour</h4>
+      <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-savecol="colour">🎨 Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-savecol="bw">⚫ Black & white</button></div>
+      <p class="muted small">A4 size, sharp HD quality, ready to print.</p>
+      <button class="btn wide" data-act="doSave">${icon(fmt === 'print' ? 'print' : 'save')} ${fmt === 'print' ? 'Print' : 'Save'}</button>
+      <button class="btn ghost wide" data-act="allSheet">${icon('print')} Print / save ALL timetables</button>
+      <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
+  }
+  function saveName() {
+    const r = route(); let base;
+    if (r.name === 'master') base = `Master timetable ${dayLabel(state.day)}`;
+    else { const it = IDX.byId[r.id]; base = it.kind === 'teachers' ? `${it.code}. ${teacherLabel(it)}` : `${(KIND[it.kind]?.one || '')} ${it.name}`.trim(); }
+    const ttn = state.data?.ttName || '';
+    const clean = t => t.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').replace(/[.\s]+$/, '').trim();
+    return { base: clean([base, ttn].filter(Boolean).join(' - ')).slice(0, 110) };
+  }
+  // PREPFIX logo for printed pages (loaded once)
+  let LOGO = null;
+  function loadLogo() {
+    if (LOGO) return LOGO;
+    LOGO = new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = '/brand/prepfix-logo-600.png'; });
+    return LOGO;
+  }
+  const currentTarget = () => { const r = route(); return r.name === 'master' ? { master: true, d: state.day, grade: state.grade } : { id: r.id }; };
+  // who/what the page is for, written big at the top — exactly as in the FET timetables
+  function ownerLine(kind, item, d) {
+    if (kind === 'master') return { tag: 'MASTER TIMETABLE', name: dayLabel(d).toUpperCase() };
+    if (kind === 'teachers') return { tag: 'TEACHER', name: `${item.code}${item.name ? '  ·  ' + item.name : ''}` };
+    if (kind === 'classes') return { tag: 'CLASS', name: item.name };
+    return { tag: 'LAB / FIELD', name: item.name };
+  }
+  function drawTimetablePage(bw, tgt = currentTarget(), logoImg = null, SCALE = 2.2) {
+    let title, rows, kind, own;
+    if (tgt.master) {
+      const d = tgt.d; kind = 'master'; title = `Master timetable — ${dayLabel(d)}`;
+      rows = B.master.filter(m => !tgt.grade || tgt.grade === 'all' || gradeOf(m.name) === tgt.grade).map(m => ({ head: m.name, item: m, d }));
+      own = ownerLine('master', null, d);
     } else {
-      const item = IDX.byId[r.id]; kind = item.kind;
-      title = kind === 'teachers' ? `${teacherLabel(item)}${item.name ? ' (No. ' + item.code + ')' : ''}` : item.name;
-      fname = title.replace(/[^\w\- ]+/g, '').trim() || 'timetable';
+      const item = IDX.byId[tgt.id]; kind = item.kind;
+      title = kind === 'teachers' ? `${item.code}. ${teacherLabel(item)}` : item.name;
       rows = IDX.D.map((dd, d) => ({ head: dd.label, item, d }));
+      own = ownerLine(kind, item);
     }
-    const P = IDX.P, scale = 2;
-    const headW = kind === 'master' ? 90 : 70, colW = 130, brkW = 34, top = 96, pad = 20;
-    const colWs = P.map(p => p.brk ? brkW : colW);
-    // every row as tall as its longest cell, so all teacher names fit
+    const P = IDX.P;
+    const PW = 1600, PH = Math.round(1600 / Math.SQRT2);        // A4 landscape proportions
     const mctx = document.createElement('canvas').getContext('2d');
-    const cellText = (row, j) => {
-      let span = 1; while ((row.item.grid[row.d] || [])[j + span] === '^') span++;
-      let cw = 0; for (let k = j; k < j + span; k++) cw += colWs[k];
-      const c = cellAt(row.item, row.d, j), L = cellLines(kind, c, row.item.name);
-      if (!L) return { cw, L, a: [], b: [] };
-      mctx.font = '700 12px Poppins, Arial'; const a = wrapText(mctx, L[0], cw - 10).slice(0, 3);
-      mctx.font = '600 11px Poppins, Arial'; const b = wrapText(mctx, L[1] || '', cw - 10);
-      return { cw, L, a, b };
-    };
-    const RH = rows.map(row => {
-      let h = 64;
-      for (let j = 0; j < P.length; j++) { if (P[j].brk || isCont(row.item, row.d, j)) continue; const t = cellText(row, j); h = Math.max(h, t.a.length * 14 + t.b.length * 13 + 20); }
-      return Math.ceil(h);
-    });
+    const nL = P.filter(p => !p.brk).length, nB = P.length - nL;
+    // fit everything onto one page: shrink the drawing (f) only if the content is taller than the page
+    let f = 1, lay;
+    for (let it = 0; it < 8; it++) {
+      const W = PW / f, H = PH / f, pad = 28, top = 156, foot = 46, headW = kind === 'master' ? 96 : 84, brkW = 40;
+      const colW = (W - pad * 2 - headW - nB * brkW) / nL;
+      const colWs = P.map(p => p.brk ? brkW : colW);
+      const cellText = (row, j) => {
+        let span = 1; while ((row.item.grid[row.d] || [])[j + span] === '^') span++;
+        let cw = 0; for (let k = j; k < j + span; k++) cw += colWs[k];
+        const c = cellAt(row.item, row.d, j), L = cellLines(kind, c, row.item.name);
+        if (!L) return { cw, L, a: [], b: [], t: [] };
+        mctx.font = '800 15px Poppins, Arial'; const a = wrapText(mctx, L[0], cw - 14).slice(0, 3);
+        mctx.font = '600 12.5px Poppins, Arial'; const b = L[1] ? wrapText(mctx, L[1], cw - 14) : [];
+        mctx.font = '700 12px Poppins, Arial'; const t = L[2] ? wrapText(mctx, L[2], cw - 22) : [];
+        return { cw, L, a, b, t };
+      };
+      const need = rows.map(row => { let h = 56; for (let j = 0; j < P.length; j++) { if (P[j].brk || isCont(row.item, row.d, j)) continue;
+        const t = cellText(row, j); h = Math.max(h, t.a.length * 18 + t.b.length * 15 + (t.t.length ? t.t.length * 14 + 10 : 0) + 22); } return h; });
+      const bodyAvail = H - top - 52 - foot, sum = need.reduce((a, b) => a + b, 0);
+      if (sum > bodyAvail * 1.001 && f > 0.42) { f = Math.max(0.42, f * Math.sqrt(bodyAvail / sum) * 0.98); continue; }
+      const extra = Math.max(0, bodyAvail - sum), RH = need.map(h => h + extra / rows.length);
+      lay = { W, H, pad, top, foot, headW, brkW, colWs, cellText, RH }; break;
+    }
+    const { W, H, pad, top, foot, headW, colWs, cellText, RH } = lay;
     const Y = []; RH.reduce((acc, h, i) => { Y[i] = acc; return acc + h; }, 0);
-    const bodyH = RH.reduce((a, b) => a + b, 0);
-    const width = pad * 2 + headW + colWs.reduce((a, b) => a + b, 0);
-    const height = top + 44 + bodyH + 50;
-    const cv = document.createElement('canvas'); cv.width = width * scale; cv.height = height * scale;
-    const ctx = cv.getContext('2d'); ctx.scale(scale, scale);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = '#12284C'; ctx.fillRect(0, 0, width, 72); ctx.fillStyle = '#C9A227'; ctx.fillRect(0, 72, width, 4);
+    const bodyH = RH.reduce((a, b) => a + b, 0), y0 = top;
+    const cv = document.createElement('canvas'); cv.width = Math.round(PW * SCALE); cv.height = Math.round(PH * SCALE);
+    const ctx = cv.getContext('2d'); ctx.scale(SCALE * f, SCALE * f); ctx.textBaseline = 'alphabetic';
+    const INK = '#000000', NAVY = bw ? '#000000' : '#12284C', GOLD = bw ? '#000000' : '#C9A227';
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+    // header: school + term on the left, PREPFIX logo top-right, then the owner in big letters
     const IL = instLines();
-    ctx.fillStyle = '#fff'; ctx.font = '700 20px Poppins, Arial'; ctx.fillText((IL[0] || state.data.school?.name || '').toUpperCase(), pad, 30);
-    ctx.font = '700 14px Poppins, Arial'; ctx.fillStyle = '#E8D48A';
-    ctx.fillText([IL.slice(1).join(' '), String(title).toUpperCase()].filter(Boolean).join('   ·   '), pad, 56);
-    let x = pad + headW; const y0 = top; const colX = [];
+    const lh = 82, lw = logoImg ? lh * logoImg.width / logoImg.height : 0;
+    if (logoImg) { ctx.save(); if (bw) ctx.filter = 'grayscale(1) contrast(1.15)'; ctx.drawImage(logoImg, W - pad - lw, 8, lw, lh); ctx.restore(); }
+    const textW = W - pad * 2 - lw - 20;
+    ctx.fillStyle = NAVY; ctx.font = '800 30px Poppins, Arial';
+    const sname = (IL[0] || state.data.school?.name || '').toUpperCase();
+    let sfs = 30; while (ctx.measureText(sname).width > textW && sfs > 18) { sfs -= 1; ctx.font = `800 ${sfs}px Poppins, Arial`; }
+    ctx.fillText(sname, pad, 44);
+    ctx.font = '700 18px Poppins, Arial'; ctx.fillStyle = bw ? INK : '#1E7F5C';
+    ctx.fillText([IL.slice(1).join(' ').toUpperCase(), (state.data.ttName || '').toUpperCase()].filter((v, i, a) => v && a.indexOf(v) === i).join('   ·   '), pad, 74);
+    ctx.fillStyle = GOLD; ctx.fillRect(pad, 94, W - pad * 2, 4);
+    ctx.fillStyle = bw ? '#000' : NAVY; ctx.fillRect(pad, 104, W - pad * 2, 42);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+    ctx.font = '700 15px Poppins, Arial'; const tagW = ctx.measureText(own.tag + '   ').width;
+    ctx.font = '800 26px Poppins, Arial'; const nmW = ctx.measureText(own.name).width;
+    const sx = W / 2 - (tagW + nmW) / 2;
+    ctx.textAlign = 'left'; ctx.font = '700 15px Poppins, Arial'; ctx.fillStyle = bw ? '#fff' : '#E8D48A'; ctx.fillText(own.tag, sx, 131);
+    ctx.font = '800 26px Poppins, Arial'; ctx.fillStyle = '#fff'; ctx.fillText(own.name, sx + tagW, 134);
+    // column headings
+    const colX = []; let x = pad + headW;
     P.forEach((p, j) => {
-      const w = p.brk ? brkW : colW; colX[j] = [x, w];
-      ctx.fillStyle = p.brk ? '#EEE8D8' : '#F3EEDF'; ctx.fillRect(x, y0, w, 44); ctx.strokeStyle = '#5F6B82'; ctx.strokeRect(x, y0, w, 44);
-      if (p.brk) { const t = String(p.time || '').split('-'); ctx.textAlign = 'center'; ctx.fillStyle = '#1B2333'; ctx.font = '700 9px Poppins, Arial';
-        if (t.length === 2) { ctx.fillText(t[0], x + w / 2, y0 + 13); ctx.fillText('–', x + w / 2, y0 + 24); ctx.fillText(t[1], x + w / 2, y0 + 35); } ctx.textAlign = 'left'; }
-      if (!p.brk) { ctx.textAlign = 'center'; ctx.fillStyle = '#12284C'; ctx.font = '800 13px Poppins, Arial'; ctx.fillText(p.label, x + w / 2, y0 + 18); ctx.font = '700 11px Poppins, Arial'; ctx.fillStyle = '#1B2333'; ctx.fillText(p.time, x + w / 2, y0 + 35); ctx.textAlign = 'left'; }
-      x += w;
+      const w = colWs[j]; colX[j] = [x, w];
+      ctx.fillStyle = bw ? '#fff' : (p.brk ? '#E4DCC2' : '#F3EEDF'); ctx.fillRect(x, y0, w, 52);
+      ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(x, y0, w, 52);
+      ctx.textAlign = 'center'; ctx.fillStyle = INK;
+      if (p.brk) { const t = String(p.time || '').split('-'); ctx.font = '700 10.5px Poppins, Arial';
+        if (t.length === 2) { ctx.fillText(t[0], x + w / 2, y0 + 15); ctx.fillText('–', x + w / 2, y0 + 28); ctx.fillText(t[1], x + w / 2, y0 + 41); } }
+      else { ctx.fillStyle = NAVY; ctx.font = '800 17px Poppins, Arial'; ctx.fillText(p.label, x + w / 2, y0 + 22); ctx.fillStyle = INK; ctx.font = '700 13px Poppins, Arial'; ctx.fillText(p.time, x + w / 2, y0 + 42); }
+      ctx.textAlign = 'left'; x += w;
     });
+    // rows
     rows.forEach((row, ri) => {
-      const y = y0 + 44 + Y[ri], rowH = RH[ri];
-      ctx.fillStyle = '#12284C'; ctx.fillRect(pad, y, headW, rowH); ctx.fillStyle = '#fff'; ctx.font = '600 13px Poppins, Arial';
-      wrapText(ctx, row.head, headW - 10).slice(0, 3).forEach((ln, k) => ctx.fillText(ln, pad + 6, y + 22 + k * 15));
+      const y = y0 + 52 + Y[ri], rowH = RH[ri];
+      ctx.fillStyle = bw ? '#fff' : NAVY; ctx.fillRect(pad, y, headW, rowH); ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(pad, y, headW, rowH);
+      ctx.fillStyle = bw ? INK : '#fff'; ctx.font = '800 16px Poppins, Arial'; ctx.textAlign = 'center';
+      const hl = wrapText(ctx, row.head, headW - 10).slice(0, 3); hl.forEach((ln, k) => ctx.fillText(ln, pad + headW / 2, y + rowH / 2 - (hl.length - 1) * 9 + k * 18 + 5));
+      ctx.textAlign = 'left';
       for (let j = 0; j < P.length; j++) {
         const [cx, w] = colX[j];
         if (P[j].brk) {
           if (ri === 0) {
-            const H = bodyH; ctx.fillStyle = '#E4DCC2'; ctx.fillRect(cx, y, w, H); ctx.lineWidth = 1.5; ctx.strokeStyle = '#2B3447'; ctx.strokeRect(cx, y, w, H); ctx.lineWidth = 1;
+            const Hh = bodyH; ctx.fillStyle = bw ? '#fff' : '#E4DCC2'; ctx.fillRect(cx, y, w, Hh); ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(cx, y, w, Hh);
             const words = String(P[j].label || 'BREAK').toUpperCase().split(/\s+/).filter(Boolean);
             const units = words.reduce((t, wd) => t + wd.length, 0) + (words.length - 1) * 0.6;
-            const fs = Math.max(8, Math.min(16, Math.floor((H - 12) / (units * 1.15)))), lh = fs * 1.15;
-            let ty = y + (H - units * lh) / 2 + fs; ctx.font = `800 ${fs}px Poppins, Arial`; ctx.fillStyle = '#3A3218'; ctx.textAlign = 'center';
+            const lh = (Hh - 20) / units, fs = Math.max(9, Math.min(26, Math.floor(Math.min(lh * 0.86, w * 0.62))));
+            let ty = y + 10 + lh / 2 + fs * 0.36; ctx.font = `800 ${fs}px Poppins, Arial`; ctx.fillStyle = bw ? INK : '#3A3218'; ctx.textAlign = 'center';
             words.forEach((wd, wi) => { [...wd].forEach(ch => { ctx.fillText(ch, cx + w / 2, ty); ty += lh; }); if (wi < words.length - 1) ty += lh * 0.6; });
             ctx.textAlign = 'left';
           }
           continue;
         }
         if (isCont(row.item, row.d, j)) continue;
-        let span = 1; while ((row.item.grid[row.d] || [])[j + span] === '^') span++;
-        const cw = colX[j + span - 1][0] + colX[j + span - 1][1] - cx;
-        const c = cellAt(row.item, row.d, j), T = cellText(row, j), L = T.L;
-        const fc = L && isLesson(c) ? fetColour(c.s) : null;
-        ctx.fillStyle = fc ? fc[0] : L ? '#ffffff' : c === 'X' ? '#F2F2F2' : '#FBFAF6'; ctx.fillRect(cx, y, cw, rowH);
-        ctx.lineWidth = 1.5; ctx.strokeStyle = '#2B3447'; ctx.strokeRect(cx, y, cw, rowH); ctx.lineWidth = 1;
+        const c = cellAt(row.item, row.d, j), T = cellText(row, j), L = T.L, cw = T.cw;
+        const fc = !bw && L ? colourFor(kind, c, row.item.name) : null;
+        ctx.fillStyle = fc ? fc[0] : '#ffffff'; ctx.fillRect(cx, y, cw, rowH);
+        ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(cx, y, cw, rowH);
         if (L) {
-          ctx.textAlign = 'center';
-          const a = T.a, b2 = T.b;
-          let ty = y + rowH / 2 - ((a.length * 14 + b2.length * 13) / 2) + 11;
-          ctx.fillStyle = fc ? fc[1] : '#1B2333'; ctx.font = '700 12px Poppins, Arial'; a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 14; });
-          ctx.font = '600 11px Poppins, Arial'; ctx.fillStyle = fc ? fc[1] : '#3A4356'; b2.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 13; });
+          const blockH = T.a.length * 18 + T.b.length * 15 + (T.t.length ? T.t.length * 14 + 10 : 0);
+          let ty = y + (rowH - blockH) / 2 + 14; ctx.textAlign = 'center';
+          ctx.fillStyle = fc ? fc[1] : INK; ctx.font = '800 15px Poppins, Arial'; T.a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 18; });
+          ctx.font = '600 12.5px Poppins, Arial'; T.b.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 15; });
+          if (T.t.length) {                                    // teacher names in their own box and colour
+            ctx.font = '700 12px Poppins, Arial';
+            const bwid = Math.min(cw - 10, Math.max(...T.t.map(l => ctx.measureText(l).width)) + 14), bh = T.t.length * 14 + 6;
+            const bx = cx + (cw - bwid) / 2, by = ty - 11;
+            ctx.fillStyle = '#ffffff'; ctx.strokeStyle = bw ? '#000' : '#0B3D91'; ctx.lineWidth = 1.2;
+            ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, bwid, bh, 6); else ctx.rect(bx, by, bwid, bh); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = bw ? '#000' : '#0B3D91'; ty += 2; T.t.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 14; });
+          }
           ctx.textAlign = 'left';
         }
       }
     });
-    ctx.save(); const gh = 44 + bodyH, gw = width - pad * 2;
-    let fs = Math.min(80, gh * 0.3); ctx.font = `600 ${fs}px Poppins, Arial`;
-    while (ctx.measureText(WATERMARK).width > Math.min(gw, gh * 1.6) * 0.75 && fs > 18) { fs -= 2; ctx.font = `600 ${fs}px Poppins, Arial`; }
-    ctx.globalAlpha = 0.07; ctx.fillStyle = '#12284C'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.translate(width / 2, top + gh / 2); ctx.rotate(-Math.PI / 6); ctx.fillText(WATERMARK, 0, 0); ctx.restore();
-    ctx.fillStyle = '#667085'; ctx.font = '11px Poppins, Arial';
-    ctx.fillText(`${WATERMARK} · ${BRAND_LINE} · saved ${new Date().toLocaleString('en-GB')}`, pad, height - 18);
-    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
-    const ttn = state.data?.ttName || '';
-    const full = [fname, ttn].filter(Boolean).join(' - ').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90);
-    const file = new File([blob], full + '.png', { type: 'image/png' });
-    if (isIOS() && navigator.canShare && navigator.canShare({ files: [file] })) {   // iPhone: the only way into Photos
-      try { await navigator.share({ files: [file], title: full }); toast('Tap “Save Image” to put it in Photos'); } catch { }
+    // footer (always) — no diagonal watermark on saved or printed pages
+    const fy = H - foot + 8;
+    ctx.fillStyle = bw ? '#000' : NAVY; ctx.fillRect(pad, fy, W - pad * 2, 30);
+    ctx.fillStyle = '#fff'; ctx.font = '800 14px Poppins, Arial'; ctx.textAlign = 'center';
+    ctx.fillText(`${LOCKED_BRAND}  ·  ${LOCKED_CONTACT}  ·  ${WATERMARK}`, W / 2, fy + 20);
+    ctx.textAlign = 'right'; ctx.font = '600 10.5px Poppins, Arial'; ctx.fillStyle = '#9AA8C2';
+    ctx.fillText(`PREPFIX · ${new Date().toLocaleString('en-GB')}`, W - pad - 8, fy + 20); ctx.textAlign = 'left';
+    return cv;
+  }
+  // Minimal PDF writer: one A4 landscape page per picture
+  function pdfFromPages(pages, titleText) {
+    const enc = new TextEncoder(), parts = [], offs = []; let len = 0;
+    const add = x => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; };
+    const obj = (n, body) => { offs[n] = len; add(`${n} 0 obj\n`); body(); add('\nendobj\n'); };
+    const pw = 841.89, ph = 595.28, N = pages.length;
+    const pdfStr = t => '(' + String(t).replace(/[^\x20-\x7E]/g, '').replace(/([()\\])/g, '\\$1') + ')';
+    add('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+    obj(1, () => add('<< /Type /Catalog /Pages 2 0 R >>'));
+    obj(2, () => add(`<< /Type /Pages /Kids [${pages.map((_, i) => `${3 + i * 3} 0 R`).join(' ')}] /Count ${N} >>`));
+    pages.forEach((pg, i) => {
+      const P = 3 + i * 3, I = P + 1, C = P + 2;
+      const sc = Math.min(pw / pg.w, ph / pg.h), iw = pg.w * sc, ih = pg.h * sc, ix = (pw - iw) / 2, iy = (ph - ih) / 2;
+      const content = `q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${ix.toFixed(2)} ${iy.toFixed(2)} cm /Im0 Do Q`;
+      obj(P, () => add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 ${I} 0 R >> >> /Contents ${C} 0 R >>`));
+      obj(I, () => { add(`<< /Type /XObject /Subtype /Image /Width ${pg.w} /Height ${pg.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${pg.jpeg.length} >>\nstream\n`); add(pg.jpeg); add('\nendstream'); });
+      obj(C, () => add(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`));
+    });
+    const INFO = 3 + N * 3;
+    obj(INFO, () => add(`<< /Title ${pdfStr(titleText)} /Author (CREATED BY CYRUS IRERI 0720872582) /Creator (PREPFIX Timetables) /Producer (PREPFIX) >>`));
+    const xref = len, total = INFO + 1;
+    let x = `xref\n0 ${total}\n0000000000 65535 f \n`;
+    for (let n = 1; n < total; n++) x += String(offs[n]).padStart(10, '0') + ' 00000 n \n';
+    add(x + `trailer\n<< /Size ${total} /Root 1 0 R /Info ${INFO} 0 R >>\nstartxref\n${xref}\n%%EOF`);
+    return new Blob(parts, { type: 'application/pdf' });
+  }
+  const pdfFromJpeg = (jpeg, w, h, t) => pdfFromPages([{ jpeg, w, h }], t);
+  async function canvasJpeg(cv, q = 0.92) { const b = await new Promise(res => cv.toBlob(res, 'image/jpeg', q)); return new Uint8Array(await b.arrayBuffer()); }
+  function deliverFile(blob, full, label) {
+    const file = new File([blob], full, { type: blob.type });
+    if (isIOS() && navigator.canShare && navigator.canShare({ files: [file] })) {
+      return navigator.share({ files: [file], title: label }).then(() => toast('Tap “Save to Files” or “Print”')).catch(() => { });
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = full;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 20000);
+    toast(`Saved: ${full} ✓`, 3500);
+  }
+  // Print straight away (opens the phone's / computer's print screen)
+  function printPictures(urls, title) {
+    const fr = document.createElement('iframe'); fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(fr);
+    const d = fr.contentDocument;
+    d.open(); d.write(`<!doctype html><html><head><title>${esc(title)}</title><style>@page{size:A4 landscape;margin:0}html,body{margin:0}img{display:block;width:100%;height:auto;page-break-after:always;break-after:page}img:last-child{page-break-after:auto;break-after:auto}</style></head><body>${urls.map(u => `<img src="${u}">`).join('')}</body></html>`); d.close();
+    const imgs = [...d.images]; let left = imgs.length;
+    const go = () => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch { } setTimeout(() => fr.remove(), 60000); };
+    if (!left) return go();
+    imgs.forEach(im => { if (im.complete) { if (--left === 0) go(); } else im.onload = im.onerror = () => { if (--left === 0) go(); }; });
+  }
+  // ---- ALL timetables at once: one PDF (or straight to the printer), coloured or black & white
+  function openAllSheet() {
+    const sel = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }), col = store.get('saveCol', 'colour'), out = store.get('allOut', 'pdf');
+    const n = { teachers: B.teachers.length, classes: B.classes.length, rooms: (B.rooms || []).length, master: IDX.D.length };
+    const lab = { teachers: 'Teachers', classes: 'Classes', rooms: 'Labs & Fields', master: 'Master (one page per day)' };
+    const total = Object.keys(n).reduce((a, k) => a + (sel[k] ? n[k] : 0), 0);
+    openSheet(`<div class="grab"></div><h3>🖨 Print / save ALL timetables</h3>
+      <p class="muted small">${esc(state.data?.school?.name || '')} · ${esc(state.data?.ttName || '')}</p>
+      <h4 class="svh">Which timetables</h4>
+      <div class="allpick">${Object.keys(n).filter(k => n[k]).map(k => `<button class="ap ${sel[k] ? 'on' : ''}" data-allsel="${k}"><i>${sel[k] ? '✓' : ''}</i><b>${lab[k]}</b><small>${n[k]} page${n[k] === 1 ? '' : 's'}</small></button>`).join('')}</div>
+      <h4 class="svh">Colour</h4>
+      <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-allcol="colour">🎨 Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-allcol="bw">⚫ Black & white</button></div>
+      <h4 class="svh">Get them as</h4>
+      <div class="seg wide-seg sv"><button class="${out === 'pdf' ? 'on' : ''}" data-allout="pdf">📄 One PDF file</button><button class="${out === 'print' ? 'on' : ''}" data-allout="print">🖨 Print now</button></div>
+      <p class="muted small">${total} A4 pages, each with its name at the top, your school and the PREPFIX logo.</p>
+      <button class="btn wide" data-act="doAll" ${total ? '' : 'disabled'}>${icon('print')} Make ${total} page${total === 1 ? '' : 's'}</button>
+      <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
+  }
+  async function makeAll() {
+    const sel = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }), bw = store.get('saveCol', 'colour') === 'bw', out = store.get('allOut', 'pdf');
+    const T = [];
+    if (sel.teachers) B.teachers.forEach(t => T.push({ id: t.id }));
+    if (sel.classes) B.classes.forEach(c => T.push({ id: c.id }));
+    if (sel.rooms) (B.rooms || []).forEach(r => T.push({ id: r.id }));
+    if (sel.master) IDX.D.forEach((_, d) => T.push({ master: true, d, grade: 'all' }));
+    if (!T.length) return;
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { }
+    const logo = await loadLogo(), pages = [], urls = [];
+    const box = document.createElement('div'); box.className = 'alarm-bg'; box.innerHTML = `<div class="alarm"><div class="abell">🖨</div><h3>Preparing your pages…</h3><p class="awhen" id="allprog">0 of ${T.length}</p></div>`;
+    document.body.appendChild(box);
+    try {
+      for (let i = 0; i < T.length; i++) {
+        const cv = drawTimetablePage(bw, T[i], logo, 1.6);
+        if (out === 'print') urls.push(URL.createObjectURL(await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.9))));
+        else pages.push({ jpeg: await canvasJpeg(cv, 0.86), w: cv.width, h: cv.height });
+        cv.width = cv.height = 1;
+        const pe = document.getElementById('allprog'); if (pe) pe.textContent = `${i + 1} of ${T.length}`;
+        await new Promise(r => setTimeout(r, 0));
+      }
+    } finally { box.remove(); }
+    const what = Object.keys(sel).filter(k => sel[k]).length === 4 ? 'ALL TIMETABLES' : Object.keys(sel).filter(k => sel[k]).map(k => ({ teachers: 'TEACHERS', classes: 'CLASSES', rooms: 'LABS', master: 'MASTER' })[k]).join(' + ');
+    const name = `${state.data?.school?.name || 'School'} - ${state.data?.ttName || ''} - ${what}${bw ? ' (B&W)' : ''}`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (out === 'print') { printPictures(urls, name); return; }
+    deliverFile(pdfFromPages(pages, name), name + '.pdf', name);
+  }
+  async function saveImage() {
+    const fmt = store.get('saveFmt', 'image'), bw = store.get('saveCol', 'colour') === 'bw';
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { }
+    const cv = drawTimetablePage(bw, currentTarget(), await loadLogo());
+    const name = saveName().base + (bw ? ' (B&W)' : ''), full = name + (fmt === 'pdf' ? '.pdf' : '.png');
+    if (fmt === 'print') { printPictures([cv.toDataURL('image/png')], name); return; }
+    let blob;
+    if (fmt === 'pdf') {
+      const jb = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.93));
+      blob = pdfFromJpeg(new Uint8Array(await jb.arrayBuffer()), cv.width, cv.height, name);
+    } else blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    const file = new File([blob], full, { type: blob.type });
+    if (isIOS() && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: name }); toast(fmt === 'pdf' ? 'Tap “Save to Files”' : 'Tap “Save Image” to put it in Photos'); } catch { }
       return;
     }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = full + '.png';
-    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    toast(`Saved: ${full}.png ✓ (Gallery / Downloads)`, 3500);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = full;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+    toast(`Saved: ${full} ✓`, 3500);
   }
 
   // ------------------------------------------------------------------ sheets: menu, share, poster
@@ -1326,6 +1649,8 @@
       ${!isStandalone() ? `<button class="mrow" data-act="getapp">${icon('install')}<span>Get the app<small>Android · iPhone · Computer</small></span></button>` : ''}
       <button class="mrow" data-go="schools">${icon('classes')}<span>Schools using this app<small>See the other schools on Timetables</small></span></button>
       ${meTeacher() ? `<button class="mrow" data-act="remToggle">${icon('clock')}<span>Lesson reminder: ${remOn() ? 'ON' : 'OFF'}<small>Alarm ${REMIND_MIN} minutes before each of your lessons · tap to switch ${remOn() ? 'off' : 'on'}</small></span></button>` : ''}
+      <button class="mrow" data-act="allSheet">${icon('print')}<span>Print / save ALL timetables<small>One PDF or straight to the printer · colour or black & white</small></span></button>
+      <button class="mrow" data-act="theme">${icon('info')}<span>Appearance: ${({ auto: 'Auto (like my phone)', light: 'Light', dark: 'Dark' })[getTheme()]}<small>Tap to switch Light · Dark · Auto</small></span></button>
       <button class="mrow" data-act="contact">${icon('wa')}<span>Contact Cyrus Ireri<small>WhatsApp · call · SMS — ${esc(LOCKED_CONTACT)}</small></span></button>
       <button class="mrow" data-act="about">${icon('info')}<span>About<small>${esc(BRAND_LINE)}</small></span></button>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
@@ -1394,29 +1719,42 @@
     if (sib[i]) location.replace('#view/' + encodeURIComponent(sib[i].id));
   }
   document.addEventListener('click', async e => {
-    const g = e.target.closest('[data-go]'); if (g) { closeSheet(); go(g.dataset.go); return; }
+    const g = e.target.closest('[data-go]'); if (g) { closeSheet(); closeRail(); if (g.dataset.go === location.hash.slice(1)) return; go(g.dataset.go); return; }
     const ttb = e.target.closest('[data-tt]'); if (ttb) { switchTT(ttb.dataset.tt); return; }
     const cv = e.target.closest('[data-cv]'); if (cv) { const [id, d, j] = cv.dataset.cv.split('|'); openCoverSheet(id, +d, +j); return; }
-    const b = e.target.closest('[data-act],[data-layout],[data-day],[data-sday],[data-slot],[data-grade],[data-freetab],[data-coverslot],[data-covert]');
+    const b = e.target.closest('[data-act],[data-layout],[data-day],[data-sday],[data-slot],[data-grade],[data-freetab],[data-coverslot],[data-covert],[data-covermode],[data-coversess],[data-covertime],[data-savefmt],[data-savecol],[data-allsel],[data-allcol],[data-allout]');
     if (!b) return;
     const ds = b.dataset;
-    if (ds.layout) { if (ds.layout === 'day' && state.full) releaseRotate(); state.layout = ds.layout; render(); return; }
+    if (ds.layout) { state.layout = ds.layout; render(); return; }
     if (ds.day != null) { state.day = +ds.day; state.coverSlot = null; render(); return; }
     if (ds.sday != null) { state.slot = { ...(state.slot || defaultSlot()), d: +ds.sday }; render(); return; }
     if (ds.slot != null) { state.slot = { ...(state.slot || defaultSlot()), j: +ds.slot }; render(); return; }
     if (ds.grade != null && route().name === 'master') { state.grade = ds.grade; render(); return; }
     if (ds.freetab) { store.set('freeTab', ds.freetab); render(); return; }
     if (ds.coverslot != null) { state.coverSlot = +ds.coverslot; render(); return; }
+    if (ds.allsel) { const s2 = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }); s2[ds.allsel] = !s2[ds.allsel]; store.set('allSel', s2); openAllSheet(); return; }
+    if (ds.allcol) { store.set('saveCol', ds.allcol); openAllSheet(); return; }
+    if (ds.allout) { store.set('allOut', ds.allout); openAllSheet(); return; }
+    if (ds.savefmt) { store.set('saveFmt', ds.savefmt); openSaveSheet(); return; }
+    if (ds.savecol) { store.set('saveCol', ds.savecol); openSaveSheet(); return; }
+    if (ds.covermode) { store.set('coverMode', ds.covermode); render(); return; }
+    if (ds.coversess != null) { state.coverSess = +ds.coversess; state.coverTime = null; render(); return; }
+    if (ds.covertime != null) { state.coverTime = +ds.covertime; render(); return; }
     if (ds.covert) { state.coverTeacher = ds.covert; state.coverPick = false; state.coverSlot = null; render(); return; }
     switch (ds.act) {
-      case 'back': if (state.navDepth > 0) history.back(); else location.hash = ''; break;
+      case 'back': if (depthNow() > 0) history.back(); else goHome(); break;
+      case 'home': goHome(); break;
+      case 'rail': toggleRail(); break;
       case 'rotate': toggleRotate(); break;
       case 'csv': downloadCsv(); break;
       case 'csv2': downloadSessionsCsv(); break;
       case 'print': window.print(); break;
       case 'prev': stepItem(-1); break;
       case 'next': stepItem(1); break;
-      case 'save': toast('Preparing picture…', 1500); saveImage().catch(err => toast('Could not save: ' + err.message)); break;
+      case 'save': openSaveSheet(); break;
+      case 'allSheet': closeRail(); openAllSheet(); break;
+      case 'doAll': closeSheet(); makeAll().catch(err => toast('Could not make the pages: ' + err.message)); break;
+      case 'doSave': closeSheet(); toast('Preparing your file…', 2000); saveImage().catch(err => toast('Could not save: ' + err.message)); break;
       case 'me': {
         const item = IDX.byId[route().id];
         if (String(store.get('me')) === String(item.code)) { store.del('me'); toast('Removed from My timetable'); }
@@ -1441,6 +1779,7 @@
       case 'nativeShare': try { await navigator.share({ title: 'School timetables', url: linkFor() }); } catch { } break;
       case 'about': openAbout(); break;
       case 'contact': openContact(); break;
+      case 'theme': { const t = THEMES[(THEMES.indexOf(getTheme()) + 1) % 3]; try { localStorage.setItem('ireri:theme', t); } catch { } applyTheme(); openMenu(); toast(({ auto: 'Appearance: Auto', light: 'Light mode', dark: 'Dark mode' })[t]); break; }
       case 'getapp': openGetApp(); break;
       case 'retry': state.error = null; renderEmpty(); sync('manual'); break;
     }
@@ -1455,16 +1794,23 @@
     if (Date.now() - tt < 700 && Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.8) stepItem(dx < 0 ? 1 : -1);
   }, { passive: true });
 
+  addEventListener('popstate', () => {
+    if (!state.homing) return; state.homing = false;
+    setTimeout(() => { if (location.hash) { history.replaceState({ d: 0 }, '', location.pathname + location.search); state.lastDepth = 0; render(); window.scrollTo(0, 0); } }, 0);
+  });
   addEventListener('hashchange', () => {
     const r = route();
-    state.navDepth = r.name === 'home' ? 0 : state.navDepth + 1;
+    if (pushing) { pushing = false; history.replaceState({ d: (state.lastDepth || 0) + 1 }, ''); }
+    else if (!history.state) history.replaceState({ d: r.name === 'home' ? 0 : (state.lastDepth || 0) }, '');
+    state.lastDepth = depthNow(); state.navDepth = state.lastDepth;
+    closeRail();
     if (r.name !== 'cover') state.coverPick = false;
     if (state.data) render(); window.scrollTo(0, 0);
   });
   const mq = matchMedia('(orientation: landscape)');
-  const onRotate = () => { releaseRotate(); if (state.data && route().name === 'view') { state.layout = 'auto'; render(); } };
+  const onRotate = () => { if (state.data && ['view', 'master'].includes(route().name)) setTimeout(() => { applyForce(); fitGrid(); }, 200); };
   if (mq.addEventListener) mq.addEventListener('change', onRotate); else if (mq.addListener) mq.addListener(onRotate);
-  addEventListener('resize', () => { applyForce(); if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 60); });
+  addEventListener('resize', () => { applyForce(); document.body.classList.toggle('desk', isDesk()); if (state.data) document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name)); if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 60); });
   addEventListener('hashchange', () => { if (state.full && !['view', 'master'].includes(route().name)) releaseRotate(); });
   addEventListener('online', () => { state.online = true; sync('online'); });
   addEventListener('offline', () => { state.online = false; renderStatus(); });
