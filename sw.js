@@ -1,5 +1,5 @@
 /* Ireri Timetables service worker: keeps the app working offline. */
-const SHELL = 'ireri-shell-v51';
+const SHELL = 'ireri-shell-v53';
 const SHELL_FILES = ['/app.css', '/app.js', '/config.js', '/qrcode.js',
   '/icons/icon-192.png', '/icons/icon-512.png', '/brand/prepfix-logo-600.png', '/brand/prepfix-mark.png'];
 

@@ -948,7 +948,7 @@
       const at = z => { tb.style.zoom = z; tb.style.width = (W / z) + 'px'; return tb.offsetHeight * z; };
       let lo = 0.2, hi = 1.5;                            // largest size at which the whole week still fits
       for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (at(mid) <= H) lo = mid; else hi = mid; }
-      const MIN = 0.85;                                  // never too small to read: below this, scroll instead
+      const MIN = (innerWidth < 760 || innerHeight < 520) ? 0.4 : 0.85;   // big screens: never smaller than readable. Small phones: ALWAYS fit the whole week (pinch to zoom in)
       if (lo < MIN) { tb.style.zoom = MIN; tb.style.minWidth = ''; tb.style.width = (W / MIN) + 'px'; wrap.classList.add('scroll2'); return; }
       wrap.classList.remove('scroll2'); tb.style.minWidth = '';
       const z = lo, h = at(z);
