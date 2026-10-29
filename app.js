@@ -160,7 +160,7 @@
   // "Timetable generated with FET 6.x.x · <time FET stamped on it>" — read from the FET export by the Publisher
   function fetText() {
     const f = (B && B.fet) || (state.data && state.data.fet) || {};
-    return 'Timetable generated with FET' + (f.version ? ' ' + f.version : '') + (f.when ? ' · ' + f.when : '');
+    return 'Timetable generated with FET' + (f.version ? ' ' + f.version : '') + (f.when ? ' on ' + f.when : '');
   }
   const fetFoot = () => `<p class="fetfoot">${esc(fetText())}</p>`;   // same place as in FET: under the table
   const ago = ms => { const s = Math.round((Date.now() - ms) / 1000); return s < 60 ? 'just now' : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`; };
@@ -1480,7 +1480,7 @@
     // fit everything onto one page: shrink the drawing (f) only if the content is taller than the page
     let f = 1, lay;
     for (let it = 0; it < 8; it++) {
-      const W = PW / f, H = PH / f, pad = 28, top = TOPH, foot = 62, headW = kind === 'master' ? 96 : 84, brkW = 40;
+      const W = PW / f, H = PH / f, pad = 28, top = TOPH, foot = 82, headW = kind === 'master' ? 96 : 84, brkW = 40;
       const colW = (W - pad * 2 - headW - nB * brkW) / nL;
       const colWs = P.map(p => p.brk ? brkW : colW);
       const cellText = (row, j) => {
@@ -1598,14 +1598,15 @@
     }
     if (isDemo()) { ctx.save(); ctx.globalAlpha = 0.09; ctx.fillStyle = bw ? '#000' : NAVY; ctx.font = '800 170px Poppins, Arial'; ctx.textAlign = 'center'; ctx.translate(W / 2, H / 2 + 60); ctx.rotate(-0.35); ctx.fillText('SAMPLE', 0, 0); ctx.restore(); }
     // footer (always) — no diagonal watermark on saved or printed pages of real schools
-    const fy = H - foot + 8;
+    const fy = H - 50;                                    // CREATED BY bar sits at the very bottom
     ctx.fillStyle = bw ? '#000' : NAVY; ctx.fillRect(pad, fy, W - pad * 2, 30);
     ctx.fillStyle = '#fff'; ctx.font = '800 14px Poppins, Arial'; ctx.textAlign = 'center';
     ctx.fillText(`${LOCKED_BRAND}  ·  ${LOCKED_CONTACT}  ·  ${WATERMARK}`, W / 2, fy + 20);
     ctx.textAlign = 'right'; ctx.font = '600 10.5px Poppins, Arial'; ctx.fillStyle = '#9AA8C2';
     ctx.fillText(`PREPFIX · ${new Date().toLocaleString('en-GB')}`, W - pad - 8, fy + 20);
-    ctx.textAlign = 'center'; ctx.font = '600 11px Poppins, Arial'; ctx.fillStyle = bw ? '#000' : '#4a5a78';
-    ctx.fillText(fetText(), W / 2, fy + 46); ctx.textAlign = 'left';
+    // FET line: same words as FET's own pages, just ABOVE the CREATED BY bar, starting under the first lesson column
+    ctx.textAlign = 'left'; ctx.font = '600 12.5px Poppins, Arial'; ctx.fillStyle = bw ? '#000' : '#1B2333';
+    ctx.fillText(fetText(), pad + headW, fy - 9);
     return cv;
   }
   // Minimal PDF writer: one A4 landscape page per picture
