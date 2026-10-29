@@ -7,7 +7,7 @@
   const LOCKED_BRAND = 'CREATED BY CYRUS IRERI';
   const LOCKED_CONTACT = '0720872582';
   const BRAND_LINE = LOCKED_BRAND + ' · ' + LOCKED_CONTACT;
-  const APP_VER = 'v1.12';                      // shown in the app so you can see which version a phone has
+  const APP_VER = 'v1.13';                      // shown in the app so you can see which version a phone has
   // Watermark over every timetable on screen and on every saved image. Built in, cannot be switched off.
   const WATERMARK = '© Cyrus Ireri';
   // Appearance: Light / Dark / Auto (follows the phone)
@@ -105,17 +105,47 @@
     const inp = document.getElementById('sq'), box = document.getElementById('slist');
     if (inp && box) inp.addEventListener('input', () => { box.innerHTML = schoolsListHTML(j, cur, inp.value.trim()); });
   }
+  // ------------------------------------------------------------------ SCHOOLS USING THE FET TIMETABLE PROGRAM (marketing list, edited by Cyrus in fet_schools.json)
+  const FET_BASE = DIRECTORY.replace(/schools\.json$/, '');
+  async function fetchFet() {
+    for (const u of [FET_BASE + 'fet_schools.json', '/fet_schools.json']) {      // owner's website first (so every school copy shows the newest list), then this site
+      try {
+        const r = await fetch(u + '?v=' + Date.now(), { cache: 'no-store' }); if (!r.ok) continue;
+        const j = await r.json(); if (j && Array.isArray(j.schools)) { try { localStorage.setItem('ireri:fet', JSON.stringify(j)); } catch { } return j; }
+      } catch { }
+    }
+    try { return JSON.parse(localStorage.getItem('ireri:fet') || 'null'); } catch { return null; }
+  }
+  const fetNames = j => ((j && j.schools) || []).map(x => typeof x === 'string' ? x : (x && x.name) || '').map(x => x.trim()).filter(Boolean);
+  function fetListHTML(j, q) {
+    if (!j) return '<p class="muted center-t">Could not load the list. Check your connection.</p>';
+    const rows = fetNames(j).map((n, i) => [i + 1, n]).filter(([, n]) => !q || n.toLowerCase().includes(q.toLowerCase()));
+    if (!rows.length) return '<p class="muted center-t">No school matches.</p>';
+    return `<div class="fetlist">${rows.map(([i, n]) => `<div class="fetrow"><span class="fetn">${i}</span><b>${esc(n)}</b></div>`).join('')}</div>`;
+  }
+  function fetHero(n) {
+    const wa = `https://wa.me/254${LOCKED_CONTACT.replace(/^0/, '')}?text=${encodeURIComponent('Hello Cyrus, I would like PREPFIX timetables for my school.')}`;
+    return `<section class="fethero"><small>ULTIMATE TIMETABLE SOLUTION</small><h2>Schools using FET Timetable Program</h2>
+      <p><b>${n}</b> school${n === 1 ? '' : 's'} already run their FET timetables on PREPFIX: one link, every teacher, always the latest version.</p>
+      <a class="btn" href="${wa}" target="_blank" rel="noopener">${icon('wa')} Get it for your school · ${esc(LOCKED_CONTACT)}</a>
+      <span class="fetnote">One-time payment · no annual subscriptions · instalments accepted</span></section>`;
+  }
+  function wireFetSearch(j) {
+    const inp = document.getElementById('sq'), box = document.getElementById('slist');
+    if (inp && box) inp.addEventListener('input', () => { box.innerHTML = fetListHTML(j, inp.value.trim()); });
+  }
   async function renderRootDirectory() {
     const el = document.getElementById('app');
-    el.innerHTML = `<div class="splash"><div class="splash-logo"></div><h2>School timetables</h2><p>Loading schools…</p></div>`;
-    const j = await fetchSchools();
-    const n = j && j.schools ? j.schools.length : 0;
-    el.innerHTML = `<header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div><div class="titles"><h1>PREPFIX Timetables</h1><p class="sub">${n} school${n === 1 ? '' : 's'} using this app</p></div></div></header>
-      <main class="page wide"><p class="hint-box">Schools using PREPFIX Timetables. To open your school's timetables, use the link or QR code from your school.</p>
+    el.innerHTML = `<div class="splash"><div class="splash-logo"></div><h2>PREPFIX Timetables</h2><p>Loading schools…</p></div>`;
+    const j = await fetchFet();
+    const n = fetNames(j).length;
+    el.innerHTML = `<header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div><div class="titles"><h1>PREPFIX Timetables</h1><p class="sub">${n} school${n === 1 ? '' : 's'} using FET Timetable Program</p></div></div></header>
+      <main class="page wide">${fetHero(n)}
       <div class="searchbox">${icon('search')}<input id="sq" type="search" autocomplete="off" placeholder="Search for your school…"></div>
-      <div id="slist">${schoolsListHTML(j, null, '')}</div>
+      <div id="slist">${fetListHTML(j, '')}</div>
+      <p class="hint-box">To open your school's timetables, use the link or QR code from your school.</p>
       <footer class="foot">${esc(BRAND_LINE)}<br>PREPFIX ${esc(APP_VER)}</footer></main>`;
-    wireSchoolSearch(j, null);
+    wireFetSearch(j);
   }
 
   // ------------------------------------------------------------------ routing / storage
@@ -444,6 +474,7 @@
     if (state.error === 'locked') return renderMsg('Timetables not available', 'This school\'s timetable service is switched off. Please contact the school office.', false);
     if (!state.data) return renderEmpty();
     const r = route();
+    trackPage(r.name);
     if (r.name === 'list') return renderList(r.kind, r.pick);
     if (r.name === 'view' && IDX.byId[r.id]) return renderViewer(r.id);
     if (r.name === 'analysis') { const k = r.id && IDX.byId[r.id] ? IDX.byId[r.id].kind : ''; return k === 'teachers' ? renderProfile(r.id) : k === 'classes' ? renderClassProfile(r.id) : renderAnalysis(); }
@@ -652,9 +683,9 @@
     toast(`Calendar file saved — open it to add ${ev.length} weekly lessons with a ${REMIND_MIN}-minute alarm`, 5000);
   }
   function schoolsCount() {
-    try { const j = JSON.parse(localStorage.getItem('ireri:schools') || 'null'); const n = j && j.schools ? j.schools.length : 0; if (n) return `${n} school${n === 1 ? '' : 's'}`; } catch { }
-    fetchSchools().then(j => { const el = document.querySelector('.t-schools small'); if (el && j && j.schools) el.textContent = `${j.schools.length} school${j.schools.length === 1 ? '' : 's'}`; });
-    return 'See all schools';
+    fetchFet().then(j => { const el = document.querySelector('.t-schools small'); const n = fetNames(j).length; if (el && n) el.textContent = `${n} school${n === 1 ? '' : 's'} · FET`; });
+    try { const n = fetNames(JSON.parse(localStorage.getItem('ireri:fet') || 'null')).length; if (n) return `${n} school${n === 1 ? '' : 's'} · FET`; } catch { }
+    return 'See the list';
   }
   function renderHome() {
     const sch = state.data.school || {};
@@ -673,7 +704,7 @@
       ['meet', 'classes', 'Meeting finder', 'When are teachers all free', 'meet'],
       ['analysis', 'chart', 'Staff analysis', 'Subjects, classes & load', 'analysis'],
       ['printall', 'print', 'Print all timetables', 'Colour or black & white', ''],
-      ['schools', 'grid', 'Schools using this app', schoolsCount(), 'schools'],
+      ['schools', 'grid', 'Schools using FET Timetable Program', schoolsCount(), 'schools'],
     ];
     app.innerHTML = `
       <header class="top"><div class="brandrow">
@@ -1334,19 +1365,17 @@
 
   // ------------------------------------------------------------------ SCHOOLS using the app
   async function renderSchools() {
-    const cur = CODE;
-    document.title = 'Schools using Timetables';
-    app.innerHTML = `${topBar('Schools using this app', 'Loading…')}<main class="page wide"><p class="muted center-t">Loading schools…</p></main>`;
-    const j = await fetchSchools();
+    document.title = 'Schools using FET Timetable Program';
+    app.innerHTML = `${topBar('Schools using FET', 'Loading…')}<main class="page wide"><p class="muted center-t">Loading schools…</p></main>`;
+    const j = await fetchFet();
     if (route().name !== 'schools') return;
-    const n = j && j.schools ? j.schools.length : 0;
-    app.innerHTML = `${topBar('Schools using this app', `${n} school${n === 1 ? '' : 's'}`)}
-      <main class="page wide">
-        <div class="stats three"><div><b>${n}</b><small>schools</small></div><div><b>${(j?.schools || []).reduce((a, x) => a + (x.teachers || 0), 0)}</b><small>teachers</small></div><div><b>${(j?.schools || []).reduce((a, x) => a + (x.classes || 0), 0)}</b><small>classes</small></div></div>
+    const n = fetNames(j).length;
+    app.innerHTML = `${topBar('Schools using FET', `${n} school${n === 1 ? '' : 's'}`)}
+      <main class="page wide">${fetHero(n)}
         <div class="searchbox">${icon('search')}<input id="sq" type="search" autocomplete="off" placeholder="Search a school…"></div>
-        <div id="slist">${schoolsListHTML(j, cur, '')}</div>
+        <div id="slist">${fetListHTML(j, '')}</div>
       </main>`;
-    wireSchoolSearch(j, cur);
+    wireFetSearch(j);
   }
 
   // ------------------------------------------------------------------ MEETING FINDER
@@ -1751,7 +1780,7 @@
   async function qrSvg(text) { try { await loadQR(); const qr = self.qrcode(0, 'M'); qr.addData(text); qr.make(); return qr.createSvgTag(6, 2); } catch { return ''; } }
   async function openShare() {
     const link = linkFor(), name = state.data?.school?.name || 'our school';
-    const msg = `${name} timetables — open on your phone, it updates automatically: ${link}`;
+    const msg = `${name} timetables. Tap the link, then tap INSTALL to put the app on your phone (it updates itself and works offline): ${link}`;
     openSheet(`<div class="grab"></div><h3>Share with colleagues</h3><div class="qr" id="qrBox"><span class="muted">Loading QR code…</span></div>
       <p class="linktext">${esc(link)}</p>
       <div class="sharebtns"><a class="btn" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">WhatsApp</a>
@@ -1867,7 +1896,7 @@
       case 'remCal': remCalendar(); break;
       case 'refresh': closeSheet(); await checkUpdates(); break;
       case 'appUpdate': await applyAppUpdate(); break;
-      case 'share': openShare(); break;
+      case 'share': track('share'); openShare(); break;
       case 'copy': try { await navigator.clipboard.writeText(linkFor()); toast('Link copied'); } catch { toast(linkFor(), 6000); } break;
       case 'nativeShare': try { await navigator.share({ title: 'School timetables', url: linkFor() }); } catch { } break;
       case 'about': openAbout(); break;
@@ -1920,8 +1949,92 @@
   setTimeout(() => autoCheckApp(), 4000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') autoCheckApp(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkReminders(); });
-  addEventListener('beforeinstallprompt', e => { e.preventDefault(); state.installEvt = e; if (state.data && route().name === 'home') renderBanners(); });
-  addEventListener('appinstalled', () => { state.installEvt = null; toast('Installed ✓'); });
+  // ------------------------------------------------------------------ PRIVATE USAGE COUNTER (for Cyrus only: never shown to teachers)
+  // Sends one tiny anonymous note (random phone id, school, which screen) to Cyrus's own reminder service. No names, no timetable content.
+  const DID = (() => { try { let d = localStorage.getItem('ireri:did'); if (!d) { d = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); localStorage.setItem('ireri:did', d); } return d; } catch { return 'x' + Math.random().toString(36).slice(2, 10); } })();
+  const seenEv = new Set();
+  function track(ev) {
+    if (!PUSH || POSTER || !ev) return;
+    try {
+      const body = JSON.stringify({ did: DID, school: CODE || '', name: (state.data && state.data.school && state.data.school.name) || '', ev, plat: platformName(),
+        sa: isStandalone() ? 1 : 0, ver: APP_VER, rem: remOn() ? 1 : 0, me: store.get('me') != null ? 1 : 0 });
+      fetch(PUSH + '/hit', { method: 'POST', body, keepalive: true, mode: 'cors', headers: { 'Content-Type': 'text/plain' } }).catch(() => { });
+    } catch { }
+  }
+  function trackPage(name) { if (!state.data || !name || seenEv.has(name)) return; seenEv.add(name); track('p:' + name); }
+
+  // ------------------------------------------------------------------ INSTALL SCREEN: the first thing that appears when the shared link is opened in a browser
+  const GATE_KEY = 'ireri:gateUntil', INST_KEY = 'ireri:installed';
+  try { if (isStandalone()) localStorage.setItem(INST_KEY, '1'); } catch { }
+  const inAppBrowser = () => /FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Snapchat|TikTok|Line\/|; wv\)|WhatsApp/i.test(navigator.userAgent);
+  const wasInstalled = () => { try { return localStorage.getItem(INST_KEY) === '1'; } catch { return false; } };
+  let gateEl = null, gateWait = null;
+  function gateBody() {
+    const plat = platformName();
+    if (state.installEvt) return `<button class="btn wide gbig" data-gate="install">${icon('install')} Install PREPFIX</button><p class="gsub">One tap · free · no app store</p>`;
+    if (plat === 'ios') return `<ol class="steps gsteps"><li>Tap <b>Share ⬆</b> at the bottom of ${inAppBrowser() ? 'the screen (or open this link in <b>Safari</b> first)' : 'Safari'}.</li><li>Choose <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>. Done!</li></ol>
+      ${inAppBrowser() ? '<button class="btn ghost wide" data-gate="copy">Copy link to open in Safari</button>' : ''}`;
+    if (plat === 'android') {
+      const intent = `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
+      return inAppBrowser()
+        ? `<a class="btn wide gbig" href="${esc(intent)}">${icon('install')} Open in Chrome to install</a><p class="gsub">This window cannot install apps. Chrome will show <b>Install</b> straight away.</p>`
+        : `<ol class="steps gsteps"><li>Tap the <b>⋮</b> menu at the top right of Chrome.</li><li>Tap <b>Install app</b> (or <b>Add to Home screen</b>).</li><li>Tap <b>Install</b>. Done!</li></ol>`;
+    }
+    return '';
+  }
+  function gateRender() {
+    if (!gateEl) return;
+    const done = gateEl.dataset.done === '1';
+    gateEl.innerHTML = `<div class="gcardx"><div class="glogo" aria-hidden="true"></div>
+      <h2>${done ? 'Installed ✓' : 'Install PREPFIX'}</h2>
+      <p class="gwhy">${done ? 'Open <b>PREPFIX</b> from your home screen or app list. Your timetable, always up to date.' : esc(state.data?.school?.name || 'Your school timetable') + ' on your phone: one tap to open, updates itself, works offline.'}</p>
+      ${done ? '<button class="btn wide gbig" data-gate="close">Continue</button>' : gateBody()}
+      ${done ? '' : '<button class="gskip" data-gate="skip">Continue in browser</button>'}</div>`;
+  }
+  function gateShow() {
+    if (gateEl || isStandalone()) return;
+    gateEl = document.createElement('div'); gateEl.id = 'igate'; gateEl.setAttribute('role', 'dialog'); gateEl.setAttribute('aria-modal', 'true');
+    gateEl.addEventListener('click', async e => {
+      const b = e.target.closest('[data-gate]'); if (!b) return; const a = b.dataset.gate;
+      if (a === 'install' && state.installEvt) {
+        const ev = state.installEvt; track('gate-install'); ev.prompt();
+        const r = await ev.userChoice.catch(() => null); state.installEvt = null;
+        if (r && r.outcome === 'accepted') { try { localStorage.setItem(INST_KEY, '1'); } catch { } gateDone(); } else gateRender();
+      } else if (a === 'copy') { try { await navigator.clipboard.writeText(location.href); toast('Link copied. Paste it in Safari.'); } catch { toast(location.href, 6000); } }
+      else if (a === 'skip' || a === 'close') gateClose(a === 'skip');
+    });
+    document.body.appendChild(gateEl); document.body.classList.add('gate-open'); gateRender();
+    requestAnimationFrame(() => gateEl && gateEl.classList.add('show')); track('gate-shown');
+  }
+  function gateClose(snooze) {
+    if (snooze) { try { localStorage.setItem(GATE_KEY, String(Date.now() + 6 * 3600 * 1000)); } catch { } }
+    const el = gateEl; gateEl = null; document.body.classList.remove('gate-open');
+    if (el) { el.classList.remove('show'); setTimeout(() => el.remove(), 250); }
+  }
+  function gateDone() { if (gateEl) { gateEl.dataset.done = '1'; gateRender(); } }
+  function gateRefresh() { if (gateEl && gateEl.dataset.done !== '1') gateRender(); else if (!gateEl && gateStarted) gateTry(); }
+  let gateStarted = false;
+  function gateTry() {
+    if (POSTER || isStandalone() || document.getElementById('brandsplash')) return;
+    try { if (+localStorage.getItem(GATE_KEY) > Date.now()) return; } catch { }
+    if (state.installEvt) return gateShow();                                          // Chrome says the app can be installed: show it at once
+    if (platformName() === 'desktop' || wasInstalled()) return;                        // no event on a computer / already installed: stay quiet
+    gateShow();                                                                          // phone without the event: show the steps for this phone
+  }
+  function gateStart() {
+    if (gateStarted) return; gateStarted = true;
+    let tries = 0;
+    const wait = setInterval(() => {                                                    // wait for the PREPFIX logo splash to finish, then show the install screen
+      tries++;
+      if (!document.getElementById('brandsplash') || tries > 40) {
+        clearInterval(wait);
+        if (state.installEvt) gateTry(); else setTimeout(gateTry, 1500);              // give Chrome a moment to offer the install event
+      }
+    }, 150);
+  }
+
+  addEventListener('beforeinstallprompt', e => { e.preventDefault(); state.installEvt = e; gateRefresh(); if (state.data && route().name === 'home') renderBanners(); });
+  addEventListener('appinstalled', () => { state.installEvt = null; try { localStorage.setItem(INST_KEY, '1'); } catch { } track('install'); gateDone(); toast('Installed ✓'); });
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch(err => console.warn('SW', err));
   }
@@ -1932,8 +2045,10 @@
     const cached = await loadCached();
     if (cached && cached.bundle && cached.bundle.format === 2) setData(cached);
     if (state.data || POSTER) render();
+    gateStart();                                   // the install screen is the first thing a visitor sees
     await sync('start');
     if (POSTER) renderPoster();
+    track('open');
   })();
   self.__ireri = { state, sync, render, nowSlot: () => nowSlot() };
 })();
