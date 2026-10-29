@@ -768,3 +768,230 @@ html.theme-dark .daytabs button.on{color:#fff}
 html.theme-dark .av{box-shadow:0 0 0 1.5px rgba(255,255,255,.3)}
 html.theme-dark .acls,html.theme-dark .acls b,html.theme-dark .sortrow,html.theme-dark .acard,html.theme-dark .acard small{color:#DCE4F2!important}
 html.theme-dark .sortrow select{background:var(--card);color:#fff;border-color:var(--line)}
+
+/* ---- Colour rule (all themes): light backgrounds carry BLACK text, dark backgrounds carry WHITE text.
+        Never put a light colour on a light colour or a dark colour on a dark one. ---- */
+table.atable td,table.atable th,table.atable td b,table.atable th b{color:#000}
+table.atable thead th,table.atable th.gh{color:#000!important}
+table.atable tr.sr td:first-child,table.atable tr.sr td:first-child b{color:#000!important}
+table.atable i{color:#0B6B44}
+table.atable tr.tot td,table.atable tr.tot td b{color:#fff!important}
+.asubj em,.sx{color:#000!important}
+.asubj em b,.sx b{color:#fff!important}
+/* Dark mode: profile and staff-analysis tables stay like white paper with black writing */
+html.theme-dark table.atable{background:#fff;border-radius:10px}
+html.theme-dark table.atable td,html.theme-dark table.atable th{background:#fff;color:#000!important;border-color:#6B7488!important}
+html.theme-dark table.atable td b,html.theme-dark table.atable th b,html.theme-dark table.atable td small{color:#000!important}
+html.theme-dark table.atable thead th{background:#EDE6D0!important;color:#000!important}
+html.theme-dark table.atable th.gh{background:#DCE6F7!important;color:#000!important}
+html.theme-dark table.atable tr.sr td:first-child{background:hsl(var(--hl,40),85%,88%)!important}
+html.theme-dark table.atable i{color:#0B6B44!important}
+html.theme-dark table.atable tr.tot td{background:var(--navy)!important;color:#fff!important}
+html.theme-dark table.atable td.warn,html.theme-dark table.atable tr.warnrow td{background:#FADFDB!important;color:#8E2A20!important}
+html.theme-dark table.mx td,html.theme-dark table.mx th{color:#000}
+
+/* ===== v1.4: bigger lesson text + a steady screen (no sideways floating) ===== */
+/* v1.6 scroll fix: overflow-x:hidden on BOTH html and body (and overscroll-behavior:none) stops one-finger scrolling on many phones.
+   'clip' hides any sideways overflow without turning the page into a scroll box. */
+html,body{max-width:100%;overscroll-behavior-y:auto;touch-action:pan-x pan-y}
+body{overflow-x:clip}
+@supports not (overflow:clip){body{overflow-x:visible}}
+/* full screen (Rotate): pinch to zoom in/out is allowed */
+body.fullv,body.fullv #app{touch-action:pan-x pan-y pinch-zoom}
+table.wk td.l b{font-size:clamp(15px,2.4vw,19px);line-height:1.2}
+table.wk td.l small{font-size:clamp(12.5px,1.9vw,15px);line-height:1.25}
+table.wk td.l small.tn{font-size:clamp(11.5px,1.7vw,14px);padding:1px 5px}
+table.wk thead th b{font-size:clamp(14px,2vw,17px)}
+table.wk thead th small{font-size:clamp(11.5px,1.6vw,13.5px)!important}
+table.wk tbody th{font-size:clamp(13px,1.9vw,16px)}
+table.wk tbody th small{font-size:clamp(10px,1.4vw,12px)}
+table.wk th.b .vt,.bt{font-size:clamp(10px,1.3vw,12px)}
+table.wk td.l .curtag{font-size:clamp(10px,1.3vw,12px)}
+/* The week/master grid never pans sideways: columns share the width, text wraps, only up/down scrolling remains */
+body.fullv .gridwrap.scroll2,body.fillv .gridwrap.scroll2{overflow-x:hidden!important;overflow-y:auto!important}
+body.fullv .gridwrap.scroll2 table.wk,body.fillv .gridwrap.scroll2 table.wk{table-layout:fixed}
+body.fullv .gridwrap.scroll2 table.wk td.l,body.fillv .gridwrap.scroll2 table.wk td.l{min-width:0;white-space:normal;overflow-wrap:anywhere;overflow:hidden}
+.gridwrap{overscroll-behavior:contain}
+
+/* ===== v1.5: "Prepare. Perfect. Present." - three words fade up one after another (minimal) ===== */
+.alogo{position:relative;display:block;aspect-ratio:1366/392;line-height:0}
+.alogo img{position:absolute;inset:0;width:100%;height:100%;max-width:none;margin:0;display:block}
+.alogo .a0{clip-path:polygon(0 0,100% 0,100% 70.2%,18.3% 70.2%,18.3% 100%,0 100%)}
+.alogo .w1{clip-path:inset(70.2% 54.8% 0 18.3%)}
+.alogo .w2{clip-path:inset(70.2% 30.8% 0 45.2%)}
+.alogo .w3{clip-path:inset(70.2% 0 0 69.2%)}
+.alogo .w{opacity:0;transform:translateY(7px);animation:alw .7s cubic-bezier(.2,.7,.2,1) forwards}
+.alogo .w1{animation-delay:calc(.35s - var(--el,0s))}.alogo .w2{animation-delay:calc(.7s - var(--el,0s))}.alogo .w3{animation-delay:calc(1.05s - var(--el,0s))}
+@keyframes alw{to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.alogo .w{animation:none;opacity:1;transform:none}}
+html.theme-dark .inst .alogo.inst-logo{padding:0;background:#fff;border-radius:6px;box-shadow:0 0 0 3px #fff}
+
+/* bottom navigator now shows only the position (the name is shown once, in the top bar) */
+.vtools .vcur small:only-child{margin-top:0;font-size:14px;color:var(--navy);font-weight:700}
+body.fullv .vtools .vcur small:only-child{display:block;font-size:12px}
+
+/* centred header: school / timetable name / (teacher code) / name */
+.inst .ol{display:block;font-weight:800;font-size:19px;line-height:1.25;letter-spacing:.03em;color:var(--navy);margin-top:5px;text-transform:uppercase}
+.inst .ol.code{font-size:24px;margin-top:8px}
+html.theme-dark .inst .ol{color:#fff}
+body.fullv .inst .ol,body.fullv .inst .ol.code{display:inline;font-size:12px;margin:0}
+
+/* rotated / full-screen view: keep the header stacked and centred, one line under another */
+body.fullv .inst.small{display:block;text-align:center;position:relative;padding:2px 64px!important;line-height:1.15}
+body.fullv .inst.small b,body.fullv .inst.small span,body.fullv .inst .ol{display:block;margin:0}
+body.fullv .inst.small b{font-size:12px}
+body.fullv .inst.small span{font-size:10.5px}
+body.fullv .inst .ol{font-size:12px;margin-top:1px}
+body.fullv .inst .ol.code{font-size:13px;margin-top:1px}
+body.fullv .inst .inst-logo{position:absolute;top:3px;right:8px;height:22px;order:0}
+
+.fetfoot{margin:10px 8px 14px;text-align:center;font-size:11.5px;font-weight:600;color:var(--muted)}
+
+/* ===== v1.7: small phones - icons and buttons always stay inside the screen ===== */
+.tiles,body.desk .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}          /* minmax(0,..): a long caption can no longer widen a column */
+@media (min-width:620px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
+body.desk .tiles{grid-template-columns:repeat(6,minmax(0,1fr))}
+.tile{min-width:0;max-width:100%;overflow:hidden}
+.tile strong{max-width:100%;line-height:1.2;overflow-wrap:anywhere}
+.tile small{display:block;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}   /* captions wrap instead of running off */
+.home,.page,.tt{overflow-x:clip}
+.brandrow,.vtop,.vbar,.vtools,.mrow{min-width:0}
+.titles,.vtitles,.mrow>span{min-width:0}
+.mrow>span{flex:1;overflow-wrap:anywhere}
+.wide-seg button{min-width:0;overflow-wrap:anywhere}
+.allpick .ap{min-width:0;overflow-wrap:anywhere}
+@media (max-width:380px){
+  .home,.page{padding-left:10px;padding-right:10px}
+  .top{padding-left:10px;padding-right:10px}
+  .tiles{gap:8px}
+  .tile{padding:10px;min-height:92px}
+  .tic{width:34px;height:34px;margin-bottom:4px}
+  .tile strong{font-size:13.5px}
+  .tile small{font-size:11px}
+  .icon-btn{width:38px;height:38px}
+  .vtop{gap:2px;padding-left:2px;padding-right:2px}
+  .vtop .btn.rot,.vbar .btn.small{padding:6px 8px;font-size:12px}
+  .vbar{padding:6px 8px;gap:6px}
+  .seg button{padding:6px 12px}
+  .wide-seg{width:calc(100% - 16px)}
+  .wide-seg button{padding:7px 4px;font-size:12px}
+  .sheet{padding-left:12px;padding-right:12px}
+  .allpick{grid-template-columns:1fr}
+}
+@media (max-width:330px){
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .tile{padding:8px}
+  .tile strong{font-size:12.5px}
+  .vtop .btn.rot span{display:none}                       /* just the icon when the screen is very narrow */
+  .vbar .btn.small{padding:6px 7px}
+}
+
+/* ===== v1.7b: a small gap is ALWAYS kept on the left and right (and beside a notch when the phone is turned sideways) ===== */
+:root{--sl:env(safe-area-inset-left,0px);--sr:env(safe-area-inset-right,0px)}
+.top,.home,.page{padding-left:max(14px,var(--sl));padding-right:max(14px,var(--sr))}
+.tt,.vbar,.mbar{padding-left:max(12px,var(--sl));padding-right:max(12px,var(--sr))}
+.vtop{padding-left:max(8px,var(--sl));padding-right:max(8px,var(--sr))}
+.vtools{padding-left:max(10px,var(--sl));padding-right:max(10px,var(--sr))}
+body.fullv main.tt,body.fillv main.tt{padding-left:max(8px,var(--sl));padding-right:max(8px,var(--sr))}
+@media (max-width:380px){
+  .top,.home,.page,.tt,.vbar,.mbar{padding-left:max(10px,var(--sl));padding-right:max(10px,var(--sr))}
+  .vtop{padding-left:max(6px,var(--sl));padding-right:max(6px,var(--sr))}
+  body.fullv main.tt,body.fillv main.tt{padding-left:max(8px,var(--sl));padding-right:max(8px,var(--sr))}
+}
+
+/* ===== v1.8: every dashboard box (Classes, Master, Free teachers ...) is exactly the same size ===== */
+.tiles{grid-auto-rows:1fr;align-items:stretch}           /* all rows share one height */
+.tile{height:100%;min-height:136px;justify-content:flex-start}
+.tile strong,.tile small{display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;text-overflow:ellipsis}
+.tile strong{-webkit-line-clamp:2}
+.tile small{-webkit-line-clamp:2}
+@media (max-width:380px){.tile{min-height:124px}}
+@media (min-width:620px){.tile{min-height:132px}}
+
+/* ===== v1.9: full screen (Rotate) on small phones - the whole week fits on ONE screen ===== */
+@media (max-width:760px),(max-height:520px){
+  body.fullv table.wk td.l b{font-size:11px;line-height:1.15}
+  body.fullv table.wk td.l small{font-size:9.5px;line-height:1.15}
+  body.fullv table.wk td.l small.tn{font-size:9px;padding:0 3px;margin-top:2px}
+  body.fullv table.wk td.l .curtag{font-size:8px}
+  body.fullv table.wk thead th b{font-size:11px}
+  body.fullv table.wk thead th small{font-size:9px!important}
+  body.fullv table.wk thead th{padding:2px 1px}
+  body.fullv table.wk tbody th{font-size:10px;padding:2px 3px}
+  body.fullv table.wk tbody th small{font-size:8px}
+  body.fullv table.wk td{padding:2px 3px}
+  body.fullv table.wk thead th:first-child,body.fullv table.wk tbody th{width:40px}
+  body.fullv table.wk.master thead th:first-child,body.fullv table.wk.master tbody th{width:38px}
+  body.fullv table.wk th.b,body.fullv table.wk td.b{width:22px!important;min-width:22px!important;max-width:24px!important}
+  body.fullv .inst.small{padding:1px 6px;margin:0 0 2px}
+  body.fullv .inst.small b{font-size:10.5px}
+  body.fullv .inst.small span{font-size:9px}
+  body.fullv .fetfoot{margin:2px 6px;font-size:9px}
+  body.fullv .vtop{padding-top:1px;padding-bottom:1px}
+  body.fullv .vtop .icon-btn{width:26px;height:26px}
+  body.fullv .vtop h2{font-size:12px}
+  body.fullv .vbar{padding-top:1px;padding-bottom:1px}
+  body.fullv .vbar .btn,body.fullv .vbar .seg button{padding:2px 8px;font-size:11px}
+}
+
+/* ===== v1.10: the side menu tab no longer sits on top of the tiles; a clear gap is kept on the left ===== */
+#railtab{width:12px;height:56px;gap:3px;border-width:1.5px;opacity:.75}
+#railtab span{width:6px}
+.home,.page{padding-left:max(16px,var(--sl));padding-right:max(16px,var(--sr))}
+.tt{padding-left:max(14px,var(--sl));padding-right:max(14px,var(--sr))}
+@media (max-width:380px){
+  .home,.page,.tt{padding-left:max(14px,var(--sl));padding-right:max(12px,var(--sr))}
+}
+
+/* ===== v1.12: dashboard - the SAME gap on the left and the right, text wraps (never squeezed or cut), calmer modern cards ===== */
+html,body{width:100%;max-width:100%;overflow-x:clip}
+#app{width:100%;max-width:100%;overflow-x:clip}
+main.home{box-sizing:border-box;width:100%;max-width:760px;margin-left:auto;margin-right:auto;
+  padding-left:max(18px,var(--sl));padding-right:max(18px,var(--sr))}      /* identical left and right */
+body.desk main.home{max-width:1500px}
+main.home>*{min-width:0;max-width:100%}
+main.home .now-card,main.home .inst,main.home .banner{width:100%;overflow-wrap:break-word}
+main.home .now-card{margin:4px 0 16px}
+
+/* the grid can never grow wider than the screen: columns are exactly half each, whatever the text inside */
+main.home .tiles{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:auto!important;
+  align-items:stretch;gap:12px;width:100%;max-width:100%;margin:0;contain:inline-size}
+@media (min-width:620px){main.home .tiles{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+body.desk main.home .tiles{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+
+main.home .tile{--tc:var(--navy);position:relative;isolation:isolate;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;
+  gap:0;width:100%;min-width:0;height:100%;min-height:120px;padding:14px 14px 16px;border-radius:20px;overflow:hidden;
+  border:1px solid var(--line);box-shadow:0 1px 2px rgba(18,40,76,.05),0 8px 20px -10px rgba(18,40,76,.22);
+  transition:transform .12s ease,box-shadow .12s ease}
+main.home .tile:active{transform:scale(.97);box-shadow:0 1px 2px rgba(18,40,76,.08)}
+/* soft colour glow in the corner + small arrow, so every box looks tappable */
+main.home .tile::before{content:"";position:absolute;z-index:-1;right:-24px;top:-24px;width:76px;height:76px;border-radius:50%;background:var(--tc);opacity:.08}
+main.home .tile::after{content:"";position:absolute;right:15px;top:19px;width:7px;height:7px;border-top:2px solid var(--tc);border-right:2px solid var(--tc);transform:rotate(45deg);opacity:.55}
+main.home .tile .tic{width:42px;height:42px;border-radius:14px;margin:0 0 10px;flex:none;box-shadow:0 4px 10px -4px rgba(18,40,76,.45)}
+/* text: wraps onto as many lines as it needs - no "...", no clipping */
+main.home .tile strong,main.home .tile small{display:block!important;width:100%;max-width:100%;overflow:visible!important;
+  white-space:normal!important;text-overflow:clip!important;-webkit-line-clamp:unset!important;overflow-wrap:break-word;word-break:normal;hyphens:auto}
+main.home .tile strong{font-size:15.5px;font-weight:600;line-height:1.22;letter-spacing:-.005em}
+main.home .tile small{margin-top:4px;font-size:12.5px;line-height:1.35;color:var(--muted)}
+main.home .t-me{--tc:var(--gold)}.t-teachers{--tc:var(--navy)}
+main.home .t-classes{--tc:var(--green)}
+main.home .t-master{--tc:#3B4A66}
+main.home .t-rooms{--tc:#9A7616}
+main.home .t-free{--tc:#1E7F5C}
+main.home .t-cover{--tc:#B5562B}
+main.home .t-where{--tc:#5A3E8C}
+main.home .t-meet{--tc:var(--green)}
+main.home .t-analysis{--tc:#2F6FB0}
+main.home .t-printall{--tc:#334155}
+main.home .t-schools{--tc:var(--green)}
+html.theme-dark main.home .tile{box-shadow:0 8px 20px -10px rgba(0,0,0,.6)}
+
+@media (max-width:380px){
+  main.home{padding-left:max(16px,var(--sl));padding-right:max(16px,var(--sr))}
+  main.home .tiles{gap:10px}
+  main.home .tile{padding:12px 12px 14px;min-height:110px;border-radius:18px}
+  main.home .tile .tic{width:38px;height:38px;margin-bottom:8px}
+  main.home .tile strong{font-size:14.5px}
+  main.home .tile small{font-size:12px}
+}
+@media (max-width:330px){main.home .tiles{gap:8px}main.home .tile strong{font-size:13.5px}main.home .tile small{font-size:11.5px}}
