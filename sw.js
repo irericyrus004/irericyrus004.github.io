@@ -1,5 +1,5 @@
 /* Ireri Timetables service worker: keeps the app working offline. */
-const SHELL = 'ireri-shell-v47';
+const SHELL = 'ireri-shell-v51';
 const SHELL_FILES = ['/app.css', '/app.js', '/config.js', '/qrcode.js',
   '/icons/icon-192.png', '/icons/icon-512.png', '/brand/prepfix-logo-600.png', '/brand/prepfix-mark.png'];
 
@@ -69,6 +69,7 @@ self.addEventListener('notificationclick', event => {
   }));
 });
 
+const VIB = Array.from({ length: 20 }, () => [700, 300]).flat();   // 20-second buzz
 // Lesson reminder pushed by the PREPFIX reminder service: the phone works out which lesson it is
 self.addEventListener('push', event => {
   event.waitUntil((async () => {
@@ -82,7 +83,18 @@ self.addEventListener('push', event => {
     const body = L ? [L.title, L.body].filter(Boolean).join(' · ') : 'Open PREPFIX Timetables to see it.';
     await self.registration.showNotification(title, {
       body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: L ? `lesson-${L.wd}-${L.start}` : 'lesson-next',
-      renotify: true, requireInteraction: true, vibrate: [400, 150, 400, 150, 800], data: { url: (plan && plan.url) || '/' },
+      renotify: true, requireInteraction: true, vibrate: VIB, data: { url: (plan && plan.url) || '/' },
     });
+    // not noticed? ring again twice more (every 20 s) while the notification is still on the screen
+    const tag = L ? `lesson-${L.wd}-${L.start}` : 'lesson-next';
+    for (let i = 0; i < 2; i++) {
+      await new Promise(r => setTimeout(r, 20000));
+      const open = await self.registration.getNotifications({ tag });
+      if (!open.length) break;
+      await self.registration.showNotification(title, {
+        body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag,
+        renotify: true, requireInteraction: true, vibrate: VIB, data: { url: (plan && plan.url) || '/' },
+      });
+    }
   })());
 });

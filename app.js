@@ -511,6 +511,7 @@
 
   // ------------------------------------------------------------------ LESSON REMINDER (alarm 10 minutes before a lesson)
   const REMIND_MIN = 10;
+  const ALARM_VIB = Array.from({ length: 20 }, () => [700, 300]).flat();   // long buzz: 20 seconds, so it is not missed
   const remOn = () => !!store.get('remind', false);
   const fired = new Set();
   function myLessonsOn(me, d) {           // [{j, start, end, lines}]
@@ -541,21 +542,24 @@
   function fireReminder(L, mins) {
     const title = `⏰ Lesson in ${mins} minute${mins === 1 ? '' : 's'} — ${IDX.P[L.j].label} at ${hm(L.start)}`;
     const body = `${L.lines[0]}${L.lines[1] ? ' · ' + L.lines[1] : ''}${L.cell.r ? ' · ' + L.cell.r : ''}`;
-    try { navigator.vibrate && navigator.vibrate([400, 150, 400, 150, 800]); } catch { }
+    try { navigator.vibrate && navigator.vibrate(ALARM_VIB); } catch { }
     try {
       if ('Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker) {
-        navigator.serviceWorker.ready.then(reg => reg.showNotification(title, { body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: `lesson-${IDX.D[todayIndex()]?.wd}-${L.start}`, renotify: true, requireInteraction: true, vibrate: [400, 150, 400, 150, 800], data: { url: location.href } })).catch(() => { });
+        navigator.serviceWorker.ready.then(reg => reg.showNotification(title, { body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: `lesson-${IDX.D[todayIndex()]?.wd}-${L.start}`, renotify: true, requireInteraction: true, vibrate: ALARM_VIB, data: { url: location.href } })).catch(() => { });
       }
     } catch { }
     if (document.visibilityState === 'visible') {
       beep();
+      let ring = setInterval(() => { beep(); try { navigator.vibrate && navigator.vibrate(ALARM_VIB); } catch { } }, 4000);   // keeps ringing until the teacher taps OK (max 3 min)
+      const stop = () => { clearInterval(ring); ring = 0; try { navigator.vibrate && navigator.vibrate(0); } catch { } };
+      setTimeout(() => { if (ring) stop(); }, 180000);
       $$('.alarm-bg').forEach(n => n.remove());               // its own layer, above anything else on screen
       const box = document.createElement('div'); box.className = 'alarm-bg';
       box.innerHTML = `<div class="alarm" role="alertdialog"><div class="abell">⏰</div><h3>Lesson in ${mins} minute${mins === 1 ? '' : 's'}</h3>
         <p class="alesson"><b>${esc(L.lines[0])}</b>${L.lines[1] ? `<span>${esc(L.lines[1])}</span>` : ''}</p>
         <p class="awhen">${esc(IDX.P[L.j].label)} · ${esc(IDX.P[L.j].time)}${L.cell.r ? ' · ' + esc(L.cell.r) : ''}</p>
         <button class="btn wide" type="button">OK</button></div>`;
-      box.querySelector('button').addEventListener('click', () => box.remove());
+      box.querySelector('button').addEventListener('click', () => { stop(); box.remove(); });
       document.body.appendChild(box);
     }
   }
