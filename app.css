@@ -791,7 +791,13 @@ html.theme-dark table.atable td.warn,html.theme-dark table.atable tr.warnrow td{
 html.theme-dark table.mx td,html.theme-dark table.mx th{color:#000}
 
 /* ===== v1.4: bigger lesson text + a steady screen (no sideways floating) ===== */
-html,body{overflow-x:hidden;max-width:100%;overscroll-behavior:none;touch-action:manipulation}
+/* v1.6 scroll fix: overflow-x:hidden on BOTH html and body (and overscroll-behavior:none) stops one-finger scrolling on many phones.
+   'clip' hides any sideways overflow without turning the page into a scroll box. */
+html,body{max-width:100%;overscroll-behavior-y:auto;touch-action:pan-x pan-y}
+body{overflow-x:clip}
+@supports not (overflow:clip){body{overflow-x:visible}}
+/* full screen (Rotate): pinch to zoom in/out is allowed */
+body.fullv,body.fullv #app{touch-action:pan-x pan-y pinch-zoom}
 table.wk td.l b{font-size:clamp(15px,2.4vw,19px);line-height:1.2}
 table.wk td.l small{font-size:clamp(12.5px,1.9vw,15px);line-height:1.25}
 table.wk td.l small.tn{font-size:clamp(11.5px,1.7vw,14px);padding:1px 5px}

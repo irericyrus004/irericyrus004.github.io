@@ -439,6 +439,7 @@
     document.body.classList.toggle('desk', isDesk());
     document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name));
     if ((state.full || state.force) && !['view', 'master'].includes(route().name)) releaseRotate();
+    if (!['view', 'master'].includes(route().name)) { document.body.classList.remove('fullv', 'fillv', 'force-land'); document.body.style.overflow = ''; }
     if (state.error === 'locked') return renderMsg('Timetables not available', 'This school\'s timetable service is switched off. Please contact the school office.', false);
     if (!state.data) return renderEmpty();
     const r = route();
@@ -863,13 +864,21 @@
     const portrait = innerHeight > innerWidth;
     state.force = portrait; document.body.classList.toggle('force-land', portrait);
   }
+  // Normal screens keep the page steady (no accidental zoom); full screen allows pinch zoom in/out
+  function setPinchZoom(on) {
+    const vp = document.querySelector('meta[name="viewport"]'); if (!vp) return;
+    vp.setAttribute('content', on ? 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover'
+                                  : 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
+  }
   function releaseRotate() {
+    setPinchZoom(false);
     try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch { }
     try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => { }); } catch { }
     state.full = false; state.force = false; document.body.classList.remove('force-land', 'fullv');
   }
   async function toggleRotate() {
     if (state.full) { releaseRotate(); render(); return; }
+    setPinchZoom(true);
     state.full = true; document.body.classList.add('fullv');          // same arrangement — only the viewing angle changes
     // no browser full-screen request: it makes the browser show its own "…github.io is full screen" notice
     try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch { }
@@ -1500,6 +1509,10 @@
     const cv = document.createElement('canvas'); cv.width = Math.round(PW * SCALE); cv.height = Math.round(PH * SCALE);
     const ctx = cv.getContext('2d'); ctx.scale(SCALE * f, SCALE * f); ctx.textBaseline = 'alphabetic';
     const INK = '#000000', NAVY = bw ? '#000000' : '#12284C', GOLD = bw ? '#000000' : '#C9A227';
+    // colours below are the same ones the app shows on screen (day colours, header tints, line weights)
+    const DAYC = ['#1F4E9C', '#1E7F5C', '#B7791F', '#6B46C1', '#B5463A'];
+    const LINE = bw ? '#1B2333' : '#2B3447', LW = bw ? 1.6 : 1.5;
+    const dayCol = d => bw ? '#ffffff' : DAYC[d % 5];
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
     // header: school + term on the left, PREPFIX logo top-right, then the owner in big letters
     const IL = instLines();
@@ -1517,11 +1530,14 @@
     ctx.fillStyle = GOLD; ctx.fillRect(pad, TOPH - 18, W - pad * 2, 4);
     ctx.textAlign = 'left';
     // column headings
+    ctx.fillStyle = bw ? '#fff' : '#EDE6D0'; ctx.fillRect(pad, y0, headW, 52);
+    ctx.lineWidth = LW; ctx.strokeStyle = LINE; ctx.strokeRect(pad, y0, headW, 52);
+    if (kind === 'master') { ctx.textAlign = 'center'; ctx.fillStyle = NAVY; ctx.font = '800 15px Poppins, Arial'; ctx.fillText('Class', pad + headW / 2, y0 + 31); ctx.textAlign = 'left'; }
     const colX = []; let x = pad + headW;
     P.forEach((p, j) => {
       const w = colWs[j]; colX[j] = [x, w];
-      ctx.fillStyle = bw ? '#fff' : (p.brk ? '#E4DCC2' : '#F3EEDF'); ctx.fillRect(x, y0, w, 52);
-      ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(x, y0, w, 52);
+      ctx.fillStyle = bw ? '#fff' : (p.brk ? '#C9BE98' : p.pm ? '#DCE6F7' : '#EDE6D0'); ctx.fillRect(x, y0, w, 52);
+      ctx.lineWidth = LW; ctx.strokeStyle = LINE; ctx.strokeRect(x, y0, w, 52);
       ctx.textAlign = 'center'; ctx.fillStyle = INK;
       if (p.brk) { const t = String(p.time || '').split('-'); ctx.font = '700 10.5px Poppins, Arial';
         if (t.length === 2) { ctx.fillText(t[0], x + w / 2, y0 + 15); ctx.fillText('–', x + w / 2, y0 + 28); ctx.fillText(t[1], x + w / 2, y0 + 41); } }
@@ -1531,7 +1547,7 @@
     // rows
     rows.forEach((row, ri) => {
       const y = y0 + 52 + Y[ri], rowH = RH[ri];
-      ctx.fillStyle = bw ? '#fff' : NAVY; ctx.fillRect(pad, y, headW, rowH); ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(pad, y, headW, rowH);
+      ctx.fillStyle = dayCol(kind === 'master' ? tgt.d : row.d); ctx.fillRect(pad, y, headW, rowH); ctx.lineWidth = LW; ctx.strokeStyle = LINE; ctx.strokeRect(pad, y, headW, rowH);
       ctx.fillStyle = bw ? INK : '#fff'; ctx.font = '800 16px Poppins, Arial'; ctx.textAlign = 'center';
       const hl = wrapText(ctx, row.head, headW - 10).slice(0, 3); hl.forEach((ln, k) => ctx.fillText(ln, pad + headW / 2, y + rowH / 2 - (hl.length - 1) * 9 + k * 18 + 5));
       ctx.textAlign = 'left';
@@ -1539,7 +1555,7 @@
         const [cx, w] = colX[j];
         if (P[j].brk) {
           if (ri === 0) {
-            const Hh = bodyH; ctx.fillStyle = bw ? '#fff' : '#E4DCC2'; ctx.fillRect(cx, y, w, Hh); ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(cx, y, w, Hh);
+            const Hh = bodyH; ctx.fillStyle = bw ? '#fff' : '#E4DCC2'; ctx.fillRect(cx, y, w, Hh); ctx.lineWidth = LW; ctx.strokeStyle = LINE; ctx.strokeRect(cx, y, w, Hh);
             const words = String(P[j].label || 'BREAK').toUpperCase().split(/\s+/).filter(Boolean);
             const units = words.reduce((t, wd) => t + wd.length, 0) + (words.length - 1) * 0.6;
             const lh = (Hh - 20) / units, fs = Math.max(9, Math.min(26, Math.floor(Math.min(lh * 0.86, w * 0.62))));
@@ -1553,7 +1569,7 @@
         const c = cellAt(row.item, row.d, j), T = cellText(row, j), L = T.L, cw = T.cw;
         const fc = !bw && L ? colourFor(kind, c, row.item.name) : null;
         ctx.fillStyle = fc ? fc[0] : '#ffffff'; ctx.fillRect(cx, y, cw, rowH);
-        ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(cx, y, cw, rowH);
+        ctx.lineWidth = LW; ctx.strokeStyle = LINE; ctx.strokeRect(cx, y, cw, rowH);
         if (L) {
           const blockH = T.a.length * 18 + T.b.length * 15 + (T.t.length ? T.t.length * 14 + 10 : 0);
           let ty = y + (rowH - blockH) / 2 + 14; ctx.textAlign = 'center';
@@ -1563,7 +1579,7 @@
             ctx.font = '700 12px Poppins, Arial';
             const bwid = Math.min(cw - 10, Math.max(...T.t.map(l => ctx.measureText(l).width)) + 14), bh = T.t.length * 14 + 6;
             const bx = cx + (cw - bwid) / 2, by = ty - 11;
-            ctx.fillStyle = '#ffffff'; ctx.strokeStyle = bw ? '#000' : '#0B3D91'; ctx.lineWidth = 1.2;
+            ctx.fillStyle = bw ? '#ffffff' : 'rgba(255,255,255,0.92)'; ctx.strokeStyle = bw ? '#000' : '#0B3D91'; ctx.lineWidth = 1.2;
             ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, bwid, bh, 6); else ctx.rect(bx, by, bwid, bh); ctx.fill(); ctx.stroke();
             ctx.fillStyle = bw ? '#000' : '#0B3D91'; ty += 2; T.t.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 14; });
           }
@@ -1571,6 +1587,15 @@
         }
       }
     });
+    if (!bw) {
+      const tx0 = pad, tx1 = pad + headW + colWs.reduce((a, b) => a + b, 0), NV = '#12284C';
+      ctx.strokeStyle = NV; ctx.lineCap = 'butt';
+      ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(tx0, y0 + 52); ctx.lineTo(tx1, y0 + 52); ctx.stroke();            // under the headings
+      ctx.lineWidth = 4; rows.forEach((_, ri) => { if (!ri) return; const yy = y0 + 52 + Y[ri]; ctx.beginPath(); ctx.moveTo(tx0, yy); ctx.lineTo(tx1, yy); ctx.stroke(); });   // between days / classes
+      ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(pad + headW, y0); ctx.lineTo(pad + headW, y0 + 52 + bodyH); ctx.stroke();   // beside the day names
+      ctx.lineWidth = 2.5; P.forEach((p, j) => { if (!p.brk) return; const [bx, bw2] = colX[j]; [bx, bx + bw2].forEach(xx => { ctx.beginPath(); ctx.moveTo(xx, y0); ctx.lineTo(xx, y0 + 52 + bodyH); ctx.stroke(); }); });   // break column edges
+      ctx.lineWidth = 2; ctx.strokeStyle = LINE; ctx.strokeRect(tx0, y0, tx1 - tx0, 52 + bodyH);                          // outer frame
+    }
     if (isDemo()) { ctx.save(); ctx.globalAlpha = 0.09; ctx.fillStyle = bw ? '#000' : NAVY; ctx.font = '800 170px Poppins, Arial'; ctx.textAlign = 'center'; ctx.translate(W / 2, H / 2 + 60); ctx.rotate(-0.35); ctx.fillText('SAMPLE', 0, 0); ctx.restore(); }
     // footer (always) — no diagonal watermark on saved or printed pages of real schools
     const fy = H - foot + 8;
