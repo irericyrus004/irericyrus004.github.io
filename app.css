@@ -836,9 +836,9 @@ body.force-land.fillv .gridwrap,body.force-land.fullv .gridwrap{max-height:none!
 #railtab span{width:28px;height:4px;border-radius:4px}
 #railtab em{font-style:normal;font:800 10px/1 Poppins,"Segoe UI",Arial,sans-serif;letter-spacing:.12em;color:var(--gold-2);margin-top:2px}
 #railtab:active em{color:var(--navy)}
-#rail{width:108px;z-index:95}
-#rail .ri{padding:10px 3px;font-size:12px;gap:4px}
-#rail .ri .ic{width:26px;height:26px}
+#rail{width:74px;z-index:95;padding-left:4px;padding-right:4px;gap:2px}
+#rail .ri{padding:6px 1px;font-size:10px;gap:2px;line-height:1.1}
+#rail .ri .ic{width:20px;height:20px}
 body.rail-open::after{z-index:92}
 body.desk #railtab{width:48px;height:120px}
 
@@ -851,3 +851,66 @@ body.force-land #rail{
   top:0;left:0;bottom:auto;height:calc(100vw - var(--brandh));
   transform-origin:top left;transform:translateX(100vw) rotate(90deg) translateX(-110%)}
 body.force-land #rail.open{transform:translateX(100vw) rotate(90deg)}
+
+/* ===== v45: normal phone view = fixed frame. The table gets exactly the space between the top bar and the bottom bar,
+   so the last day / last class is never hidden behind the bottom bars, and it scrolls up-down and left-right ===== */
+body.frame{overflow:hidden}
+body.frame #app{display:flex;flex-direction:column;overflow:hidden;
+  height:calc(100vh - var(--brandh) - var(--safe-b));height:calc(100dvh - var(--brandh) - var(--safe-b))}
+body.frame .vtop{position:static;flex:none}
+body.frame .vbar,body.frame .mbar{flex:none}
+body.frame main.tt{flex:1 1 0;min-height:0;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:auto;touch-action:pan-x pan-y;padding:8px 10px 14px;max-width:none;width:100%}
+body.frame main.tt > *{flex-shrink:0}
+body.frame main.tt > .gridwrap{height:100%;min-height:260px;max-height:none!important;overflow:auto!important;overscroll-behavior:auto}
+body.frame main.tt > .dayview{margin-bottom:12px}
+body.frame .vtools{position:static;flex:none;padding-bottom:6px}
+body.frame .swipe-hint{display:none}
+
+/* ===== v45c: compact menu tab - lines + the word MENU, no empty space ===== */
+#railtab{width:46px!important;height:84px!important;border-radius:0 16px 16px 0!important;gap:4px!important;
+  border-width:2.5px!important;opacity:1!important;padding:0!important;box-shadow:3px 3px 10px rgba(0,0,0,.4)!important}
+#railtab::before{width:60px!important;top:-8px!important;bottom:-8px!important}
+#railtab span{width:24px!important;height:4px!important;border-radius:4px!important}
+#railtab em{font-size:10px!important;letter-spacing:.08em!important;margin-top:3px!important;line-height:1!important}
+body.desk #railtab{width:46px!important;height:84px!important}
+body.force-land #railtab{top:calc((100vw - var(--brandh)) / 2 - 42px)!important}
+
+/* ===== v46: ROTATE / FULL SCREEN = the timetable fills the whole screen.
+   Everything else is folded into ONE thin strip: menu, previous, name, next, Day/Week, Exit, Profile, Save ===== */
+.fv-only{display:none}
+body.fullv .fv-only{display:inline-flex}
+body.fullv{--brandh:22px}
+body.fullv .vtools,body.fullv .swipe-hint{display:none!important}
+body.fullv main.tt > .inst,body.fullv .inst.small{display:none!important}
+body.fullv .vtop:has(+ .vbar){display:none!important}
+body.fullv .vtop{padding:2px 8px 2px 52px;min-height:0}
+body.fullv .vtitles p{display:none}
+body.fullv .vbar{padding:2px 8px 2px 52px;gap:6px;flex-wrap:nowrap;align-items:center;min-height:34px}
+body.fullv .vbar .seg{margin-right:0}
+body.fullv .vbar .fv-nav{width:32px;height:30px;background:var(--soft);color:var(--navy);flex:none;border-radius:9px}
+body.fullv .vbar .fv-nav .ic{width:20px;height:20px}
+body.fullv .fv-title{flex:1;min-width:0;align-items:center;gap:6px;overflow:hidden;white-space:nowrap}
+body.fullv .fv-title b{font-size:14px;font-weight:800;color:var(--navy);overflow:hidden;text-overflow:ellipsis}
+body.fullv .fv-title .sc{font-style:normal;min-width:24px;height:22px;padding:0 5px;border-radius:7px;background:var(--gold);color:var(--navy);display:grid;place-items:center;font-size:12px;font-weight:800;flex:none}
+body.fullv .fv-title small{font-size:10.5px;color:var(--muted);flex:none}
+body.fullv .vbar .btn.small{padding:4px 9px;font-size:12px;white-space:nowrap}
+body.fullv main.tt{padding:2px 4px 2px}
+/* the menu tab becomes a small button in the top-left corner of the strip, so it covers no timetable */
+body.fullv #railtab{width:46px!important;height:32px!important;top:0!important;left:0!important;flex-direction:column!important;gap:3px!important;
+  border-radius:0 0 14px 0!important;border-width:2px!important;border-top:0!important;transform:none!important;opacity:1!important}
+body.fullv #railtab::before{display:none}
+body.fullv #railtab span{width:20px!important;height:3px!important}
+body.fullv #railtab em{display:none}
+body.fullv.force-land #railtab{top:0!important;left:0!important;transform-origin:top left;transform:translateX(100vw) rotate(90deg)!important}
+html.theme-dark body.fullv .fv-title b{color:#fff}
+
+/* v47: teacher names pop up when a class lesson is tapped */
+.tbox{background:#fff;border:2px solid var(--navy);border-radius:14px;padding:8px 12px 10px;margin:0 0 10px}
+.tbox small{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.tbox .trow{display:flex;align-items:center;gap:10px;padding:5px 0}
+.tbox .trow + .trow{border-top:1px solid var(--line)}
+.tbox .trow i{font-style:normal;min-width:34px;height:34px;padding:0 7px;border-radius:10px;background:var(--gold);color:var(--navy);display:grid;place-items:center;font-weight:800;font-size:15px;flex:none}
+.tbox .trow b{font-size:18px;font-weight:800;color:var(--navy);line-height:1.2}
+html.theme-dark .tbox{background:var(--card);border-color:var(--line)}
+html.theme-dark .tbox .trow b{color:#fff}

@@ -197,6 +197,11 @@
     if (list.length > max) return `${list.length} teachers`;
     return list.map(c => { const t = IDX.tByCode[c]; return t ? (t.name || (/^\d+$/.test(c) ? `Tr ${c}` : c)) : c; }).join(', ');
   }
+  // Class and master timetables show only the teacher CODE (short, prints neatly); tapping a lesson shows the full name.
+  function teacherCodes(codes) { return codes ? String(codes).split(',').map(x => x.trim()).filter(Boolean).join(', ') : ''; }
+  function teacherList(codes) {
+    return String(codes || '').split(',').map(x => x.trim()).filter(Boolean).map(code => { const t = IDX.tByCode[code]; return { code, name: t ? teacherLabel(t) : (/^\d+$/.test(code) ? `Teacher ${code}` : code) }; });
+  }
   function classesText(c, max = 3) {
     if (!c) return '';
     const list = String(c).split(',').map(s => s.trim()).filter(Boolean);
@@ -210,7 +215,7 @@
     if (kind === 'teachers') return [classesText(c.c) || c.s || '', [c.c ? c.s : '', tag.trim(), c.r].filter(Boolean).join(' · ')];
     if (kind === 'classes' || kind === 'master') {
       const others = c.c ? c.c.split(',').map(s => s.trim()).filter(x => x !== ownName) : [];
-      return [(c.s || '') + tag, [c.r, others.length && others.length < 3 ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · '), teachersText(c.t)];
+      return [(c.s || '') + tag, [c.r, others.length && others.length < 3 ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · '), teacherCodes(c.t)];
     }
     return [[classesText(c.c), c.s].filter(Boolean).join(' · '), '', teachersText(c.t)];
   }
@@ -304,8 +309,11 @@
     const c = cellAt(item, d, j); if (!isLesson(c)) return;
     const r = candidates(item, d, j, c);
     const L = cellLines(item.kind === 'master' ? 'classes' : item.kind, c, item.name) || ['', ''];
-    openSheet(`<div class="grab"></div><h3>Who can be there?</h3>
-      <div class="cvinfo"><b>${esc(dayLabel(d))} · ${esc(pLabel(j))}${r.span > 1 ? ' · double lesson' : ''}</b><span>${esc(L[0])}${L[1] ? ' — ' + esc(L[1]) : ''}${L[2] ? ' — ' + esc(L[2]) : ''}</span></div>
+    const tl = item.kind === 'teachers' ? [] : teacherList(c.t);
+    const tbox = tl.length ? `<div class="tbox"><small>${tl.length > 1 ? 'Teachers' : 'Teacher'} in this lesson</small>${tl.map(t => `<div class="trow"><i>${esc(t.code)}</i><b>${esc(t.name)}</b></div>`).join('')}</div>` : '';
+    openSheet(`<div class="grab"></div><h3>${tl.length ? 'Lesson details' : 'Who can be there?'}</h3>
+      <div class="cvinfo"><b>${esc(dayLabel(d))} · ${esc(pLabel(j))}${r.span > 1 ? ' · double lesson' : ''}</b><span>${esc(L[0])}${L[1] ? ' — ' + esc(L[1]) : ''}</span></div>
+      ${tbox}${tl.length ? '<h4 class="cvh">Who can cover?</h4>' : ''}
       ${coverSplit(r.free, d, r.cls)}
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
@@ -427,6 +435,7 @@
     ensureRail();
     document.body.classList.toggle('desk', isDesk());
     document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name));
+    document.body.classList.toggle('frame', !fillOn() && ['view', 'master'].includes(route().name));
     if ((state.full || state.force) && !['view', 'master'].includes(route().name)) releaseRotate();
     if (state.error === 'locked') return renderMsg('Timetables not available', 'This school\'s timetable service is switched off. Please contact the school office.', false);
     if (!state.data) return renderEmpty();
@@ -879,6 +888,9 @@
     app.innerHTML = `
       ${topBar(title, sub, kind === 'teachers' ? `<button class="icon-btn star ${isMe ? 'on' : ''}" data-act="me" aria-label="My timetable">${icon(isMe ? 'star' : 'starO')}</button>` : '', titleHTML)}
       <div class="vbar">
+        <button class="icon-btn fv-only fv-nav" data-act="prev" ${idx <= 0 ? 'disabled' : ''} aria-label="Previous">${icon('prev')}</button>
+        <span class="fv-only fv-title">${kind === 'teachers' ? `<i class="sc">${esc(item.code)}</i>` : ''}<b>${esc(kind === 'teachers' ? teacherLabel(item) : item.name)}</b><small>${idx + 1}/${sib.length}</small></span>
+        <button class="icon-btn fv-only fv-nav" data-act="next" ${idx >= sib.length - 1 ? 'disabled' : ''} aria-label="Next">${icon('next')}</button>
         <div class="seg"><button class="${layout === 'day' ? 'on' : ''}" data-layout="day">Day</button><button class="${layout === 'week' ? 'on' : ''}" data-layout="week">Week</button></div>
         <button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit full screen' : 'Rotate'}</span></button>
         ${kind === 'teachers' ? `<button class="btn small ghost" data-go="analysis/${esc(item.id)}">${icon('chart')} Profile</button>` : ''}<button class="btn small ghost" data-act="save">${icon('save')} Save</button>
@@ -930,7 +942,7 @@
       return `<li class="${cls}${L ? ' has tap' : ''}"${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c, item.kind, item.name)}><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div>
         <div class="pc">${tag}${L ? `<strong>${esc(L[0])}</strong>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${L[2] ? `<span class="tn">${esc(L[2])}</span>` : ''}${isDoubleStart(item, d, j) ? '<span class="dbl">double</span>' : ''}` : c === 'X' ? '<span class="muted">Not available</span>' : '<span class="freec">Free</span>'}</div></li>`;
     }).join('');
-    return `${dayTabs(d)}<ul class="dayview dv-${item.kind}">${rows}</ul><p class="swipe-hint"><b>Tap a lesson</b> to see who can be there · swipe for the next ${item.kind === 'teachers' ? 'teacher' : item.kind === 'classes' ? 'class' : 'timetable'} · press <b>Rotate</b> for the whole week</p>`;
+    return `${dayTabs(d)}<ul class="dayview dv-${item.kind}">${rows}</ul><p class="swipe-hint"><b>Tap a lesson</b> to see ${item.kind === 'classes' ? 'the teacher\'s name and who can cover' : 'who can be there'} · swipe for the next ${item.kind === 'teachers' ? 'teacher' : item.kind === 'classes' ? 'class' : 'timetable'} · press <b>Rotate</b> for the whole week</p>`;
   }
   function headCells(d, n) {
     return IDX.P.map((p, j) => `<th class="${p.brk ? 'b' : p.pm ? 'pmh' : 'amh'}${n.d === d && n.j === j ? ' nowcol' : ''}">${n.d === d && n.j === j && !p.brk ? '<span class="curtag sm">CURRENT</span>' : ''}${p.brk ? brkHead(p) : `<b>${esc(p.label)}</b><small>${esc(p.time)}</small>`}</th>`).join('');
@@ -970,7 +982,7 @@
       const at = z => { tb.style.zoom = z; tb.style.width = (W / z) + 'px'; return tb.offsetHeight * z; };
       let lo = 0.2, hi = 1.5;                            // largest size at which the whole week still fits
       for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (at(mid) <= H) lo = mid; else hi = mid; }
-      const MIN = 0.85;                                  // never too small to read: below this, scroll instead
+      const MIN = state.full ? 0.6 : 0.85;                                  // never too small to read: below this, scroll instead
       const scrollMode = () => { rows.forEach(r => { r.style.height = ''; }); tb.style.zoom = MIN; tb.style.width = ''; tb.style.minWidth = (W / MIN) + 'px'; wrap.classList.add('scroll2'); };
       if (lo < MIN) { scrollMode(); return; }
       wrap.classList.remove('scroll2'); tb.style.minWidth = '';
@@ -1792,6 +1804,7 @@
       <button class="mrow" data-act="theme">${icon('info')}<span>Appearance: ${({ auto: 'Auto (like my phone)', light: 'Light', dark: 'Dark' })[getTheme()]}<small>Tap to switch Light · Dark · Auto</small></span></button>
       <button class="mrow" data-act="contact">${icon('wa')}<span>Contact Cyrus Ireri<small>WhatsApp · call · SMS — ${esc(LOCKED_CONTACT)}</small></span></button>
       <button class="mrow" data-act="about">${icon('info')}<span>About<small>${esc(BRAND_LINE)}</small></span></button>
+      <p class="muted small center-t" style="padding:6px 0 2px">App version v48 · build ${esc(CFG.build || '-')}</p>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   function loadQR() { if (self.qrcode) return Promise.resolve(); return new Promise((res, rej) => { const s = document.createElement('script'); s.src = '/qrcode.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
@@ -1953,7 +1966,7 @@
   const onRotate = () => { if (state.data && ['view', 'master'].includes(route().name)) setTimeout(() => { applyForce(); fitGrid(); }, 200); };
   if (mq.addEventListener) mq.addEventListener('change', onRotate); else if (mq.addListener) mq.addListener(onRotate);
   if (window.visualViewport) visualViewport.addEventListener('resize', () => { if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 80); });
-  addEventListener('resize', () => { applyForce(); document.body.classList.toggle('desk', isDesk()); if (state.data) document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name)); if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 60); });
+  addEventListener('resize', () => { applyForce(); document.body.classList.toggle('desk', isDesk()); if (state.data) document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name)); if (state.data) document.body.classList.toggle('frame', !fillOn() && ['view', 'master'].includes(route().name)); if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 60); });
   addEventListener('hashchange', () => { if (state.full && !['view', 'master'].includes(route().name)) releaseRotate(); });
   addEventListener('online', () => { state.online = true; sync('online'); });
   addEventListener('offline', () => { state.online = false; renderStatus(); });
