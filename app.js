@@ -94,11 +94,13 @@
     const list = ((j && j.schools) || []).filter(x => !q || `${x.name} ${x.institution}`.toLowerCase().includes(q.toLowerCase()));
     if (!j) return '<p class="muted center-t">Could not load the list. Check your connection.</p>';
     if (!list.length) return '<p class="muted center-t">No school matches.</p>';
-    return list.map(x => `<div class="school ${x.code === cur ? 'mine' : ''}">
+const own = isOwner();
+    return list.map(x => { const link = own && x.code !== cur, t = link ? 'a' : 'div', same = !x.site || x.site.replace(/\/$/, '') === location.origin;
+      return `<${t} class="school ${x.code === cur ? 'mine' : ''} ${link ? 'olink' : ''}"${link ? ` href="${esc(schoolHref(x))}"${same ? '' : ' target="_blank" rel="noopener"'}` : ''}>
       <span class="av av-classes">${esc(String(x.name).replace(/[^A-Za-z0-9 ]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'S')}</span>
       <span class="nm"><b>${esc(x.name)}</b>${x.code === cur ? ' <i class="me-tag">Your school</i>' : ''}<small>${esc(x.institution || '')}${x.institution ? ' · ' : ''}${[Number.isFinite(x.teachers) ? x.teachers + ' teachers' : '', Number.isFinite(x.classes) ? x.classes + ' classes' : ''].filter(Boolean).join(' · ')}</small>
       ${x.updated ? `<small>Updated ${esc(fmtDate(x.updated))}</small>` : ''}</span>
-      <span class="sstat">${Number.isFinite(x.teachers) ? `<span><b>${x.teachers}</b><small>teachers</small></span>` : ''}${Number.isFinite(x.classes) ? `<span><b>${x.classes}</b><small>classes</small></span>` : ''}</span></div>`).join('');
+      <span class="sstat">${Number.isFinite(x.teachers) ? `<span><b>${x.teachers}</b><small>teachers</small></span>` : ''}${Number.isFinite(x.classes) ? `<span><b>${x.classes}</b><small>classes</small></span>` : ''}</span>${link ? '<span class="sopen">Open ›</span>' : ''}</${t}>`; }).join('');
   }
   function wireSchoolSearch(j, cur) {
     const inp = document.getElementById('sq'), box = document.getElementById('slist');
@@ -161,6 +163,10 @@
     if (crypto.subtle) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join(''); }
     let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return 'h' + (h >>> 0).toString(16) + s.length;
   }
+  // OWNER MODE: the owner types a private password once (menu -> tap 'App version' 5 times). Then the Schools page
+  // lets this phone open any school. The password is never in the app; only its salted SHA-256 is.
+  const OWN = () => (CFG.ownerPw && CFG.ownerPw.hash) ? CFG.ownerPw : null;
+  const isOwner = () => { try { const o = OWN(); return !!(o && localStorage.getItem('ireri:owner') === o.hash); } catch { return false; } };
   let toastTimer;
   function toast(msg, ms = 3000) { const t = $('#toast'); t.innerHTML = esc(msg); t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); }
 
@@ -197,7 +203,7 @@
     if (list.length > max) return `${list.length} teachers`;
     return list.map(c => { const t = IDX.tByCode[c]; return t ? (t.name || (/^\d+$/.test(c) ? `Tr ${c}` : c)) : c; }).join(', ');
   }
-  // Class and master timetables show only the teacher CODE (short, prints neatly); tapping a lesson shows the full name.
+  // Class timetables show only the teacher CODE (short, prints neatly); tapping a lesson shows the full name. Master and Labs & Fields show names.
   function teacherCodes(codes) { return codes ? String(codes).split(',').map(x => x.trim()).filter(Boolean).join(', ') : ''; }
   function teacherList(codes) {
     return String(codes || '').split(',').map(x => x.trim()).filter(Boolean).map(code => { const t = IDX.tByCode[code]; return { code, name: t ? teacherLabel(t) : (/^\d+$/.test(code) ? `Teacher ${code}` : code) }; });
@@ -215,7 +221,8 @@
     if (kind === 'teachers') return [classesText(c.c) || c.s || '', [c.c ? c.s : '', tag.trim(), c.r].filter(Boolean).join(' · ')];
     if (kind === 'classes' || kind === 'master') {
       const others = c.c ? c.c.split(',').map(s => s.trim()).filter(x => x !== ownName) : [];
-      return [(c.s || '') + tag, [c.r, others.length && others.length < 3 ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · '), teacherCodes(c.t)];
+      // Class timetables show the teacher CODE; Master (for administrators) and Labs & Fields show the teacher's NAME
+      return [(c.s || '') + tag, [c.r, others.length && others.length < 3 ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · '), kind === 'master' ? teachersText(c.t) : teacherCodes(c.t)];
     }
     return [[classesText(c.c), c.s].filter(Boolean).join(' · '), '', teachersText(c.t)];
   }
@@ -452,7 +459,7 @@
     return renderHome();
   }
   function topBar(title, sub = '', right = '', html = '') {
-    return `<header class="vtop"><button class="icon-btn" data-act="back" aria-label="Back">${icon('back')}</button><button class="icon-btn homebtn" data-act="home" aria-label="Dashboard (home)">${icon('home')}</button>
+    return `<header class="vtop"><button class="navbtn nb-back" data-act="back" aria-label="Back">${icon('back')}<span>Back</span></button><button class="navbtn nb-home" data-act="home" aria-label="Dashboard (home)">${icon('home')}<span>Home</span></button>
       <div class="vtitles"><h2${html ? ' class="big"' : ''}>${html || esc(title)}</h2>${sub ? `<p>${sub}</p>` : ''}</div>${right || '<span class="icon-btn ghost"></span>'}</header>`;
   }
   function renderStatus() {
@@ -900,7 +907,7 @@
         <button class="icon-btn" data-act="prev" ${idx <= 0 ? 'disabled' : ''} aria-label="Previous">${icon('prev')}</button>
         <span class="vcur">${kind === 'teachers' ? `<i class="sc">${esc(item.code)}</i>` : ''}<b>${esc(kind === 'teachers' ? teacherLabel(item) : item.name)}</b><small>${idx + 1} of ${sib.length}</small></span>
         <button class="icon-btn" data-act="next" ${idx >= sib.length - 1 ? 'disabled' : ''} aria-label="Next">${icon('next')}</button>
-      </div>`;
+      </div>${zoomCtl()}`;
     if (layout === 'week') fitGrid();
     focusCurrent('view:' + id + ':' + layout + ':' + state.day + ':' + (state.full ? 'f' : 'n'), layout);
   }
@@ -942,7 +949,7 @@
       return `<li class="${cls}${L ? ' has tap' : ''}"${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c, item.kind, item.name)}><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div>
         <div class="pc">${tag}${L ? `<strong>${esc(L[0])}</strong>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${L[2] ? `<span class="tn">${esc(L[2])}</span>` : ''}${isDoubleStart(item, d, j) ? '<span class="dbl">double</span>' : ''}` : c === 'X' ? '<span class="muted">Not available</span>' : '<span class="freec">Free</span>'}</div></li>`;
     }).join('');
-    return `${dayTabs(d)}<ul class="dayview dv-${item.kind}">${rows}</ul><p class="swipe-hint"><b>Tap a lesson</b> to see ${item.kind === 'classes' ? 'the teacher\'s name and who can cover' : 'who can be there'} · swipe for the next ${item.kind === 'teachers' ? 'teacher' : item.kind === 'classes' ? 'class' : 'timetable'} · press <b>Rotate</b> for the whole week</p>`;
+    return `${dayTabs(d)}<ul class="dayview dv-${item.kind}" style="zoom:${zmGet('Day')}">${rows}</ul><p class="swipe-hint"><b>Tap a lesson</b> to see ${item.kind === 'classes' ? 'the teacher\'s name and who can cover' : 'who can be there'} · swipe for the next ${item.kind === 'teachers' ? 'teacher' : item.kind === 'classes' ? 'class' : 'timetable'} · press <b>Rotate</b> for the whole week</p>`;
   }
   function headCells(d, n) {
     return IDX.P.map((p, j) => `<th class="${p.brk ? 'b' : p.pm ? 'pmh' : 'amh'}${n.d === d && n.j === j ? ' nowcol' : ''}">${n.d === d && n.j === j && !p.brk ? '<span class="curtag sm">CURRENT</span>' : ''}${p.brk ? brkHead(p) : `<b>${esc(p.label)}</b><small>${esc(p.time)}</small>`}</th>`).join('');
@@ -973,8 +980,31 @@
     const body = IDX.D.map((dd, d) => `<tr class="dc${d % 5} ${n.d === d ? 'today' : ''}"><th>${esc(dd.label)}${n.d === d ? '<small>today</small>' : ''}</th>${rowCells(item, item.kind, d, n, d, IDX.D.length, 46)}</tr>`).join('');
     return `<div class="gridwrap" id="gridwrap"><table class="wk" id="wk"><thead><tr><th></th>${headCells(-9, { d: -1 })}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
-  function fitGrid() {
+  // ZOOM: pinch with two fingers, or use the + / - / Fit buttons. Week and Master tables zoom the whole table (slide to look
+  // around); the Day list zooms its text. The size is remembered on this phone.
+  const zmGet = k => { const v = state['zm' + k]; return v == null ? (state['zm' + k] = Number(store.get('zm' + k, 1)) || 1) : v; };
+  const zKind = () => (route().name === 'master' || effectiveLayout() === 'week') ? 'Week' : 'Day';
+  function zoomCtl() { return `<div class="zoomctl" role="group" aria-label="Zoom"><button data-act="zoomOut" aria-label="Zoom out">−</button><button class="fit" data-act="zoomFit" aria-label="Fit to screen">Fit</button><button data-act="zoomIn" aria-label="Zoom in">+</button></div>`; }
+  function setZoom(v, noSave) {
+    const k = zKind(), lim = k === 'Week' ? [fillOn() ? 1 : 0.5, 3.5] : [0.85, 2.2];
+    v = Math.round(Math.max(lim[0], Math.min(lim[1], v)) * 100) / 100;
+    state['zm' + k] = v; if (!noSave) store.set('zm' + k, v);
+    if (k === 'Day') { const u = $('.dayview'); if (u) u.style.zoom = v; return; }
+    const wrap = $('#gridwrap'); if (!wrap) return;
+    const cx = (wrap.scrollLeft + wrap.clientWidth / 2) / (wrap.scrollWidth || 1), cy = (wrap.scrollTop + wrap.clientHeight / 2) / (wrap.scrollHeight || 1);
+    fitGrid();
+    wrap.scrollLeft = cx * wrap.scrollWidth - wrap.clientWidth / 2; wrap.scrollTop = cy * wrap.scrollHeight - wrap.clientHeight / 2;
+  }
+  function applyUserZoom() {
+    const wrap = $('#gridwrap'), tb = $('#wk'); const m = zmGet('Week'); if (!wrap || !tb || Math.abs(m - 1) < 0.01) return;
+    const W = wrap.clientWidth - 2, z0 = parseFloat(tb.style.zoom) || 1, z = z0 * m;
+    $$('tbody tr', tb).forEach(r => { r.style.height = ''; });
+    tb.style.zoom = z; tb.style.width = ''; tb.style.minWidth = (W / z) + 'px'; wrap.classList.add('scroll2');
+  }
+  function fitGrid() { fitGridBase(); applyUserZoom(); }
+  function fitGridBase() {
     const wrap = $('#gridwrap'), tb = $('#wk'); if (!wrap || !tb) return;
+    tb.style.minWidth = ''; wrap.classList.remove('scroll2');
     tb.style.zoom = 1; tb.style.width = '';
     if (fillOn()) {                                     // whole week on one screen: fill the width, fit the height
       const W = wrap.clientWidth - 2, H = wrap.clientHeight - 2, rows = $$('tbody tr', tb);
@@ -1009,8 +1039,8 @@
     app.innerHTML = `${topBar('Master timetable', esc(dayLabel(d)) + ' · all classes', `<button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit' : 'Rotate'}</span></button><button class="icon-btn" data-act="save" aria-label="Save">${icon('save')}</button>`)}
       <div class="mbar">${dayTabs(d)}${gradeChips()}</div>
       <main class="tt"><div class="gridwrap" id="gridwrap"><table class="wk master dc${d % 5}" id="wk"><thead><tr><th>Class</th>${headCells(d, n)}</tr></thead><tbody>${body}</tbody></table></div>
-      <p class="swipe-hint">Slide the table sideways · press Rotate to see the whole day on one screen</p></main>`;
-    if (fillOn()) fitGrid();
+      <p class="swipe-hint">Slide the table sideways · swipe here for the next section (Labs &amp; Fields) · press Rotate for the whole day on one screen</p></main>${zoomCtl()}`;
+    if (fillOn() || Math.abs(zmGet('Week') - 1) > 0.01) fitGrid();
     focusCurrent('master:' + state.grade + ':' + d + ':' + (state.full ? 'f' : 'n'), 'week');
   }
 
@@ -1050,27 +1080,32 @@
   }
 
   // ------------------------------------------------------------------ FIND COVER
-  function sessions() {                     // lessons grouped between breaks: Session 1, 2, 3 …
-    const out = []; let cur = [];
-    IDX.P.forEach((p, j) => { if (p.brk) { if (cur.length) out.push(cur); cur = []; } else cur.push(j); });
-    if (cur.length) out.push(cur);
-    return out.map((js, i) => ({ i, js, label: `Session ${i + 1}`, time: `${(IDX.P[js[0]].time || '').split('-')[0]}–${(IDX.P[js[js.length - 1]].time || '').split('-')[1] || ''}` }));
-  }
+  // By day & time: one grid, days against Lesson 1 … last lesson. Tap a box = that day and lesson.
+  // Days run across and lessons down; if there are too many lessons to fit the screen that way, the grid is laid
+  // out the other way round (lessons across, days down) and can be slid sideways.
   function renderCoverByTime() {
     if (state.day == null) state.day = Math.max(0, todayIndex());
-    const d = state.day, S = sessions();
-    const n = nowSlot();
-    if (state.coverSess == null) { const k = S.findIndex(x => x.js.includes(n.j)); state.coverSess = k >= 0 ? k : 0; }
-    const ses = S[Math.min(state.coverSess, S.length - 1)];
-    const j = state.coverTime != null && ses.js.includes(state.coverTime) ? state.coverTime : (ses.js.includes(n.j) ? n.j : ses.js[0]);
+    const d = state.day, n = nowSlot(), LS = IDX.lessons, ND = IDX.D.length;
+    let j = state.coverTime != null && LS.includes(state.coverTime) ? state.coverTime : (n.d === d && LS.includes(n.j) ? n.j : LS[0]);
     const free = B.teachers.filter(t => cellAt(t, d, j) === '').map(t => ({ t, same: false, knows: false, load: lessonsOnDay(t, d), pmfree: afternoonFree(t, d) }))
       .sort((a, b) => a.load - b.load || natural(a.t.code, b.t.code));
-    app.innerHTML = `${topBar('Find cover', 'By day, session and time')}
+    const horiz = LS.length > 8 && LS.length > ND;
+    const lh = (k, jj) => `<div class="hd"><b>Lesson ${k + 1}</b><small>${esc(IDX.P[jj].time || '')}</small></div>`;
+    const dh = (i) => `<div class="hd dh ${i === todayIndex() ? 'today' : ''}"><b>${esc(IDX.D[i].label.slice(0, 3))}</b></div>`;
+    const cell = (i, jj) => { const c = freeAt(i, jj).length;
+      return `<button class="cvcell ${i === d && jj === j ? 'on' : ''} ${n.d === i && n.j === jj ? 'cur' : ''} ${c ? '' : 'zero'}" data-covercell="${i}|${jj}" aria-label="${esc(dayLabel(i))} lesson ${LS.indexOf(jj) + 1}: ${c} free">${c}</button>`; };
+    let grid;
+    if (!horiz) {
+      grid = `<div class="cvgrid" style="grid-template-columns:minmax(58px,auto) repeat(${ND},minmax(0,1fr))"><div></div>${IDX.D.map((_, i) => dh(i)).join('')}
+        ${LS.map((jj, k) => lh(k, jj) + IDX.D.map((_, i) => cell(i, jj)).join('')).join('')}</div>`;
+    } else {
+      grid = `<div class="cvscroll"><div class="cvgrid" style="grid-template-columns:minmax(52px,auto) repeat(${LS.length},minmax(48px,1fr))"><div></div>${LS.map((jj, k) => lh(k, jj)).join('')}
+        ${IDX.D.map((_, i) => dh(i) + LS.map(jj => cell(i, jj)).join('')).join('')}</div></div>`;
+    }
+    app.innerHTML = `${topBar('Find cover', 'By day and lesson')}
       <div class="seg wide-seg"><button data-covermode="teacher">By teacher</button><button class="on" data-covermode="time">By day & time</button></div>
       <main class="page">
-        <h3 class="sect">1. Day</h3>${dayTabs(d)}
-        <h3 class="sect">2. Session</h3><div class="chips sess">${S.map(x => `<button class="chip ${x === ses ? 'on' : ''}" data-coversess="${x.i}"><b>${x.label}</b><small>${esc(x.time)}</small></button>`).join('')}</div>
-        <h3 class="sect">3. Time</h3><div class="chips periods">${ses.js.map(k => `<button class="chip ${k === j ? 'on' : ''}" data-covertime="${k}">${esc(IDX.P[k].label)}<small>${esc(IDX.P[k].time)}</small></button>`).join('')}</div>
+        <h3 class="sect">Tap a day and lesson <small class="muted">· the number is how many teachers are free</small></h3>${grid}
         <h3 class="sect">${free.length} teacher${free.length === 1 ? ' is' : 's are'} free · ${esc(dayLabel(d))} · ${esc(pLabel(j))}</h3>
         <ul class="list cvlist">${coverRows(free, d)}</ul>
       </main>`;
@@ -1419,7 +1454,7 @@
     const j = await fetchSchools();
     if (route().name !== 'schools') return;
     const n = j && j.schools ? j.schools.length : 0;
-    app.innerHTML = `${topBar('Schools using this app', `${n} school${n === 1 ? '' : 's'}`)}
+    app.innerHTML = `${topBar('Schools using this app', isOwner() ? 'Owner mode · tap a school to open it' : `${n} school${n === 1 ? '' : 's'}`)}
       <main class="page wide">
         <div class="stats three"><div><b>${n}</b><small>schools</small></div><div><b>${(j?.schools || []).reduce((a, x) => a + (x.teachers || 0), 0)}</b><small>teachers</small></div><div><b>${(j?.schools || []).reduce((a, x) => a + (x.classes || 0), 0)}</b><small>classes</small></div></div>
         <div class="searchbox">${icon('search')}<input id="sq" type="search" autocomplete="off" placeholder="Search a school…"></div>
@@ -1566,24 +1601,27 @@
       const W = PW / f, H = PH / f, pad = 28, top = 156, foot = 46, headW = kind === 'master' ? 96 : 84, brkW = 40;
       const colW = (W - pad * 2 - headW - nB * brkW) / nL;
       const colWs = P.map(p => p.brk ? brkW : colW);
+      let S = 1;                                       // text size multiplier: as big as still fits on the page
       const cellText = (row, j) => {
         let span = 1; while ((row.item.grid[row.d] || [])[j + span] === '^') span++;
         let cw = 0; for (let k = j; k < j + span; k++) cw += colWs[k];
         const c = cellAt(row.item, row.d, j), L = cellLines(kind, c, row.item.name);
         if (!L) return { cw, L, a: [], b: [], t: [] };
-        mctx.font = '800 15px Poppins, Arial'; const a = wrapText(mctx, L[0], cw - 14).slice(0, 3);
-        mctx.font = '600 12.5px Poppins, Arial'; const b = L[1] ? wrapText(mctx, L[1], cw - 14) : [];
-        mctx.font = '700 12px Poppins, Arial'; const t = L[2] ? wrapText(mctx, L[2], cw - 22) : [];
+        mctx.font = `800 ${15 * S}px Poppins, Arial`; const a = wrapText(mctx, L[0], cw - 14).slice(0, 3);
+        mctx.font = `600 ${12.5 * S}px Poppins, Arial`; const b = L[1] ? wrapText(mctx, L[1], cw - 14) : [];
+        mctx.font = `700 ${12 * S}px Poppins, Arial`; const t = L[2] ? wrapText(mctx, L[2], cw - 22) : [];
         return { cw, L, a, b, t };
       };
-      const need = rows.map(row => { let h = 56; for (let j = 0; j < P.length; j++) { if (P[j].brk || isCont(row.item, row.d, j)) continue;
-        const t = cellText(row, j); h = Math.max(h, t.a.length * 18 + t.b.length * 15 + (t.t.length ? t.t.length * 14 + 10 : 0) + 22); } return h; });
-      const bodyAvail = H - top - 52 - foot, sum = need.reduce((a, b) => a + b, 0);
+      const calcNeed = () => rows.map(row => { let h = 56; for (let j = 0; j < P.length; j++) { if (P[j].brk || isCont(row.item, row.d, j)) continue;
+        const t = cellText(row, j); h = Math.max(h, t.a.length * 18 * S + t.b.length * 15 * S + (t.t.length ? t.t.length * 14 * S + 10 * S : 0) + 22); } return h; });
+      const bodyAvail = H - top - 52 - foot;
+      let need, sum;
+      for (const cand of [1.75, 1.6, 1.45, 1.32, 1.2, 1.1, 1]) { S = cand; need = calcNeed(); sum = need.reduce((a, b) => a + b, 0); if (sum <= bodyAvail * 1.001) break; }
       if (sum > bodyAvail * 1.001 && f > 0.42) { f = Math.max(0.42, f * Math.sqrt(bodyAvail / sum) * 0.98); continue; }
       const extra = Math.max(0, bodyAvail - sum), RH = need.map(h => h + extra / rows.length);
-      lay = { W, H, pad, top, foot, headW, brkW, colWs, cellText, RH }; break;
+      lay = { W, H, pad, top, foot, headW, brkW, colWs, cellText, RH, S }; break;
     }
-    const { W, H, pad, top, foot, headW, colWs, cellText, RH } = lay;
+    const { W, H, pad, top, foot, headW, colWs, cellText, RH, S } = lay;
     const Y = []; RH.reduce((acc, h, i) => { Y[i] = acc; return acc + h; }, 0);
     const bodyH = RH.reduce((a, b) => a + b, 0), y0 = top;
     const cv = document.createElement('canvas'); cv.width = Math.round(PW * SCALE); cv.height = Math.round(PH * SCALE);
@@ -1595,12 +1633,19 @@
     const lh = 82, lw = logoImg ? lh * logoImg.width / logoImg.height : 0;
     if (logoImg) { ctx.save(); if (bw) ctx.filter = 'grayscale(1) contrast(1.15)'; ctx.drawImage(logoImg, W - pad - lw, 8, lw, lh); ctx.restore(); }
     const textW = W - pad * 2 - lw - 20;
-    ctx.fillStyle = NAVY; ctx.font = '800 30px Poppins, Arial';
-    const sname = (IL[0] || state.data.school?.name || '').toUpperCase();
-    let sfs = 30; while (ctx.measureText(sname).width > textW && sfs > 18) { sfs -= 1; ctx.font = `800 ${sfs}px Poppins, Arial`; }
-    ctx.fillText(sname, pad, 44);
-    ctx.font = '700 18px Poppins, Arial'; ctx.fillStyle = bw ? INK : '#1E7F5C';
-    ctx.fillText([IL.slice(1).join(' ').toUpperCase(), (state.data.ttName || '').toUpperCase()].filter((v, i, a) => v && a.indexOf(v) === i).join('   ·   '), pad, 74);
+    const sname = (state.data.school?.name || IL[0] || '').toUpperCase();          // the school's name, once
+    const ttn = (state.data.ttName || '').toUpperCase();                           // the timetable's name
+    const extraT = IL.slice(1).map(x => String(x).toUpperCase()).filter(x => x && x !== ttn && !sname.includes(x) && !(ttn && ttn.includes(x))).join(' ');
+    ctx.fillStyle = NAVY; ctx.font = '800 34px Poppins, Arial';
+    let sfs = 34; while (ctx.measureText(sname).width > textW && sfs > 18) { sfs -= 1; ctx.font = `800 ${sfs}px Poppins, Arial`; }
+    ctx.fillText(sname, pad, 42);
+    ctx.fillStyle = bw ? INK : '#1E7F5C';
+    let tfs = 26; ctx.font = `800 ${tfs}px Poppins, Arial`;
+    const line2 = ttn || extraT;
+    while (ctx.measureText(line2).width > textW && tfs > 15) { tfs -= 1; ctx.font = `800 ${tfs}px Poppins, Arial`; }
+    ctx.fillText(line2, pad, 78);
+    if (ttn && extraT) { const ox = pad + ctx.measureText(ttn).width + 18; ctx.font = '700 16px Poppins, Arial'; ctx.fillStyle = bw ? INK : NAVY;
+      if (ox + ctx.measureText(extraT).width < pad + textW) ctx.fillText('·  ' + extraT, ox, 78); }
     ctx.fillStyle = GOLD; ctx.fillRect(pad, 94, W - pad * 2, 4);
     ctx.fillStyle = bw ? '#000' : NAVY; ctx.fillRect(pad, 104, W - pad * 2, 42);
     ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
@@ -1625,8 +1670,8 @@
     rows.forEach((row, ri) => {
       const y = y0 + 52 + Y[ri], rowH = RH[ri];
       ctx.fillStyle = bw ? '#fff' : NAVY; ctx.fillRect(pad, y, headW, rowH); ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(pad, y, headW, rowH);
-      ctx.fillStyle = bw ? INK : '#fff'; ctx.font = '800 16px Poppins, Arial'; ctx.textAlign = 'center';
-      const hl = wrapText(ctx, row.head, headW - 10).slice(0, 3); hl.forEach((ln, k) => ctx.fillText(ln, pad + headW / 2, y + rowH / 2 - (hl.length - 1) * 9 + k * 18 + 5));
+      const HK = Math.min(S, 1.35); ctx.fillStyle = bw ? INK : '#fff'; ctx.font = `800 ${16 * HK}px Poppins, Arial`; ctx.textAlign = 'center';
+      const hl = wrapText(ctx, row.head, headW - 10).slice(0, 3); hl.forEach((ln, k) => ctx.fillText(ln, pad + headW / 2, y + rowH / 2 - (hl.length - 1) * 9 * HK + k * 18 * HK + 5 * HK));
       ctx.textAlign = 'left';
       for (let j = 0; j < P.length; j++) {
         const [cx, w] = colX[j];
@@ -1648,17 +1693,17 @@
         ctx.fillStyle = fc ? fc[0] : '#ffffff'; ctx.fillRect(cx, y, cw, rowH);
         ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(cx, y, cw, rowH);
         if (L) {
-          const blockH = T.a.length * 18 + T.b.length * 15 + (T.t.length ? T.t.length * 14 + 10 : 0);
-          let ty = y + (rowH - blockH) / 2 + 14; ctx.textAlign = 'center';
-          ctx.fillStyle = fc ? fc[1] : INK; ctx.font = '800 15px Poppins, Arial'; T.a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 18; });
-          ctx.font = '600 12.5px Poppins, Arial'; T.b.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 15; });
+          const blockH = T.a.length * 18 * S + T.b.length * 15 * S + (T.t.length ? T.t.length * 14 * S + 10 * S : 0);
+          let ty = y + (rowH - blockH) / 2 + 14 * S; ctx.textAlign = 'center';
+          ctx.fillStyle = fc ? fc[1] : INK; ctx.font = `800 ${15 * S}px Poppins, Arial`; T.a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 18 * S; });
+          ctx.font = `600 ${12.5 * S}px Poppins, Arial`; T.b.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 15 * S; });
           if (T.t.length) {                                    // teacher names in their own box and colour
-            ctx.font = '700 12px Poppins, Arial';
-            const bwid = Math.min(cw - 10, Math.max(...T.t.map(l => ctx.measureText(l).width)) + 14), bh = T.t.length * 14 + 6;
-            const bx = cx + (cw - bwid) / 2, by = ty - 11;
+            ctx.font = `700 ${12 * S}px Poppins, Arial`;
+            const bwid = Math.min(cw - 10, Math.max(...T.t.map(l => ctx.measureText(l).width)) + 14), bh = T.t.length * 14 * S + 6 * S;
+            const bx = cx + (cw - bwid) / 2, by = ty - 11 * S;
             ctx.fillStyle = '#ffffff'; ctx.strokeStyle = bw ? '#000' : '#0B3D91'; ctx.lineWidth = 1.2;
             ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, bwid, bh, 6); else ctx.rect(bx, by, bwid, bh); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = bw ? '#000' : '#0B3D91'; ty += 2; T.t.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 14; });
+            ctx.fillStyle = bw ? '#000' : '#0B3D91'; ty += 2 * S; T.t.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 14 * S; });
           }
           ctx.textAlign = 'left';
         }
@@ -1792,6 +1837,13 @@
     closeSheet(); const d = document.createElement('div'); d.className = 'sheet-bg'; d.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
     d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-act="closeSheet"]')) closeSheet(); }); document.body.appendChild(d); requestAnimationFrame(() => d.classList.add('show'));
   }
+  let ownTaps = 0, ownLast = 0;
+  function openOwnerSheet() {
+    if (!OWN()) { toast('Owner access is not set up yet'); return; }
+    if (isOwner()) { openSheet(`<div class="grab"></div><h3>Owner mode is ON</h3><p class="muted">The Schools page lets you open any school.</p><button class="btn wide" data-go="schools">Open schools</button><button class="btn ghost wide" data-act="ownerOff">Turn off</button><button class="btn ghost wide" data-act="closeSheet">Close</button>`); return; }
+    openSheet(`<div class="grab"></div><h3>Owner access</h3><p class="muted">Type your private owner password.</p><input id="ownpw" type="password" autocomplete="off" style="width:100%;padding:12px;border:1.5px solid var(--line);border-radius:12px;font-size:16px;margin:6px 0 10px"><button class="btn wide" data-act="ownerGo">Unlock</button><button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
+    setTimeout(() => { const i = $('#ownpw'); if (i) i.focus(); }, 150);
+  }
   function closeSheet() { $$('.sheet-bg').forEach(n => n.remove()); }
   function openMenu() {
     openSheet(`<div class="grab"></div>
@@ -1804,16 +1856,17 @@
       <button class="mrow" data-act="theme">${icon('info')}<span>Appearance: ${({ auto: 'Auto (like my phone)', light: 'Light', dark: 'Dark' })[getTheme()]}<small>Tap to switch Light · Dark · Auto</small></span></button>
       <button class="mrow" data-act="contact">${icon('wa')}<span>Contact Cyrus Ireri<small>WhatsApp · call · SMS — ${esc(LOCKED_CONTACT)}</small></span></button>
       <button class="mrow" data-act="about">${icon('info')}<span>About<small>${esc(BRAND_LINE)}</small></span></button>
-      <p class="muted small center-t" style="padding:6px 0 2px">App version v48 · build ${esc(CFG.build || '-')}</p>
+      ${isOwner() ? `<button class="mrow" data-go="schools">${icon('grid')}<span>Owner mode: all schools<small>Open any school's timetables · tap to choose a school</small></span></button><button class="mrow" data-act="ownerOff">${icon('info')}<span>Turn off owner mode<small>This phone goes back to normal</small></span></button>` : ''}
+      <p class="muted small center-t" data-act="verTap" style="padding:6px 0 2px">App version v56 · build ${esc(CFG.build || '-')}</p>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   function loadQR() { if (self.qrcode) return Promise.resolve(); return new Promise((res, rej) => { const s = document.createElement('script'); s.src = '/qrcode.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
   async function qrSvg(text) { try { await loadQR(); const qr = self.qrcode(0, 'M'); qr.addData(text); qr.make(); return qr.createSvgTag(6, 2); } catch { return ''; } }
   async function openShare() {
     const link = linkFor(), name = state.data?.school?.name || 'our school';
-    const msg = `${name} timetables — open on your phone, it updates automatically: ${link}`;
+    const msg = `PREPFIX · ${name} timetables — open on your phone, it updates automatically: ${link}`;
     openSheet(`<div class="grab"></div><h3>Share with colleagues</h3><div class="qr" id="qrBox"><span class="muted">Loading QR code…</span></div>
-      <p class="linktext">${esc(link)}</p>
+      <p class="linktext"><a href="${esc(link)}" target="_blank" rel="noopener">PREPFIX · ${esc(name)}</a></p>
       <div class="sharebtns"><a class="btn" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">WhatsApp</a>
       <button class="btn ghost" data-act="copy">Copy link</button>${navigator.share ? '<button class="btn ghost" data-act="nativeShare">More…</button>' : ''}</div>
       <a class="txt-btn center" href="${esc(link)}?poster=1" target="_blank" rel="noopener">${icon('print')} Printable poster for the staffroom</a>
@@ -1865,16 +1918,28 @@
   }
 
   // ------------------------------------------------------------------ events
+  // Swipe order follows the menu: Teachers -> Classes -> Master -> Labs & Fields. At the end of one section the next swipe
+  // goes on to the first of the next section (and back again the other way).
+  function sectionKinds() { return ['teachers', 'classes', 'master', 'rooms'].filter(k => (B[k] || []).length); }
+  function stepSection(kind, dir) {
+    const secs = sectionKinds(), k = secs.indexOf(kind), n = secs[k + dir];
+    if (k < 0 || !n) { toast(dir > 0 ? 'This is the last one' : 'This is the first one', 1400); return; }
+    toast(n === 'master' ? 'Master timetable' : (KIND[n]?.title || n), 1400);
+    if (n === 'master') { location.replace('#master'); return; }
+    const list = B[n]; location.replace('#view/' + encodeURIComponent((dir > 0 ? list[0] : list[list.length - 1]).id));
+  }
   function stepItem(dir) {
-    const r = route(); if (r.name !== 'view') return;
+    const r = route();
+    if (r.name === 'master') { stepSection('master', dir); return; }
+    if (r.name !== 'view') return;
     const item = IDX.byId[r.id], sib = siblings(item), i = sib.findIndex(x => x.id === item.id) + dir;
-    if (sib[i]) location.replace('#view/' + encodeURIComponent(sib[i].id));
+    if (sib[i]) location.replace('#view/' + encodeURIComponent(sib[i].id)); else stepSection(item.kind, dir);
   }
   document.addEventListener('click', async e => {
     const g = e.target.closest('[data-go]'); if (g) { closeSheet(); closeRail(); if (g.dataset.go === location.hash.slice(1)) return; go(g.dataset.go); return; }
     const ttb = e.target.closest('[data-tt]'); if (ttb) { switchTT(ttb.dataset.tt); return; }
     const cv = e.target.closest('[data-cv]'); if (cv) { const [id, d, j] = cv.dataset.cv.split('|'); openCoverSheet(id, +d, +j); return; }
-    const b = e.target.closest('[data-act],[data-layout],[data-day],[data-sday],[data-slot],[data-grade],[data-freetab],[data-coverslot],[data-covert],[data-covermode],[data-coversess],[data-covertime],[data-savefmt],[data-savecol],[data-allsel],[data-allcol],[data-allout]');
+    const b = e.target.closest('[data-act],[data-layout],[data-day],[data-sday],[data-slot],[data-grade],[data-freetab],[data-coverslot],[data-covert],[data-covermode],[data-covercell],[data-savefmt],[data-savecol],[data-allsel],[data-allcol],[data-allout]');
     if (!b) return;
     const ds = b.dataset;
     if (ds.layout) { state.layout = ds.layout; render(); return; }
@@ -1890,8 +1955,7 @@
     if (ds.savefmt) { store.set('saveFmt', ds.savefmt); openSaveSheet(); return; }
     if (ds.savecol) { store.set('saveCol', ds.savecol); openSaveSheet(); return; }
     if (ds.covermode) { store.set('coverMode', ds.covermode); render(); return; }
-    if (ds.coversess != null) { state.coverSess = +ds.coversess; state.coverTime = null; render(); return; }
-    if (ds.covertime != null) { state.coverTime = +ds.covertime; render(); return; }
+    if (ds.covercell) { const [cd, cj] = ds.covercell.split('|'); state.day = +cd; state.coverTime = +cj; render(); return; }
     if (ds.covert) { state.coverTeacher = ds.covert; state.coverPick = false; state.coverSlot = null; render(); return; }
     switch (ds.act) {
       case 'back': if (depthNow() > 0) history.back(); else goHome(); break;
@@ -1935,15 +1999,41 @@
       case 'contact': openContact(); break;
       case 'theme': { const t = THEMES[(THEMES.indexOf(getTheme()) + 1) % 3]; try { localStorage.setItem('ireri:theme', t); } catch { } applyTheme(); openMenu(); toast(({ auto: 'Appearance: Auto', light: 'Light mode', dark: 'Dark mode' })[t]); break; }
       case 'getapp': openGetApp(); break;
+      case 'zoomIn': setZoom(zmGet(zKind()) * 1.25); break;
+      case 'zoomOut': setZoom(zmGet(zKind()) / 1.25); break;
+      case 'zoomFit': setZoom(1); { const w = $('#gridwrap'); if (w) { w.scrollLeft = 0; w.scrollTop = 0; } } break;
+      case 'verTap': { const now = Date.now(); ownTaps = (now - ownLast < 1500) ? ownTaps + 1 : 1; ownLast = now; if (ownTaps >= 5) { ownTaps = 0; openOwnerSheet(); } break; }
+      case 'ownerGo': { const o = OWN(), pw = ($('#ownpw') || {}).value || ''; if (!o) { toast('Owner access is not set up yet'); break; }
+        if (await sha256hex(o.salt + pw) === o.hash) { try { localStorage.setItem('ireri:owner', o.hash); } catch { } closeSheet(); toast('Owner mode ON'); go('schools'); render(); }
+        else toast('Wrong password'); break; }
+      case 'ownerOff': try { localStorage.removeItem('ireri:owner'); } catch { } closeSheet(); toast('Owner mode off'); render(); break;
       case 'retry': state.error = null; renderEmpty(); sync('manual'); break;
     }
   });
 
-  // swipe left/right in Day view = next / previous timetable
-  let tx = 0, ty = 0, tt = 0;
-  document.addEventListener('touchstart', e => { const t = e.touches[0]; tx = t.clientX; ty = t.clientY; tt = Date.now(); }, { passive: true });
+  // swipe left/right = next / previous teacher, class, master or lab/field - Day view, Week view, Master and Rotate full screen.
+  // In Week view a swipe that starts on a table that is wider than the screen just slides the table, as before.
+  let tx = 0, ty = 0, tt = 0, tScroll = false, pinchFlag = false, pz = null;
+  document.addEventListener('touchstart', e => {
+    if (e.touches.length > 1) pinchFlag = true; else pinchFlag = false;
+    const zt = e.target.closest && e.target.closest('#gridwrap, .dayview');
+    if (e.touches.length === 2 && zt && ['view', 'master'].includes(route().name)) pz = { d: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY) || 1, z: zmGet(zKind()), v: null, raf: 0 };
+    const t = e.touches[0]; tx = t.clientX; ty = t.clientY; tt = Date.now();
+    const gw = e.target.closest && e.target.closest('#gridwrap, .gridwrap');
+    tScroll = !!(gw && gw.scrollWidth > gw.clientWidth + 2);
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!pz || e.touches.length !== 2) return; e.preventDefault();
+    pz.v = pz.z * (Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY) / pz.d);
+    if (!pz.raf) pz.raf = requestAnimationFrame(() => { if (pz) { pz.raf = 0; setZoom(pz.v, true); } });
+  }, { passive: false });
   document.addEventListener('touchend', e => {
-    if (!state.data || route().name !== 'view' || effectiveLayout() !== 'day' || e.target.closest('.daytabs')) return;
+    if (pz && e.touches.length < 2) { if (pz.v != null) setZoom(pz.v); pz = null; }
+    if (pinchFlag) { if (e.touches.length === 0) pinchFlag = false; return; }
+    const rn = route().name;
+    if (!state.data || (rn !== 'view' && rn !== 'master') || e.target.closest('.daytabs, .chips, .sheet, .rail')) return;
+    const lay = rn === 'master' ? 'week' : effectiveLayout();
+    if (lay !== 'day' && !(lay === 'week' && !tScroll)) return;
     const t = e.changedTouches[0], dx = t.clientX - tx, dy = t.clientY - ty;
     if (Date.now() - tt < 700 && Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.8) stepItem(dx < 0 ? 1 : -1);
   }, { passive: true });

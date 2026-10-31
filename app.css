@@ -914,3 +914,56 @@ html.theme-dark body.fullv .fv-title b{color:#fff}
 .tbox .trow b{font-size:18px;font-weight:800;color:var(--navy);line-height:1.2}
 html.theme-dark .tbox{background:var(--card);border-color:var(--line)}
 html.theme-dark .tbox .trow b{color:#fff}
+
+/* Find cover - day x lesson grid */
+.cvgrid{display:grid;gap:4px;margin:2px 0 12px;align-items:stretch}
+.cvscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+.cvgrid .hd{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;font-size:12px;color:var(--navy);line-height:1.15}
+.cvgrid .hd small{font-size:9.5px;font-weight:400;opacity:.75}
+.cvgrid .hd.dh{padding:4px 0}.cvgrid .hd.today b{border-bottom:2px solid var(--gold)}
+.cvcell{padding:9px 0;border-radius:9px;background:#fff;border:1.5px solid var(--line);font-size:14px;font-weight:700;color:var(--navy);min-height:38px}
+.cvcell.zero{opacity:.45}.cvcell.cur{border-color:#C0392B}
+.cvcell.on{background:var(--navy);border-color:var(--navy);color:#fff;opacity:1}
+html.theme-dark .cvcell{background:#16233d;border-color:#2b3b5c;color:#E7ECF5}html.theme-dark .cvgrid .hd{color:#E7ECF5}
+html.theme-dark .cvcell.on{background:var(--gold);border-color:var(--gold);color:#0B1B36}
+
+/* Owner mode - schools list rows that open a school */
+a.school.olink{text-decoration:none;color:inherit;display:flex;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,.08)}
+.school .sopen{align-self:center;margin-left:auto;padding:6px 12px;border-radius:99px;background:var(--navy);color:#fff;font-size:12px;font-weight:700;white-space:nowrap}
+html.theme-dark .school .sopen{background:var(--gold);color:#0B1B36}
+
+/* Back and Home: big, labelled and easy to see - use these instead of the phone's own back button */
+.navbtn{display:flex;align-items:center;gap:4px;flex:none;height:42px;padding:0 12px 0 8px;border:0;border-radius:12px;font-size:15px;font-weight:800;letter-spacing:.01em;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.navbtn svg{width:22px;height:22px}
+.navbtn.nb-back{background:#fff;color:var(--navy)}
+.navbtn.nb-home{background:var(--gold);color:#0B1B36}
+.navbtn:active{transform:scale(.96)}
+@media (max-width:380px){.navbtn{padding:0 9px 0 6px;font-size:14px}.navbtn svg{width:20px;height:20px}}
+body.fullv .navbtn{height:30px;padding:0 6px}body.fullv .navbtn span{display:none}body.fullv .navbtn svg{width:18px;height:18px}
+
+/* ---- bigger, clearer timetable text: the subject in big letters, the teacher code in a box ---- */
+table.wk td.l{padding:7px 8px;min-width:104px}
+table.wk td.l b{font-size:15px;line-height:1.2}
+table.wk td.l small{font-size:12.5px;font-weight:600;line-height:1.25;margin-top:1px}
+table.wk td.l small.tn{display:inline-block;margin-top:3px;padding:1px 8px;border-radius:7px;background:rgba(255,255,255,.8);border:1.2px solid #0B3D91;color:#0B3D91;font-weight:800;font-size:13px}
+table.wk thead th b{font-size:14.5px}
+table.wk thead th small{font-size:12px!important}
+table.wk tbody th{font-size:14px}
+body.fullv.force-land table.wk td.l b{font-size:15px}
+.dayview{transform-origin:top left}
+/* ---- zoom buttons ---- */
+.zoomctl{position:fixed;right:10px;bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;gap:6px;background:rgba(18,40,76,.92);padding:5px;border-radius:16px;box-shadow:0 3px 12px rgba(0,0,0,.35)}
+.zoomctl button{min-width:46px;height:42px;border-radius:12px;background:#fff;color:var(--navy);font-size:24px;font-weight:800;border:0;padding:0 10px;line-height:1}
+.zoomctl button.fit{font-size:13px;background:var(--gold)}
+.zoomctl button:active{transform:scale(.94)}
+body.fullv .zoomctl{bottom:10px}
+@media print{.zoomctl{display:none!important}}
+/* ---- bigger next / back arrows ---- */
+.vtools .icon-btn{width:62px;height:52px;border-radius:14px}
+.vtools .icon-btn .ic{width:36px;height:36px}
+.vtools .vcur b{font-size:15px}
+body.fullv .vbar .fv-nav{width:48px;height:36px}
+body.fullv .vbar .fv-nav .ic{width:30px;height:30px}
+.navbtn svg{width:26px;height:26px}
+.chev{width:24px;height:24px}
+.ttrow .chev{width:22px;height:22px}
