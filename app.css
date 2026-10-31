@@ -1108,3 +1108,21 @@ body.fullv .fv-title .sc{font-size:13px;min-width:26px;height:24px}
   body:not(.fullv) .vtitles h2.big{white-space:normal;overflow:visible;text-overflow:clip;font-size:21px;line-height:1.15;flex-wrap:nowrap}
   body:not(.fullv) .vtitles h2.big .tcode{flex:none}
 }
+
+/* move / swap a lesson */
+.swapbtn{margin:4px 0 10px}
+.swcell{display:flex;align-items:center;justify-content:center;min-height:38px;border-radius:9px;font-size:16px;font-weight:800;border:1.5px solid var(--line);background:#fff;color:var(--navy)}
+.swcell.ok{background:#DFF3EA;border-color:var(--green);color:var(--green-2)}
+.swcell.sw{background:#DCE8FF;border-color:#3B6FD4;color:#1E4BA8}
+.swcell.bad{background:#FBE6E3;border-color:#E0A9A2;color:#B03A2E;opacity:.8}
+.swcell.here{background:var(--navy);border-color:var(--navy);color:#fff}
+.swkey{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12px;margin:0 0 8px}
+.swkey .swcell{display:inline-flex;min-height:22px;width:26px;font-size:12px;vertical-align:middle;margin-right:3px}
+.swdetail{background:#FFF6D6;border:2px solid var(--gold);border-radius:12px;padding:8px 12px;margin:4px 0 8px;font-size:14px}
+.swdetail ul{margin:6px 0 0 18px;padding:0}
+html.theme-dark .swcell{background:#16233d;border-color:#2b3b5c;color:#E7ECF5}
+html.theme-dark .swcell.ok{background:#12382c;border-color:#2f9a70;color:#BFEBD9}
+html.theme-dark .swcell.sw{background:#16294f;border-color:#5b86e0;color:#CFE0FF}
+html.theme-dark .swcell.bad{background:#3a1d1a;border-color:#7a3a33;color:#F2B8B0}
+html.theme-dark .swcell.here{background:#2f4f86;color:#fff}
+html.theme-dark .swdetail{background:#2b2610;border-color:#8a7420;color:#F5ECC8}

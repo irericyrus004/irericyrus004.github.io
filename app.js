@@ -328,8 +328,130 @@ const own = isOwner();
     openSheet(`<div class="grab"></div><h3>${tl.length ? 'Lesson details' : 'Who can be there?'}</h3>
       <div class="cvinfo"><b>${esc(dayLabel(d))} · ${esc(pLabel(j))}${r.span > 1 ? ' · double lesson' : ''}</b><span>${esc(L[0])}${L[1] ? ' — ' + esc(L[1]) : ''}</span></div>
       ${tbox}${tl.length ? '<h4 class="cvh">Who can cover?</h4>' : ''}
+      <button class="btn wide swapbtn" data-swap="${esc(id)}|${d}|${j}">⇄ Move / swap this lesson — where can it go?</button>
       ${coverSplit(r.free, d, r.cls)}
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  }
+
+  // ------------------------------------------------------------------ MOVE / SWAP a lesson
+  // Shows every day + lesson where the tapped lesson could be taken instead, using the school's own rules
+  // (bundle.rules, saved by the Publisher when "Check constraints" is ticked) plus the standard checks.
+  const nU = s => String(s || '').replace(/\s+/g, ' ').trim().toUpperCase();
+  const tokS = s => String(s || '').split(/[,;]/).map(x => x.trim()).filter(Boolean);
+  function swapModel() {
+    if (IDX.swapLessons) return IDX.swapLessons;
+    const out = {}, covered = new Set(), P = IDX.P;
+    const span = (row, j) => { let n = 1; while (j + n < row.length && row[j + n] === '^') n++; return n; };
+    B.teachers.forEach(t => t.grid.forEach((row, d) => row.forEach((c, p) => {
+      if (!isLesson(c)) return;
+      const cl = tokS(c.c), key = [d, p, c.s || '', cl.join('|')].join('~');
+      const l = out[key] || (out[key] = { d, p, n: span(row, p), c: cl, s: c.s || '', t: [], r: tokS(c.r) });
+      if (!l.t.includes(t.code)) l.t.push(t.code);
+      for (let k = 0; k < l.n; k++) cl.forEach(x => covered.add(d + '~' + (p + k) + '~' + x));
+    })));
+    const list = Object.values(out);
+    (B.classes || []).forEach(cl => cl.grid.forEach((row, d) => row.forEach((c, p) => {
+      if (isLesson(c) && !covered.has(d + '~' + p + '~' + cl.name)) list.push({ d, p, n: span(row, p), c: [cl.name], s: c.s || '', t: [], r: tokS(c.r) });
+    })));
+    list.forEach((l, i) => { l.i = i; });
+    return (IDX.swapLessons = list);
+  }
+  const swSlots = (l, d = l.d, p = l.p) => Array.from({ length: l.n }, (_, k) => [d, p + k]).filter(([, q]) => q < IDX.P.length);
+  const swWhen = (d, p) => `${dayLabel(d)} · ${pLabel(p)}`;
+  const swLab = l => [l.c.join(', '), l.s].filter(Boolean).join(' ') || 'a lesson';
+  const swT = c => { const t = IDX.tByCode[c]; return t ? teacherLabel(t) : c; };
+  function swDayOk(d, toks) { if (!toks.length) return true; const lab = nU(IDX.D[d].label); return toks.some(t => lab.slice(0, 3) === nU(t).slice(0, 3)); }
+  function swPerOk(p, toks) { if (!toks.length) return true; const pr = IDX.P[p], names = [nU(pr.label), nU(pr.time || ''), String(pr.n || '')]; return toks.some(t => names.includes(nU(t))); }
+  function swSubjOk(spec, s) { spec = nU(spec); return !spec || spec === '*' || spec === 'ALL' || spec === nU(s) || String(s || '').split(/[\/,]/).map(nU).includes(spec); }
+  function swTeachers(spec) { spec = nU(spec); return (!spec || spec === '*' || spec === 'ALL') ? B.teachers.map(t => t.code) : B.teachers.filter(t => spec === nU(t.code) || spec === nU(t.name)).map(t => t.code); }
+  // All problems for a set of lessons -> Map(key -> message). Same rules as the Publisher's Constraints tab.
+  function swProblems(L) {
+    const P = IDX.P, rules = (B.rules || []).filter(r => r && r.enabled !== false), M = new Map();
+    const add = (k, m) => { if (!M.has(k)) M.set(k, m); };
+    const by = { t: {}, c: {}, r: {} };
+    const tSlots = {}, cSubj = {};
+    L.forEach(l => swSlots(l).forEach(([d, p]) => {
+      if (P[p].brk) add(`brk~${l.i}~${d}~${p}`, `${swLab(l)} would fall in a break`);
+      [['t', l.t], ['c', l.c], ['r', l.r]].forEach(([k, arr]) => arr.forEach(w => { (by[k][`${nU(w)}~${d}~${p}`] = by[k][`${nU(w)}~${d}~${p}`] || []).push([w, l, d, p]); }));
+      l.t.forEach(t => { (tSlots[nU(t)] = tSlots[nU(t)] || []).push([d, p]); });
+      l.c.forEach(c => { const k = `${c}~${nU(l.s)}~${d}`; cSubj[k] = (cSubj[k] || { c, s: l.s, d, n: 0, l: l }); cSubj[k].n++; });
+    }));
+    const nm = { t: w => swT(w), c: w => w, r: w => w }, what = { t: 'Teacher', c: 'Class', r: 'Room' };
+    Object.entries(by).forEach(([k, g]) => Object.entries(g).forEach(([key, arr]) => { if (arr.length > 1) { const [w, , d, p] = arr[0];
+      add(`clash~${k}~${key}`, `${what[k]} ${nm[k](w)} would be in two lessons at ${swWhen(d, p)}`); } }));
+    rules.forEach((r, ri) => {
+      const mx = +r.max || 0;
+      if (r.type === 'teacher_max_day' || r.type === 'teacher_max_week' || r.type === 'teacher_max_consec' || r.type === 'teacher_unavailable') {
+        const codes = new Set(swTeachers(r.teacher).map(nU));
+        Object.entries(tSlots).forEach(([tc, sl]) => {
+          if (!codes.has(tc)) return;
+          const tn = swT((B.teachers.find(t => nU(t.code) === tc) || {}).code || tc);
+          if (r.type === 'teacher_max_week' && sl.length > mx) add(`r${ri}~${tc}`, `${tn} would have ${sl.length} lessons a week (limit ${mx})`);
+          if (r.type === 'teacher_max_day') { const per = {}; sl.forEach(([d]) => { per[d] = (per[d] || 0) + 1; }); Object.entries(per).forEach(([d, n]) => { if (n > mx) add(`r${ri}~${tc}~${d}`, `${tn} would have ${n} lessons on ${dayLabel(+d)} (limit ${mx})`); }); }
+          if (r.type === 'teacher_max_consec') { [...new Set(sl.map(x => x[0]))].forEach(d => { const ps = sl.filter(x => x[0] === d).map(x => x[1]).sort((a, b) => a - b); let run = 1, best = 1; for (let i = 1; i < ps.length; i++) { run = ps[i] === ps[i - 1] + 1 ? run + 1 : 1; best = Math.max(best, run); } if (best > mx) add(`r${ri}~${tc}~${d}`, `${tn} would teach ${best} lessons in a row on ${dayLabel(d)} (limit ${mx})`); }); }
+          if (r.type === 'teacher_unavailable') { const days = tokS(Array.isArray(r.days) ? r.days.join(',') : r.days), per = tokS(Array.isArray(r.periods) ? r.periods.join(',') : r.periods);
+            sl.forEach(([d, p]) => { if (swDayOk(d, days) && swPerOk(p, per)) add(`r${ri}~${tc}~${d}~${p}`, `${tn} is not available at ${swWhen(d, p)}`); }); }
+        });
+      } else if (r.type === 'subject_max_day') {
+        Object.values(cSubj).forEach(o => { if (swSubjOk(r.subject, o.s) && o.n > mx) add(`r${ri}~${o.c}~${nU(o.s)}~${o.d}`, `${o.c} would have ${o.n} ${o.s || 'lesson'} periods on ${dayLabel(o.d)} (limit ${mx})`); });
+      } else if (r.type === 'subject_periods') {
+        const per = tokS(Array.isArray(r.periods) ? r.periods.join(',') : r.periods), never = (r.mode || 'never in') === 'never in';
+        L.forEach(l => { if (l.s && swSubjOk(r.subject, l.s)) swSlots(l).forEach(([d, p]) => { const inside = swPerOk(p, per); if (never ? inside : !inside) add(`r${ri}~${l.i}~${d}~${p}`, `${swLab(l)} is not allowed at ${swWhen(d, p)}`); }); });
+      }
+    });
+    return M;
+  }
+  // Work out, for every day + lesson, whether the lesson can go there (move into a gap, or swap with another lesson)
+  function swapOptions(A) {
+    const L = swapModel(), P = IDX.P, base = swProblems(L), res = {};
+    const trial = (moves) => { const L2 = L.map(l => moves[l.i] ? { ...l, d: moves[l.i][0], p: moves[l.i][1] } : l);
+      const now = swProblems(L2), why = []; now.forEach((m, k) => { if (!base.has(k)) why.push(m); }); return why; };
+    IDX.D.forEach((_, d) => IDX.lessons.forEach(p => {
+      const key = d + '~' + p;
+      if (d === A.d && p === A.p) { res[key] = { st: 'here' }; return; }
+      if (p + A.n > P.length || swSlots(A, d, p).some(([, q]) => P[q].brk)) { res[key] = { st: 'no', why: ['A lesson this long does not fit here'] }; return; }
+      const tgt = swSlots(A, d, p).map(x => x.join('~'));
+      const hit = L.filter(l => l.i !== A.i && l.c.some(c => A.c.includes(c)) && swSlots(l).some(x => tgt.includes(x.join('~'))));
+      if (!hit.length) { const why = trial({ [A.i]: [d, p] }); res[key] = why.length ? { st: 'no', why } : { st: 'move' }; return; }
+      const B2 = hit[0];
+      if (hit.length > 1 || B2.n !== A.n || B2.d !== d || B2.p !== p) { res[key] = { st: 'no', why: ['It overlaps lessons of different length, so a swap is not possible here'] }; return; }
+      const why = trial({ [A.i]: [d, p], [B2.i]: [A.d, A.p] });
+      res[key] = why.length ? { st: 'no', why, other: B2 } : { st: 'swap', other: B2 };
+    }));
+    return res;
+  }
+  function openSwapSheet(id, d, j) {
+    const item = IDX.byId[id]; if (!item) return;
+    const L = swapModel(); let start = j; const row = item.grid[d] || []; while (start > 0 && row[start] === '^') start--;
+    const A = L.find(l => l.d === d && l.p === start && (item.kind === 'teachers' ? l.t.includes(item.code) : item.kind === 'rooms' ? l.r.includes(item.name) : l.c.includes(item.name)));
+    if (!A) { toast('Could not find that lesson'); return; }
+    const opt = swapOptions(A), ND = IDX.D.length, LS = IDX.lessons;
+    state.swap = { id, d, j, A, opt, sel: null };
+    const nrules = (B.rules || []).filter(r => r && r.enabled !== false).length;
+    const cell = (i, p) => { const o = opt[i + '~' + p]; const cls = { here: 'here', move: 'ok', swap: 'sw', no: 'bad' }[o.st];
+      const sym = { here: '●', move: '✓', swap: '⇄', no: '✕' }[o.st];
+      return `<button class="swcell ${cls}" ${o.st === 'here' ? '' : `data-swapcell="${i}|${p}"`} aria-label="${esc(swWhen(i, p))}: ${o.st}">${sym}</button>`; };
+    const horiz = LS.length > 8 && LS.length > ND;
+    const lh = (k, p) => `<div class="hd"><b>Lesson ${k + 1}</b><small>${esc(IDX.P[p].time || '')}</small></div>`;
+    const dh = i => `<div class="hd dh"><b>${esc(IDX.D[i].label.slice(0, 6))}</b></div>`;
+    const grid = !horiz
+      ? `<div class="cvgrid" style="grid-template-columns:minmax(52px,auto) repeat(${ND},minmax(0,1fr))"><div></div>${IDX.D.map((_, i) => dh(i)).join('')}${LS.map((p, k) => lh(k, p) + IDX.D.map((_, i) => cell(i, p)).join('')).join('')}</div>`
+      : `<div class="cvscroll"><div class="cvgrid" style="grid-template-columns:minmax(52px,auto) repeat(${LS.length},minmax(48px,1fr))"><div></div>${LS.map((p, k) => lh(k, p)).join('')}${IDX.D.map((_, i) => dh(i) + LS.map(p => cell(i, p)).join('')).join('')}</div></div>`;
+    const nOk = Object.values(opt).filter(o => o.st === 'move' || o.st === 'swap').length;
+    openSheet(`<div class="grab"></div><h3>⇄ Where can this lesson go?</h3>
+      <div class="cvinfo"><b>${esc(swWhen(A.d, A.p))}${A.n > 1 ? ' · double lesson' : ''}</b><span>${esc(swLab(A))}${A.t.length ? ' — ' + esc(A.t.map(swT).join(', ')) : ''}</span></div>
+      <div class="swkey"><i class="swcell ok">✓</i> free, can move <i class="swcell sw">⇄</i> can swap <i class="swcell bad">✕</i> not allowed</div>
+      ${grid}
+      <div id="swdetail" class="swdetail"><b>${nOk} place${nOk === 1 ? '' : 's'} work.</b> Tap a box to see why.</div>
+      <p class="muted small">${nrules ? `Checked against your school's ${nrules} rule${nrules === 1 ? '' : 's'} and the standard checks (no clashes, no lessons in breaks).` : 'Checked against the standard rules only (no teacher, class or room clash, no lessons in breaks). Your own rules are used once the timetable is published with “Check constraints” ticked.'} This only shows options; it does not change the timetable.</p>
+      <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  }
+  function swapDetail(i, p) {
+    const S = state.swap; if (!S) return; const o = S.opt[i + '~' + p], box = $('#swdetail'); if (!box) return;
+    const when = swWhen(i, p);
+    box.innerHTML = o.st === 'move' ? `<b>✓ ${esc(when)}</b> is free for ${esc(S.A.c.join(', ') || 'this class')} and breaks no rule. The lesson can be taken here.`
+      : o.st === 'swap' ? `<b>⇄ ${esc(when)}</b> — swap with <b>${esc(swLab(o.other))}</b>${o.other.t.length ? ' (' + esc(o.other.t.map(swT).join(', ')) + ')' : ''}. Both lessons can change places without breaking a rule.`
+      : `<b>✕ ${esc(when)}</b> is not possible${o.other ? ' (swap with ' + esc(swLab(o.other)) + ')' : ''}:<ul>${(o.why || []).slice(0, 6).map(w => `<li>${esc(w)}</li>`).join('')}</ul>`;
   }
   function teacherSubjects(t) { const s = new Set(); t.grid.forEach(r => r.forEach(c => { if (isLesson(c) && c.s) s.add(c.s.replace(/\s*\d+$/, '').trim()); })); return s; }
   function teacherClasses(t) { const s = new Set(); t.grid.forEach(r => r.forEach(c => { if (isLesson(c) && c.c) c.c.split(',').forEach(x => s.add(x.trim())); })); return s; }
@@ -1864,7 +1986,7 @@ const own = isOwner();
       <button class="mrow" data-act="contact">${icon('wa')}<span>Contact Cyrus Ireri<small>WhatsApp · call · SMS — ${esc(LOCKED_CONTACT)}</small></span></button>
       <button class="mrow" data-act="about">${icon('info')}<span>About<small>${esc(BRAND_LINE)}</small></span></button>
       ${isOwner() ? `<button class="mrow" data-go="schools">${icon('grid')}<span>Owner mode: all schools<small>Open any school's timetables · tap to choose a school</small></span></button><button class="mrow" data-act="ownerOff">${icon('info')}<span>Turn off owner mode<small>This phone goes back to normal</small></span></button>` : ''}
-      <p class="muted small center-t" data-act="verTap" style="padding:6px 0 2px">App version v58 · build ${esc(CFG.build || '-')}</p>
+      <p class="muted small center-t" data-act="verTap" style="padding:6px 0 2px">App version v62 · build ${esc(CFG.build || '-')}</p>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   function loadQR() { if (self.qrcode) return Promise.resolve(); return new Promise((res, rej) => { const s = document.createElement('script'); s.src = '/qrcode.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
@@ -1945,6 +2067,8 @@ const own = isOwner();
   document.addEventListener('click', async e => {
     const g = e.target.closest('[data-go]'); if (g) { closeSheet(); closeRail(); if (g.dataset.go === location.hash.slice(1)) return; go(g.dataset.go); return; }
     const ttb = e.target.closest('[data-tt]'); if (ttb) { switchTT(ttb.dataset.tt); return; }
+    const swb = e.target.closest('[data-swap]'); if (swb) { const [id, d, j] = swb.dataset.swap.split('|'); openSwapSheet(id, +d, +j); return; }
+    const swc = e.target.closest('[data-swapcell]'); if (swc) { const [i, p] = swc.dataset.swapcell.split('|'); swapDetail(+i, +p); return; }
     const cv = e.target.closest('[data-cv]'); if (cv) { const [id, d, j] = cv.dataset.cv.split('|'); openCoverSheet(id, +d, +j); return; }
     const b = e.target.closest('[data-act],[data-layout],[data-day],[data-sday],[data-slot],[data-grade],[data-freetab],[data-coverslot],[data-covert],[data-covermode],[data-covercell],[data-savefmt],[data-savecol],[data-allsel],[data-allcol],[data-allout]');
     if (!b) return;
