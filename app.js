@@ -264,6 +264,12 @@ const own = isOwner();
   const colKey = (kind, c, own) => `${(kind === 'classes' || kind === 'master') ? own : (c.c || '')}|${c.s || ''}`.toUpperCase().replace(/\s+/g, ' ');
   function hslHex(h, s, l) { s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
     const f = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, '0'); return `#${f(0)}${f(8)}${f(4)}`; }
+  // The text colour (navy-black or white) that reads best on a lesson colour. Dark mode uses it so text never collides with the box.
+  function bestInk(hex) {
+    const n = parseInt(String(hex).replace('#', ''), 16), ch = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); };
+    const L = .2126 * ch((n >> 16) & 255) + .7152 * ch((n >> 8) & 255) + .0722 * ch(n & 255);
+    return (L + .05) / .0612 >= 1.05 / (L + .05) ? '#0B1B36' : '#FFFFFF';   // .0612 = (luminance of #0B1B36) + .05
+  }
   function buildColours() {
     const keys = new Set();
     B.teachers.forEach(t => t.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey('teachers', c)); })));
@@ -271,12 +277,13 @@ const own = isOwner();
     const L = [74, 60, 84, 67, 52], S = [78, 70, 85, 62, 72], map = {};
     [...keys].sort().forEach((k, i) => { const h = (i * 137.508) % 360, l = L[i % 5], sat = S[(i >> 1) % 5];
       const light = l >= 66 || (h > 40 && h < 200 && l >= 60);
-      map[k] = [hslHex(h, sat, l), light ? '#0B1B36' : '#FFFFFF']; });
+      const bg = hslHex(h, sat, l);
+      map[k] = [bg, light ? '#0B1B36' : '#FFFFFF', bestInk(bg)]; });
     IDX.colours = map;
   }
   const colourFor = (kind, c, own) => (isLesson(c) && IDX.colours) ? IDX.colours[colKey(kind === 'master' ? 'master' : kind, c, own)] || null : null;
   const hlStyle = (c, kind = 'teachers', own = '') => { if (!isLesson(c)) return ''; const f = colourFor(kind, c, own);
-    return f ? ` data-fc style="--hl:${subjHue(c.s || '')};--fb:${f[0]};--ff:${f[1]}"` : ''; };
+    return f ? ` data-fc style="--hl:${subjHue(c.s || '')};--fb:${f[0]};--ff:${f[1]};--fd:${f[2] || f[1]}"` : ''; };
   // longest run of lessons with no class after lunch (3 or 4 in a row = a free afternoon)
   function afternoonFree(t, d) {
     const pm = IDX.lessons.filter(j => IDX.P[j].pm); if (!pm.length) return null;
@@ -900,7 +907,7 @@ const own = isOwner();
         <button class="icon-btn fv-only fv-nav" data-act="next" ${idx >= sib.length - 1 ? 'disabled' : ''} aria-label="Next">${icon('next')}</button>
         <div class="seg"><button class="${layout === 'day' ? 'on' : ''}" data-layout="day">Day</button><button class="${layout === 'week' ? 'on' : ''}" data-layout="week">Week</button></div>
         <button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit full screen' : 'Rotate'}</span></button>
-        ${kind === 'teachers' ? `<button class="btn small ghost" data-go="analysis/${esc(item.id)}">${icon('chart')} Profile</button>` : ''}<button class="btn small ghost" data-act="save">${icon('save')} Save</button>
+        ${kind === 'teachers' ? `<button class="btn small ghost" data-go="analysis/${esc(item.id)}" aria-label="Profile">${icon('chart')} <span class="lbl">Profile</span></button>` : ''}<button class="btn small ghost" data-act="save" aria-label="Save">${icon('save')} <span class="lbl">Save</span></button>
       </div>
       <main class="tt" id="tt">${instBlock('small', ownerLine(kind, item))}${layout === 'day' ? dayView(item) : weekGrid(item)}</main>
       <div class="vtools">
@@ -1857,7 +1864,7 @@ const own = isOwner();
       <button class="mrow" data-act="contact">${icon('wa')}<span>Contact Cyrus Ireri<small>WhatsApp · call · SMS — ${esc(LOCKED_CONTACT)}</small></span></button>
       <button class="mrow" data-act="about">${icon('info')}<span>About<small>${esc(BRAND_LINE)}</small></span></button>
       ${isOwner() ? `<button class="mrow" data-go="schools">${icon('grid')}<span>Owner mode: all schools<small>Open any school's timetables · tap to choose a school</small></span></button><button class="mrow" data-act="ownerOff">${icon('info')}<span>Turn off owner mode<small>This phone goes back to normal</small></span></button>` : ''}
-      <p class="muted small center-t" data-act="verTap" style="padding:6px 0 2px">App version v56 · build ${esc(CFG.build || '-')}</p>
+      <p class="muted small center-t" data-act="verTap" style="padding:6px 0 2px">App version v58 · build ${esc(CFG.build || '-')}</p>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   function loadQR() { if (self.qrcode) return Promise.resolve(); return new Promise((res, rej) => { const s = document.createElement('script'); s.src = '/qrcode.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }

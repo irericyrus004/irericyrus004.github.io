@@ -967,3 +967,144 @@ body.fullv .vbar .fv-nav .ic{width:30px;height:30px}
 .navbtn svg{width:26px;height:26px}
 .chev{width:24px;height:24px}
 .ttrow .chev{width:22px;height:22px}
+
+/* =====================================================================================
+   v57 - DARK MODE, NO COLLISIONS
+   Rule used everywhere below: whenever dark mode changes a BACKGROUND, the text / icon
+   colour on it is set in the same place, so a dark icon can never land on a dark box
+   (or white text on a pastel box) again.
+   ===================================================================================== */
+html.theme-dark{--dk-btn:#2A3E66;--dk-btn-line:#4A6499;--dk-ink:#E7ECF5;--dk-ink2:#C3CDE0;--dk-warm:#3A3212;--dk-good:#12382B;--dk-bad:#4A1F1B}
+
+/* 1. Previous / Next arrows (bottom bar + Rotate full screen) and every other round icon button */
+html.theme-dark .vtools .icon-btn,
+html.theme-dark body.fullv .vbar .fv-nav{background:var(--dk-btn);color:#fff;box-shadow:inset 0 0 0 1.5px var(--dk-btn-line)}
+html.theme-dark .vtools .icon-btn:active,
+html.theme-dark body.fullv .vbar .fv-nav:active{background:#3A5287}
+html.theme-dark .vtools .icon-btn[disabled],
+html.theme-dark body.fullv .vbar .fv-nav[disabled]{opacity:.55}
+html.theme-dark .vtools .icon-btn .ic,html.theme-dark .vbar .fv-nav .ic{fill:currentColor}
+html.theme-dark .vtools .vcount,html.theme-dark .vtools .vcount span,html.theme-dark .vsep{color:var(--dk-ink)}
+html.theme-dark .vtools .vcount .sc{background:var(--dk-btn);border-color:var(--dk-btn-line);color:#fff}
+html.theme-dark .vtools .vcur small{color:var(--dk-ink2)}
+html.theme-dark .vbar .rot,html.theme-dark .vbar .btn.rot{background:var(--gold);color:#0B1B36}
+html.theme-dark .vbar .btn.small:not(.rot):not(.ghost){color:var(--dk-ink)}
+html.theme-dark .vtools,html.theme-dark .vbar,html.theme-dark .mbar{background:var(--card)!important}
+
+/* 2. Lesson boxes: day view, week grid, master, Where-is. Text uses the best-reading colour for each box */
+html.theme-dark .dayview li.has[data-fc] .pt b,
+html.theme-dark .dayview li.has[data-fc] .pt em,
+html.theme-dark .dayview li.has[data-fc] .pc strong,
+html.theme-dark .dayview li.has[data-fc] .pc small,
+html.theme-dark table.wk td.l[data-fc] b,
+html.theme-dark table.wk td.l[data-fc] small:not(.tn){color:var(--fd,var(--ff))!important}
+html.theme-dark .dayview li.has[data-fc]{color:var(--fd,var(--ff))}
+html.theme-dark .dayview li.has[data-fc] .pc small{background:rgba(127,127,127,.18)}
+html.theme-dark .wsub[data-fc]{color:var(--fd,var(--ff))!important}
+/* lessons that have no colour pair: pastel box, so dark text */
+html.theme-dark .dayview li.has:not([data-fc]) .pt b,html.theme-dark .dayview li.has:not([data-fc]) .pt em,
+html.theme-dark .dayview li.has:not([data-fc]) .pc strong,html.theme-dark .dayview li.has:not([data-fc]) .pc small{color:#1B2333!important}
+html.theme-dark table.wk td.l:not([data-fc]),html.theme-dark table.wk td.l:not([data-fc]) b,html.theme-dark table.wk td.l:not([data-fc]) small{color:#1B2333}
+/* "now" highlights that were bright yellow behind light text */
+html.theme-dark .dayview li.now:not(.has),html.theme-dark .dayview li.brk.now{background:#4A3F14!important;color:#FFE9A8!important;box-shadow:inset 0 0 0 3px var(--gold)}
+html.theme-dark table.wk td.now:not(.l){background:#4A3F14!important}
+html.theme-dark table.wk thead th.nowcol{background:#5A4A12!important;color:#FFF3C4!important}
+html.theme-dark .dayview li.pm:not(.has):not(.brk){background:#121C31!important}
+
+/* 3. Chips (time-slot picker etc.): gold when chosen, so text on it must be dark */
+html.theme-dark .chip.on,html.theme-dark .chip.on *{color:#0B1B36!important}
+html.theme-dark .ttchip{background:var(--card);border-color:var(--line);color:var(--dk-ink)}
+html.theme-dark .ttchip.on{background:var(--dk-btn);border-color:var(--dk-btn-line);color:#fff}
+html.theme-dark .chosenchip{background:var(--dk-btn);color:#fff}
+
+/* 4. Banner / small buttons on green */
+html.theme-dark .banner .btn:not(.ghost){color:#fff}
+
+/* 5. Staff profile & analysis: tables, cards, bars (were white text on white) */
+html.theme-dark .gridwrap,html.theme-dark .gridwrap2,html.theme-dark .daybars,html.theme-dark .mday{background:var(--card);border-color:var(--line)}
+html.theme-dark table.atable,html.theme-dark table.mx{color:var(--dk-ink)}
+html.theme-dark table.atable th,html.theme-dark table.atable td,html.theme-dark table.mx th,html.theme-dark table.mx td{border-color:#3A4A6E}
+html.theme-dark table.atable thead th{background:#22365F;color:#fff;border-bottom-color:#5E7BB5}
+html.theme-dark table.atable td,html.theme-dark table.atable th{background:transparent}
+html.theme-dark table.atable td b,html.theme-dark table.atable td{color:var(--dk-ink)}
+html.theme-dark table.atable tr.sr td:first-child{background:hsl(var(--hl,40) 40% 24%);color:#fff}
+html.theme-dark table.atable tr.sr td:first-child b{color:#fff}
+html.theme-dark table.atable tr.tot td{background:#2A3E66;color:#fff;border-color:#2A3E66}
+html.theme-dark table.atable th.gh{background:#22365F;color:#fff}
+html.theme-dark table.atable td.warn,html.theme-dark table.atable tr.warnrow td,html.theme-dark table.atable tr.warnrow th.gh{background:var(--dk-bad)!important;color:#FFB4AB}
+html.theme-dark table.atable td.warn b{color:#FF9B8F}
+html.theme-dark table.atable i{color:#5FD3A0}
+html.theme-dark .bar{background:#22304F;border-color:#3A4A6E}
+html.theme-dark .daybars b{color:#fff}html.theme-dark .daybars span{color:var(--dk-ink2)}
+html.theme-dark .daybars i{border-color:rgba(255,255,255,.55)}
+html.theme-dark .asubj em,html.theme-dark .sx{background:hsl(var(--hl,40) 40% 22%);border-color:hsl(var(--hl,40) 50% 50%);color:var(--dk-ink)}
+html.theme-dark .asubj em b,html.theme-dark .sx b{background:hsl(var(--hl,40) 55% 26%);color:#fff!important}
+html.theme-dark .stats .bad{background:var(--dk-bad)!important}html.theme-dark .stats .bad b{color:#FF9B8F}
+html.theme-dark .stats.big div.hi{background:var(--dk-btn)!important}
+html.theme-dark .load{background:var(--dk-btn);color:#fff}
+html.theme-dark table.mx th.sj{background:hsl(var(--hl,40) 40% 24%);color:#fff}
+html.theme-dark table.mx td.g1,html.theme-dark table.mx th.g1{background:#18243F}
+html.theme-dark table.mx td.g0,html.theme-dark table.mx th.g0{background:#131D33}
+html.theme-dark table.mx td.tot2{background:#22365F;color:#fff}
+html.theme-dark table.mx td.z{color:#7C89A6}
+html.theme-dark table.mx td small,html.theme-dark table.mx thead th small{color:var(--dk-ink2)}
+html.theme-dark table.mx td.allfree{background:#164634!important;color:#7EE2B0}
+html.theme-dark table.mx td.one{background:#4A3F14!important;color:#FFE9A8}
+html.theme-dark table.mx td.busy{background:var(--dk-bad)!important;color:#FFB4AB}
+
+/* 6. Find-a-free-teacher / meeting pages */
+html.theme-dark .tick{color:var(--dk-ink);border-color:#7C89A6}
+html.theme-dark .tick.on{background:var(--green);border-color:var(--green);color:#fff}
+html.theme-dark .chk{color:var(--dk-ink)}
+html.theme-dark .bestbox.good{background:var(--dk-good)}html.theme-dark .bestbox.good b{color:#7EE2B0}
+html.theme-dark .bestbox.none{background:var(--dk-bad)}html.theme-dark .bestbox.none b{color:#FF9B8F}
+html.theme-dark .bestbox span{color:var(--dk-ink2)}
+html.theme-dark .slotchip{background:var(--dk-good);border-color:#2C6B4F}
+html.theme-dark .slotchip b{color:#fff}html.theme-dark .slotchip small{color:var(--dk-ink2)}
+html.theme-dark .cvinfo{background:var(--dk-warm);border-color:var(--gold);color:var(--dk-ink)}
+html.theme-dark .cvinfo b{color:#F2D37A}
+html.theme-dark .namegrid button:not(.full),html.theme-dark .namegrid button.me{background:var(--dk-warm);border-color:var(--gold);color:#F2D37A}
+html.theme-dark .me-tag{background:var(--dk-warm);color:#F2D37A}
+html.theme-dark .list li.mine .row{background:var(--dk-warm)!important;border-color:var(--gold)!important}
+
+/* 7. Where-is badges */
+html.theme-dark .wfree{background:var(--dk-good);color:#7EE2B0}
+html.theme-dark .wx{background:#2A3858;color:var(--dk-ink2)}
+html.theme-dark .wroom{background:var(--dk-warm);color:#F2D37A}
+html.theme-dark .wsub:not([data-fc]){background:hsl(var(--hl,150) 35% 20%);color:hsl(var(--hl,150) 70% 85%);border-color:hsl(var(--hl,150) 35% 35%)}
+html.theme-dark .dbl{background:var(--dk-warm);color:#F2D37A}
+html.theme-dark .bd.g{background:var(--dk-good);color:#7EE2B0}
+html.theme-dark .bd.b{background:#22365F;color:#fff}
+html.theme-dark .bd.y{background:var(--dk-warm);color:#F2D37A}
+
+/* 8. Plain headings / links that were navy-on-dark */
+html.theme-dark .splash h2,html.theme-dark .plink,html.theme-dark .ttone{color:var(--dk-ink)}
+html.theme-dark .term{color:var(--dk-ink2);opacity:1}
+html.theme-dark .school.mine{background:var(--dk-good)!important;border-color:var(--green)!important}
+
+/* 9. Tap flashes: were a light cream box behind light text */
+html.theme-dark .row:active,html.theme-dark .mrow:active,html.theme-dark .acard:active{background:#22365F!important}
+
+/* =====================================================================================
+   v58 - TEACHER NAME ALWAYS READABLE (no "MRS. AN..." / "MR. PETE...")
+   ===================================================================================== */
+/* A. Rotate / full screen: the name may use two lines, is bigger, and never ends in "..." */
+body.fullv .fv-title{flex:1 1 auto;min-width:132px;white-space:normal;line-height:1.05}
+body.fullv .fv-title b{white-space:normal;text-overflow:clip;overflow:hidden;min-width:0;flex:1 1 auto;font-size:15px;font-weight:800;letter-spacing:.01em;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2}
+body.fullv .fv-title .sc{font-size:13px;min-width:26px;height:24px}
+/* short screens (phone turned by "Rotate"): Profile and Save keep only their icons so the name gets the room */
+@media (max-height:780px){
+  body.fullv.force-land .vbar .btn.ghost .lbl{display:none}
+  body.fullv.force-land .vbar .btn.ghost{padding:4px 9px}
+}
+/* the dark-mode colour for this title was set in v57 (white); keep it */
+
+/* B. Normal (portrait) header on phones: Back / Home / star on the first row, the full name on its own row */
+@media (max-width:560px){
+  body:not(.fullv) .vtop:has(h2.big){flex-wrap:wrap;row-gap:4px}
+  body:not(.fullv) .vtop:has(h2.big) .vtitles{order:5;flex:1 0 100%;padding:0 4px 2px}
+  body:not(.fullv) .vtop:has(h2.big) > .icon-btn:last-child{margin-left:auto}
+  body:not(.fullv) .vtitles h2.big{white-space:normal;overflow:visible;text-overflow:clip;font-size:21px;line-height:1.15;flex-wrap:nowrap}
+  body:not(.fullv) .vtitles h2.big .tcode{flex:none}
+}
