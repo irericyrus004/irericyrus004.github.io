@@ -1,13 +1,16 @@
-/* Ireri Timetables service worker: keeps the app working offline. */
-const SHELL = 'ireri-shell-v56';
+/* PREPFIX service worker: keeps the app working offline.
+   UPDATES ARE NEVER AUTOMATIC: the app files a phone is running stay exactly as they are until the teacher
+   taps "Update" in the app. Keep the SHELL name below unchanged, so a new sw.js never swaps the app files by itself. */
+const SHELL = 'ireri-shell-v44';
 const SHELL_FILES = ['/app.css', '/app.js', '/config.js', '/qrcode.js',
   '/icons/icon-192.png', '/icons/icon-512.png', '/brand/prepfix-logo-600.png', '/brand/prepfix-mark.png'];
+const APP_FILE = /\/(app\.js|app\.css|qrcode\.js|config\.js)$/;
 
 self.addEventListener('install', event => {
+  // no skipWaiting: a new service worker waits quietly; and it only saves files the phone does not have yet
   event.waitUntil(
-    caches.open(SHELL)
-      .then(c => Promise.all(SHELL_FILES.map(u => c.add(new Request(u, { cache: 'reload' })).catch(() => null))))
-      .then(() => self.skipWaiting())
+    caches.open(SHELL).then(c => Promise.all(SHELL_FILES.map(u =>
+      c.match(u).then(hit => hit ? null : c.add(new Request(u, { cache: 'reload' })).catch(() => null)))))
   );
 });
 
@@ -18,6 +21,9 @@ self.addEventListener('activate', event => {
       .then(() => self.clients.claim())
   );
 });
+
+// The app asks for the new service worker only when the teacher taps Update
+self.addEventListener('message', event => { if (event.data === 'SKIP_WAITING') self.skipWaiting(); });
 
 function timeout(ms) { return new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms)); }
 
@@ -44,7 +50,18 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // App files and fonts: saved copy first, refreshed in the background.
+  // PREPFIX app files: always the saved copy (changed only when the teacher taps Update); fetched once if missing.
+  if (url.origin === location.origin && APP_FILE.test(url.pathname)) {
+    event.respondWith(
+      caches.match(url.pathname).then(hit => hit || fetch(new Request(req, { cache: 'reload' })).then(res => {
+        if (res && res.ok) { const copy = res.clone(); caches.open(SHELL).then(c => c.put(url.pathname, copy)).catch(() => {}); }
+        return res;
+      }))
+    );
+    return;
+  }
+
+  // Icons, logos and fonts: saved copy first, refreshed in the background.
   const cacheable = url.origin === location.origin ||
     url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   if (!cacheable) return;
@@ -69,7 +86,6 @@ self.addEventListener('notificationclick', event => {
   }));
 });
 
-const VIB = Array.from({ length: 20 }, () => [700, 300]).flat();   // 20-second buzz
 // Lesson reminder pushed by the PREPFIX reminder service: the phone works out which lesson it is
 self.addEventListener('push', event => {
   event.waitUntil((async () => {
@@ -83,18 +99,7 @@ self.addEventListener('push', event => {
     const body = L ? [L.title, L.body].filter(Boolean).join(' · ') : 'Open PREPFIX Timetables to see it.';
     await self.registration.showNotification(title, {
       body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: L ? `lesson-${L.wd}-${L.start}` : 'lesson-next',
-      renotify: true, requireInteraction: true, vibrate: VIB, data: { url: (plan && plan.url) || '/' },
+      renotify: true, requireInteraction: true, vibrate: [400, 150, 400, 150, 800], data: { url: (plan && plan.url) || '/' },
     });
-    // not noticed? ring again twice more (every 20 s) while the notification is still on the screen
-    const tag = L ? `lesson-${L.wd}-${L.start}` : 'lesson-next';
-    for (let i = 0; i < 2; i++) {
-      await new Promise(r => setTimeout(r, 20000));
-      const open = await self.registration.getNotifications({ tag });
-      if (!open.length) break;
-      await self.registration.showNotification(title, {
-        body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag,
-        renotify: true, requireInteraction: true, vibrate: VIB, data: { url: (plan && plan.url) || '/' },
-      });
-    }
   })());
 });

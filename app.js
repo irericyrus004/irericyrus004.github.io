@@ -7,7 +7,6 @@
   const LOCKED_BRAND = 'CREATED BY CYRUS IRERI';
   const LOCKED_CONTACT = '0720872582';
   const BRAND_LINE = LOCKED_BRAND + ' · ' + LOCKED_CONTACT;
-  const APP_VER = 'v1.13';                      // shown in the app so you can see which version a phone has
   // Watermark over every timetable on screen and on every saved image. Built in, cannot be switched off.
   const WATERMARK = '© Cyrus Ireri';
   // Appearance: Light / Dark / Auto (follows the phone)
@@ -23,9 +22,8 @@
   (function brandSplash() {                      // PREPFIX logo every time the app opens, on every device
     const t0 = Date.now();
     const hide = () => { const el = document.getElementById('brandsplash'); if (!el) return; el.classList.add('out'); setTimeout(() => el.remove(), 600); };
-    addEventListener('load', () => setTimeout(hide, Math.max(0, 2200 - (Date.now() - t0))));   // long enough for the P animation to finish
-    setTimeout(hide, 3200);
-    const sp = document.getElementById('brandsplash'); if (sp) sp.addEventListener('click', hide);   // tap to skip
+    addEventListener('load', () => setTimeout(hide, Math.max(0, 1700 - (Date.now() - t0))));
+    setTimeout(hide, 4000);
   })();
   (function addBrandBar() {                      // frozen footer, always visible
     const add = () => { if (document.getElementById('brandbar')) return; const f = document.createElement('div'); f.id = 'brandbar';
@@ -72,6 +70,7 @@
     pin: 'M12 2a7 7 0 0 1 7 7c0 5.2-7 13-7 13S5 14.2 5 9a7 7 0 0 1 7-7Zm0 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z',
     rotate: 'M16.48 2.52c3.27 1.55 5.61 4.72 5.97 8.48h1.5C23.44 4.84 18.29 0 12 0l-.66.03 3.81 3.81 1.33-1.32zm-6.25-.77c-.59-.59-1.54-.59-2.12 0L1.75 8.11c-.59.59-.59 1.54 0 2.12l12.02 12.02c.59.59 1.54.59 2.12 0l6.36-6.36c.59-.59.59-1.54 0-2.12L10.23 1.75zm4.6 19.44L2.81 9.17l6.36-6.36 12.02 12.02-6.36 6.36zm-7.31.29C4.25 19.94 1.91 16.76 1.55 13H.05C.56 19.16 5.71 24 12 24l.66-.03-3.81-3.81-1.33 1.32z',
     chart: 'M4 20V10h4v10H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z',
+    home: 'M12 3 2 12h3v8h5v-5h4v5h5v-8h3L12 3Z',
     wa: 'M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.3 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9 0-1.4.7-2 1-2.3.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.4 1.8 2.2 1.2 1.1 2.2 1.4 2.5 1.6.3.1.5.1.7-.1l.9-1.1c.2-.3.4-.2.7-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.3Z',
   };
   const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${I[n] || n}"/></svg>`;
@@ -105,47 +104,17 @@
     const inp = document.getElementById('sq'), box = document.getElementById('slist');
     if (inp && box) inp.addEventListener('input', () => { box.innerHTML = schoolsListHTML(j, cur, inp.value.trim()); });
   }
-  // ------------------------------------------------------------------ SCHOOLS USING THE FET TIMETABLE PROGRAM (marketing list, edited by Cyrus in fet_schools.json)
-  const FET_BASE = DIRECTORY.replace(/schools\.json$/, '');
-  async function fetchFet() {
-    for (const u of [FET_BASE + 'fet_schools.json', '/fet_schools.json']) {      // owner's website first (so every school copy shows the newest list), then this site
-      try {
-        const r = await fetch(u + '?v=' + Date.now(), { cache: 'no-store' }); if (!r.ok) continue;
-        const j = await r.json(); if (j && Array.isArray(j.schools)) { try { localStorage.setItem('ireri:fet', JSON.stringify(j)); } catch { } return j; }
-      } catch { }
-    }
-    try { return JSON.parse(localStorage.getItem('ireri:fet') || 'null'); } catch { return null; }
-  }
-  const fetNames = j => ((j && j.schools) || []).map(x => typeof x === 'string' ? x : (x && x.name) || '').map(x => x.trim()).filter(Boolean);
-  function fetListHTML(j, q) {
-    if (!j) return '<p class="muted center-t">Could not load the list. Check your connection.</p>';
-    const rows = fetNames(j).map((n, i) => [i + 1, n]).filter(([, n]) => !q || n.toLowerCase().includes(q.toLowerCase()));
-    if (!rows.length) return '<p class="muted center-t">No school matches.</p>';
-    return `<div class="fetlist">${rows.map(([i, n]) => `<div class="fetrow"><span class="fetn">${i}</span><b>${esc(n)}</b></div>`).join('')}</div>`;
-  }
-  function fetHero(n) {
-    const wa = `https://wa.me/254${LOCKED_CONTACT.replace(/^0/, '')}?text=${encodeURIComponent('Hello Cyrus, I would like PREPFIX timetables for my school.')}`;
-    return `<section class="fethero"><small>ULTIMATE TIMETABLE SOLUTION</small><h2>Schools using FET Timetable Program</h2>
-      <p><b>${n}</b> school${n === 1 ? '' : 's'} already run their FET timetables on PREPFIX: one link, every teacher, always the latest version.</p>
-      <a class="btn" href="${wa}" target="_blank" rel="noopener">${icon('wa')} Get it for your school · ${esc(LOCKED_CONTACT)}</a>
-      <span class="fetnote">One-time payment · no annual subscriptions · instalments accepted</span></section>`;
-  }
-  function wireFetSearch(j) {
-    const inp = document.getElementById('sq'), box = document.getElementById('slist');
-    if (inp && box) inp.addEventListener('input', () => { box.innerHTML = fetListHTML(j, inp.value.trim()); });
-  }
   async function renderRootDirectory() {
     const el = document.getElementById('app');
-    el.innerHTML = `<div class="splash"><div class="splash-logo"></div><h2>PREPFIX Timetables</h2><p>Loading schools…</p></div>`;
-    const j = await fetchFet();
-    const n = fetNames(j).length;
-    el.innerHTML = `<header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div><div class="titles"><h1>PREPFIX Timetables</h1><p class="sub">${n} school${n === 1 ? '' : 's'} using FET Timetable Program</p></div></div></header>
-      <main class="page wide">${fetHero(n)}
+    el.innerHTML = `<div class="splash"><div class="splash-logo"></div><h2>School timetables</h2><p>Loading schools…</p></div>`;
+    const j = await fetchSchools();
+    const n = j && j.schools ? j.schools.length : 0;
+    el.innerHTML = `<header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div><div class="titles"><h1>PREPFIX Timetables</h1><p class="sub">${n} school${n === 1 ? '' : 's'} using this app</p></div></div></header>
+      <main class="page wide"><p class="hint-box">Schools using PREPFIX Timetables. To open your school's timetables, use the link or QR code from your school.</p>
       <div class="searchbox">${icon('search')}<input id="sq" type="search" autocomplete="off" placeholder="Search for your school…"></div>
-      <div id="slist">${fetListHTML(j, '')}</div>
-      <p class="hint-box">To open your school's timetables, use the link or QR code from your school.</p>
-      <footer class="foot">${esc(BRAND_LINE)}<br>PREPFIX ${esc(APP_VER)}</footer></main>`;
-    wireFetSearch(j);
+      <div id="slist">${schoolsListHTML(j, null, '')}</div>
+      <footer class="foot">${esc(BRAND_LINE)}</footer></main>`;
+    wireSchoolSearch(j, null);
   }
 
   // ------------------------------------------------------------------ routing / storage
@@ -179,8 +148,6 @@
   const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const platformName = () => isIOS() ? 'ios' : /android/i.test(navigator.userAgent) ? 'android' : 'desktop';
   const linkFor = () => `${location.origin}/s/${encodeURIComponent(CODE)}/`;
-  // SAMPLE edition: a school whose name contains SAMPLE or DEMO shows a "get PREPFIX" banner and marks saved/printed pages SAMPLE
-  const isDemo = () => /\b(SAMPLE|DEMO)\b/i.test((state.data && state.data.school && state.data.school.name) || '');
   const isLandscape = () => state.force || matchMedia('(orientation: landscape)').matches || innerWidth >= 760;
   function fmtDate(iso) {
     if (!iso) return '';
@@ -188,12 +155,6 @@
     return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) + ', ' +
       d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
   }
-  // "Timetable generated with FET 6.x.x · <time FET stamped on it>" — read from the FET export by the Publisher
-  function fetText() {
-    const f = (B && B.fet) || (state.data && state.data.fet) || {};
-    return 'Timetable generated with FET' + (f.version ? ' ' + f.version : '') + (f.when ? ' on ' + f.when : '');
-  }
-  const fetFoot = () => `<p class="fetfoot">${esc(fetText())}</p>`;   // same place as in FET: under the table
   const ago = ms => { const s = Math.round((Date.now() - ms) / 1000); return s < 60 ? 'just now' : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`; };
   const natural = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
   async function sha256hex(s) {
@@ -236,9 +197,11 @@
     if (list.length > max) return `${list.length} teachers`;
     return list.map(c => { const t = IDX.tByCode[c]; return t ? (t.name || (/^\d+$/.test(c) ? `Tr ${c}` : c)) : c; }).join(', ');
   }
-  function classesText(c) {                              // every class is named, never summarised as "All 10s" or "6 classes"
+  function classesText(c, max = 3) {
     if (!c) return '';
-    return [...new Set(String(c).split(',').map(s => s.trim()).filter(Boolean))].join(', ');
+    const list = String(c).split(',').map(s => s.trim()).filter(Boolean);
+    if (list.length > max) { const g = [...new Set(list.map(gradeOf))]; return g.length === 1 && g[0] ? `All ${g[0]}s (${list.length} classes)` : `${list.length} classes`; }
+    return list.join(', ');
   }
   // Text for a lesson cell in each kind of timetable: [main line, small line]
   function cellLines(kind, c, ownName) {
@@ -247,7 +210,7 @@
     if (kind === 'teachers') return [classesText(c.c) || c.s || '', [c.c ? c.s : '', tag.trim(), c.r].filter(Boolean).join(' · ')];
     if (kind === 'classes' || kind === 'master') {
       const others = c.c ? c.c.split(',').map(s => s.trim()).filter(x => x !== ownName) : [];
-      return [(c.s || '') + tag, [c.r, others.length ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · '), teachersText(c.t)];
+      return [(c.s || '') + tag, [c.r, others.length && others.length < 3 ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · '), teachersText(c.t)];
     }
     return [[classesText(c.c), c.s].filter(Boolean).join(' · '), '', teachersText(c.t)];
   }
@@ -289,19 +252,14 @@
   const colKey = (kind, c, own) => `${(kind === 'classes' || kind === 'master') ? own : (c.c || '')}|${c.s || ''}`.toUpperCase().replace(/\s+/g, ' ');
   function hslHex(h, s, l) { s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
     const f = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, '0'); return `#${f(0)}${f(8)}${f(4)}`; }
-  // pick black or white text for any background, whichever is easier to read (WCAG contrast)
-  function lum(hex) { const m = String(hex).replace('#', ''); if (m.length < 6) return 1;
-    return [0, 2, 4].map(i => parseInt(m.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
-      .reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); }
-  const inkFor = bg => { const Lb = lum(bg); return (Lb + 0.05) / 0.05 >= 1.05 / (Lb + 0.05) ? '#000000' : '#FFFFFF'; };
   function buildColours() {
     const keys = new Set();
     B.teachers.forEach(t => t.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey('teachers', c)); })));
     ['classes', 'master', 'rooms'].forEach(k => (B[k] || []).forEach(it => it.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey(k, c, it.name)); }))));
-    // Colour rule: soft, clearly different backgrounds that always carry BLACK text (never a colour on a colour)
-    const L = [80, 72, 86, 76, 83], S = [72, 64, 80, 58, 68], map = {};
-    [...keys].sort().forEach((k, i) => { const h = (i * 137.508) % 360, bg = hslHex(h, S[(i >> 1) % 5], L[i % 5]);
-      map[k] = [bg, inkFor(bg)]; });
+    const L = [74, 60, 84, 67, 52], S = [78, 70, 85, 62, 72], map = {};
+    [...keys].sort().forEach((k, i) => { const h = (i * 137.508) % 360, l = L[i % 5], sat = S[(i >> 1) % 5];
+      const light = l >= 66 || (h > 40 && h < 200 && l >= 60);
+      map[k] = [hslHex(h, sat, l), light ? '#0B1B36' : '#FFFFFF']; });
     IDX.colours = map;
   }
   const colourFor = (kind, c, own) => (isLesson(c) && IDX.colours) ? IDX.colours[colKey(kind === 'master' ? 'master' : kind, c, own)] || null : null;
@@ -442,8 +400,8 @@
   }
   function ensureRail() {
     if (POSTER || !state.data || $('#railtab')) return;
-    const tab = document.createElement('button'); tab.id = 'railtab'; tab.type = 'button'; tab.setAttribute('data-act', 'rail'); tab.setAttribute('aria-label', 'Menu');
-    tab.innerHTML = '<span></span><span></span><span></span>';
+    const tab = document.createElement('button'); tab.id = 'railtab'; tab.type = 'button'; tab.setAttribute('data-act', 'rail'); tab.setAttribute('aria-label', 'Open menu'); tab.setAttribute('aria-expanded', 'false');
+    tab.innerHTML = '<span></span><span></span><span></span><em>MENU</em>';
     const rail = document.createElement('nav'); rail.id = 'rail'; rail.setAttribute('aria-label', 'Go to');
     document.body.append(tab, rail);
   }
@@ -452,9 +410,9 @@
     if (rail.classList.contains('open')) return closeRail();
     const here = route().name;
     rail.innerHTML = railItems().map(([k, ic, label, href]) => `<button type="button" class="ri ${here === k || (k === 'home' && here === 'home') ? 'on' : ''}" ${k === 'home' ? 'data-act="home"' : href.startsWith('@') ? `data-act="${href.slice(1)}"` : href ? `data-go="${href}"` : 'data-act="pickMe"'}>${icon(ic)}<span>${label}</span></button>`).join('');
-    rail.classList.add('open'); document.body.classList.add('rail-open');
+    rail.classList.add('open'); document.body.classList.add('rail-open'); const t = $('#railtab'); if (t) t.setAttribute('aria-expanded', 'true');
   }
-  function closeRail() { const r = $('#rail'); if (r) r.classList.remove('open'); document.body.classList.remove('rail-open'); }
+  function closeRail() { const r = $('#rail'); if (r) r.classList.remove('open'); document.body.classList.remove('rail-open'); const t = $('#railtab'); if (t) t.setAttribute('aria-expanded', 'false'); }
   document.addEventListener('click', e => { if (document.body.classList.contains('rail-open') && !e.target.closest('#rail,#railtab')) closeRail(); }, true);
   let edgeX = null;
   document.addEventListener('touchstart', e => { const t = e.touches[0]; edgeX = t.clientX < 18 ? t.clientX : null; }, { passive: true });
@@ -470,11 +428,9 @@
     document.body.classList.toggle('desk', isDesk());
     document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name));
     if ((state.full || state.force) && !['view', 'master'].includes(route().name)) releaseRotate();
-    if (!['view', 'master'].includes(route().name)) { document.body.classList.remove('fullv', 'fillv', 'force-land'); document.body.style.overflow = ''; }
     if (state.error === 'locked') return renderMsg('Timetables not available', 'This school\'s timetable service is switched off. Please contact the school office.', false);
     if (!state.data) return renderEmpty();
     const r = route();
-    trackPage(r.name);
     if (r.name === 'list') return renderList(r.kind, r.pick);
     if (r.name === 'view' && IDX.byId[r.id]) return renderViewer(r.id);
     if (r.name === 'analysis') { const k = r.id && IDX.byId[r.id] ? IDX.byId[r.id].kind : ''; return k === 'teachers' ? renderProfile(r.id) : k === 'classes' ? renderClassProfile(r.id) : renderAnalysis(); }
@@ -487,7 +443,7 @@
     return renderHome();
   }
   function topBar(title, sub = '', right = '', html = '') {
-    return `<header class="vtop"><button class="icon-btn" data-act="back" aria-label="Back">${icon('back')}</button>
+    return `<header class="vtop"><button class="icon-btn" data-act="back" aria-label="Back">${icon('back')}</button><button class="icon-btn homebtn" data-act="home" aria-label="Dashboard (home)">${icon('home')}</button>
       <div class="vtitles"><h2${html ? ' class="big"' : ''}>${html || esc(title)}</h2>${sub ? `<p>${sub}</p>` : ''}</div>${right || '<span class="icon-btn ghost"></span>'}</header>`;
   }
   function renderStatus() {
@@ -543,7 +499,6 @@
 
   // ------------------------------------------------------------------ LESSON REMINDER (alarm 10 minutes before a lesson)
   const REMIND_MIN = 10;
-  const ALARM_VIB = Array.from({ length: 20 }, () => [700, 300]).flat();   // long buzz: 20 seconds, so it is not missed
   const remOn = () => !!store.get('remind', false);
   const fired = new Set();
   function myLessonsOn(me, d) {           // [{j, start, end, lines}]
@@ -574,24 +529,21 @@
   function fireReminder(L, mins) {
     const title = `⏰ Lesson in ${mins} minute${mins === 1 ? '' : 's'} — ${IDX.P[L.j].label} at ${hm(L.start)}`;
     const body = `${L.lines[0]}${L.lines[1] ? ' · ' + L.lines[1] : ''}${L.cell.r ? ' · ' + L.cell.r : ''}`;
-    try { navigator.vibrate && navigator.vibrate(ALARM_VIB); } catch { }
+    try { navigator.vibrate && navigator.vibrate([400, 150, 400, 150, 800]); } catch { }
     try {
       if ('Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker) {
-        navigator.serviceWorker.ready.then(reg => reg.showNotification(title, { body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: `lesson-${IDX.D[todayIndex()]?.wd}-${L.start}`, renotify: true, requireInteraction: true, vibrate: ALARM_VIB, data: { url: location.href } })).catch(() => { });
+        navigator.serviceWorker.ready.then(reg => reg.showNotification(title, { body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: `lesson-${IDX.D[todayIndex()]?.wd}-${L.start}`, renotify: true, requireInteraction: true, vibrate: [400, 150, 400, 150, 800], data: { url: location.href } })).catch(() => { });
       }
     } catch { }
     if (document.visibilityState === 'visible') {
       beep();
-      let ring = setInterval(() => { beep(); try { navigator.vibrate && navigator.vibrate(ALARM_VIB); } catch { } }, 4000);   // keeps ringing until the teacher taps OK (max 3 min)
-      const stop = () => { clearInterval(ring); ring = 0; try { navigator.vibrate && navigator.vibrate(0); } catch { } };
-      setTimeout(() => { if (ring) stop(); }, 180000);
       $$('.alarm-bg').forEach(n => n.remove());               // its own layer, above anything else on screen
       const box = document.createElement('div'); box.className = 'alarm-bg';
       box.innerHTML = `<div class="alarm" role="alertdialog"><div class="abell">⏰</div><h3>Lesson in ${mins} minute${mins === 1 ? '' : 's'}</h3>
         <p class="alesson"><b>${esc(L.lines[0])}</b>${L.lines[1] ? `<span>${esc(L.lines[1])}</span>` : ''}</p>
         <p class="awhen">${esc(IDX.P[L.j].label)} · ${esc(IDX.P[L.j].time)}${L.cell.r ? ' · ' + esc(L.cell.r) : ''}</p>
         <button class="btn wide" type="button">OK</button></div>`;
-      box.querySelector('button').addEventListener('click', () => { stop(); box.remove(); });
+      box.querySelector('button').addEventListener('click', () => box.remove());
       document.body.appendChild(box);
     }
   }
@@ -683,9 +635,9 @@
     toast(`Calendar file saved — open it to add ${ev.length} weekly lessons with a ${REMIND_MIN}-minute alarm`, 5000);
   }
   function schoolsCount() {
-    fetchFet().then(j => { const el = document.querySelector('.t-schools small'); const n = fetNames(j).length; if (el && n) el.textContent = `${n} school${n === 1 ? '' : 's'} · FET`; });
-    try { const n = fetNames(JSON.parse(localStorage.getItem('ireri:fet') || 'null')).length; if (n) return `${n} school${n === 1 ? '' : 's'} · FET`; } catch { }
-    return 'See the list';
+    try { const j = JSON.parse(localStorage.getItem('ireri:schools') || 'null'); const n = j && j.schools ? j.schools.length : 0; if (n) return `${n} school${n === 1 ? '' : 's'}`; } catch { }
+    fetchSchools().then(j => { const el = document.querySelector('.t-schools small'); if (el && j && j.schools) el.textContent = `${j.schools.length} school${j.schools.length === 1 ? '' : 's'}`; });
+    return 'See all schools';
   }
   function renderHome() {
     const sch = state.data.school || {};
@@ -704,7 +656,7 @@
       ['meet', 'classes', 'Meeting finder', 'When are teachers all free', 'meet'],
       ['analysis', 'chart', 'Staff analysis', 'Subjects, classes & load', 'analysis'],
       ['printall', 'print', 'Print all timetables', 'Colour or black & white', ''],
-      ['schools', 'grid', 'Schools using FET Timetable Program', schoolsCount(), 'schools'],
+      ['schools', 'grid', 'Schools using this app', schoolsCount(), 'schools'],
     ];
     app.innerHTML = `
       <header class="top"><div class="brandrow">
@@ -714,14 +666,14 @@
       </header>
       <main class="home">
         ${ttSwitcher()}
-        ${instBlock('', null, true)}
+        ${instBlock()}
         <div id="banners"></div>
         ${nowCard()}
         <nav class="tiles">${tiles.map(([k, ic, t, s, href]) => `
           <button class="tile t-${k}" ${k === 'printall' ? 'data-act="allSheet"' : href ? `data-go="${href}"` : 'data-act="pickMe"'}>
             <span class="tic">${icon(ic)}</span><strong>${esc(t)}</strong><small>${esc(s)}</small></button>`).join('')}
         </nav>
-        <footer class="foot">${esc(BRAND_LINE)}<br>PREPFIX ${esc(APP_VER)}</footer>
+        <footer class="foot">${esc(BRAND_LINE)}</footer>
       </main>`;
     renderStatus(); renderBanners();
     const on = $('.ttchip.on'); if (on && on.scrollIntoView) on.scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -734,18 +686,10 @@
     const m = whole.match(/\s(TERM\b.*|END\b.*|\d{4}\b.*TIMETABLE.*)$/);
     return m ? [whole.slice(0, m.index).trim(), m[1].trim()] : [whole];
   }
-  // The tagline animates when a timetable is opened; later redraws of the same page (day tabs, clock) keep it still
-  function logoElapsed() {
-    const k = location.hash || '#', n = Date.now();
-    if (state.logoKey !== k) { state.logoKey = k; state.logoT = n; }
-    return Math.min(9, (n - state.logoT) / 1000).toFixed(2);
-  }
-  function instBlock(extra = '', owner = null, noSchool = false) {
-    const all = instLines();
-    if (!all.length) return '';
-    const L = noSchool ? all.slice(1) : all;            // noSchool: the school name is already the page heading, so show it only once
-    const el = logoElapsed(), LG = '/brand/prepfix-logo-600.png';
-    return `<div class="inst ${extra}${owner ? ' has-owner' : ''}"><div class="alogo inst-logo" role="img" aria-label="PREPFIX — Prepare. Perfect. Present." style="--el:${el}s"><img class="a0" src="${LG}" alt=""><img class="w w1" src="${LG}" alt=""><img class="w w2" src="${LG}" alt=""><img class="w w3" src="${LG}" alt=""></div>${L.length ? `<b>${esc(L[0])}</b>` : ''}${L.slice(1).map(x => `<span>${esc(x)}</span>`).join('')}${owner ? owner.map((x, i) => `<strong class="ol${owner.length > 1 && i === 0 ? ' code' : ''}">${esc(x)}</strong>`).join('') : ''}</div>`;
+  function instBlock(extra = '', owner = null) {
+    const L = instLines();
+    if (!L.length) return '';
+    return `<div class="inst ${extra}${owner ? ' has-owner' : ''}"><img class="inst-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX"><b>${esc(L[0])}</b>${L.slice(1).map(x => `<span>${esc(x)}</span>`).join('')}${owner ? `<div class="owner"><i>${esc(owner.tag)}</i><strong>${esc(owner.name)}</strong></div>` : ''}</div>`;
   }
   function ttSwitcher() {
     const list = state.tts || [];
@@ -768,6 +712,25 @@
   async function remoteBuild() {
     try { const t = await (await fetch('/config.js?v=' + Date.now(), { cache: 'no-store' })).text(); const m = t.match(/"build"\s*:\s*"([^"]+)"/); return m ? m[1] : ''; } catch { return ''; }
   }
+  // Has the website got newer app files than this phone is running? (cheap header check, nothing is downloaded)
+  async function shellChanged() {
+    try {
+      if (!self.caches) return false;
+      const tag = r => r ? (r.headers.get('etag') || r.headers.get('last-modified') || '').replace(/^W\//, '') : '';
+      for (const f of ['/app.js', '/app.css']) {
+        const hit = await caches.match(f); if (!hit) continue;
+        const net = await fetch(f + '?u=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+        const a = tag(hit), b = tag(net);
+        if (net.ok && a && b && a !== b) return true;
+      }
+    } catch { }
+    return false;
+  }
+  async function updateReady() {
+    const rb = await remoteBuild();
+    if (rb && CFG.build && rb !== CFG.build) return true;
+    return shellChanged();
+  }
   async function applyAppUpdate() {
     const box = document.createElement('div'); box.className = 'alarm-bg';
     box.innerHTML = `<div class="alarm"><div class="abell">⬆</div><h3>Updating PREPFIX…</h3><p class="awhen">A moment, please</p></div>`;
@@ -776,7 +739,19 @@
       const files = ['/app.js', '/app.css', '/config.js', '/sw.js', '/qrcode.js', location.pathname];
       await Promise.all(files.map(f => fetch(f + (f.includes('?') ? '&' : '?') + 'u=' + Date.now(), { cache: 'reload' }).catch(() => { })));
       await Promise.all(files.map(f => fetch(f, { cache: 'reload' }).catch(() => { })));
-      if (navigator.serviceWorker) { const reg = await navigator.serviceWorker.getRegistration(); if (reg) await reg.update().catch(() => { }); }
+      if (navigator.serviceWorker) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          await reg.update().catch(() => { });
+          const w = reg.waiting || reg.installing;
+          if (w) {                                    // switch to the newest service worker now, because the teacher asked for the update
+            const swap = new Promise(res => { navigator.serviceWorker.addEventListener('controllerchange', res, { once: true }); setTimeout(res, 2500); });
+            if (w.state === 'installed') w.postMessage('SKIP_WAITING');
+            else w.addEventListener('statechange', () => { if (w.state === 'installed') w.postMessage('SKIP_WAITING'); });
+            await swap;
+          }
+        }
+      }
       if (self.caches) { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith('ireri-shell')).map(k => caches.delete(k))); }
       try { sessionStorage.setItem('prepfix:updated', CFG.build || '1'); } catch { }
     } catch { }
@@ -785,26 +760,23 @@
   async function checkUpdates() {
     if (!state.online) { toast('No internet — try again when you are online'); return; }
     toast('Checking for updates…', 1500);
-    const rb = await remoteBuild();
-    if (rb && CFG.build && rb !== CFG.build) {
-      openSheet(`<div class="grab"></div><h3>⬆ PREPFIX has been improved</h3><p>A newer version of the app is ready with the latest improvements.</p>
+    if (await updateReady()) {
+      openSheet(`<div class="grab"></div><h3>⬆ PREPFIX has been improved</h3><p>A newer version of the app is ready with the latest improvements. Nothing changes until you tap <b>Update now</b>.</p>
         <button class="btn wide" data-act="appUpdate">Update now</button><button class="btn ghost wide" data-act="closeSheet">Later</button>`);
       return;
     }
     await sync('manual');
-    if (state.online) toast('✓ You have the newest PREPFIX (' + APP_VER + ') and the latest timetables');
+    if (state.online) toast('✓ You have the newest PREPFIX and the latest timetables');
   }
   async function autoCheckApp() {                       // quietly, at most every 30 minutes
     const last = +(store.get('appChk') || 0); if (Date.now() - last < 30 * 60000 || !state.online) return;
     store.set('appChk', Date.now());
-    const rb = await remoteBuild();
-    state.appNew = !!(rb && CFG.build && rb !== CFG.build);
+    state.appNew = await updateReady();
     if (state.appNew && route().name === 'home') renderBanners();
   }
   function renderBanners() {
     const box = $('#banners'); if (!box || !state.data) return;
     const out = [];
-    if (isDemo()) out.push(`<div class="banner new"><div><strong>🎓 SAMPLE VERSION · fictional school and teachers</strong><span>Open any teacher, class or the master timetable, try Free teachers, Find cover and Rotate. Like it? Get PREPFIX for your school.</span></div><div class="banner-actions"><a class="btn small" href="tel:${esc(LOCKED_CONTACT)}">Call ${esc(LOCKED_CONTACT)}</a><a class="btn small ghost" href="https://wa.me/254${esc(LOCKED_CONTACT.replace(/^0/, ''))}?text=${encodeURIComponent('Hello, I tried the PREPFIX sample and I would like it for my school.')}" target="_blank" rel="noopener">WhatsApp</a></div></div>`);
     if (state.appNew) out.push(`<div class="banner new"><div><strong>⬆ PREPFIX has been improved</strong><span>Tap Update to get the newest version — your timetables stay as they are.</span></div><div class="banner-actions"><button class="btn small" data-act="appUpdate">Update</button></div></div>`);
     const fresh = (state.tts && state.tts.length ? state.tts : [{ id: state.data.tt, version: state.data.version, name: state.data.ttName, updated: B.published, note: state.data.school?.note }]).filter(isNewTT);
     if (fresh.length) {
@@ -862,6 +834,30 @@
     $$('#chips .chip').forEach(b => b.addEventListener('click', () => { state.grade = b.dataset.grade; $$('#chips .chip').forEach(x => x.classList.toggle('on', x === b)); draw(); }));
   }
 
+  // ------------------------------------------------------------------ CURRENT LESSON — focus it once when a timetable opens
+  // Scrolls to the lesson in progress (or the next one) a single time per opening; after that the person scrolls freely.
+  function focusCurrent(key, layout) {
+    if (state.focusKey === key) return;                 // already focused for this opening: never snap back
+    state.focusKey = key;
+    if (!state.data || !IDX || !IDX.P) return;
+    const n = nowSlot();
+    const looking = layout === 'day' ? n.d === state.day : true;
+    setTimeout(() => {
+      if (state.focusKey !== key) return;
+      let msg = '';
+      if (n.status === 'noday') msg = 'No lessons today — showing the timetable from the start';
+      else if (n.status === 'after') msg = 'Lessons are over for today';
+      else if (n.status === 'before') msg = 'School has not started — showing the first lesson';
+      else if (n.status === 'between') msg = 'No lesson in progress — showing the next lesson';
+      if (!looking) { if (n.status === 'noday') toast(msg, 2600); return; }
+      let el = null;
+      if (layout === 'day') el = document.querySelector('.dayview li.now') || document.querySelector('.dayview li.next');
+      else el = document.querySelector('#wk td.now') || document.querySelector('#wk th.nowcol');
+      if (el && el.scrollIntoView) { try { el.scrollIntoView({ block: layout === 'day' ? 'center' : 'nearest', inline: 'center', behavior: 'auto' }); } catch (e) { el.scrollIntoView(); } }
+      if (msg) toast(msg, 2600);
+    }, 120);
+  }
+
   // ------------------------------------------------------------------ VIEWER — one timetable at a time
   function siblings(item) {
     const list = ['classes', 'teachers', 'rooms'].includes(item.kind) ? listItems(item.kind) : B[item.kind];
@@ -875,24 +871,26 @@
     const sib = siblings(item), idx = sib.findIndex(x => x.id === id);
     const isMe = kind === 'teachers' && String(store.get('me')) === String(item.code);
     const title = kind === 'teachers' ? teacherLabel(item) : item.name;
-    const sub = '';
+    const sub = `${KIND[kind]?.title || 'Master'} · ${idx + 1} of ${sib.length}${kind === 'teachers' && item.name ? ' · No. ' + esc(item.code) : ''}`;
+    const titleHTML = kind === 'teachers' ? `<span class="tcode">${esc(item.code)}</span>${esc(title)}` : '';
     if (state.day == null) state.day = Math.max(0, todayIndex());
     const layout = effectiveLayout();
     document.title = title + ' · Timetable';
     app.innerHTML = `
-      ${topBar(KIND[kind]?.title || 'Timetable', sub, kind === 'teachers' ? `<button class="icon-btn star ${isMe ? 'on' : ''}" data-act="me" aria-label="My timetable">${icon(isMe ? 'star' : 'starO')}</button>` : '')}
+      ${topBar(title, sub, kind === 'teachers' ? `<button class="icon-btn star ${isMe ? 'on' : ''}" data-act="me" aria-label="My timetable">${icon(isMe ? 'star' : 'starO')}</button>` : '', titleHTML)}
       <div class="vbar">
         <div class="seg"><button class="${layout === 'day' ? 'on' : ''}" data-layout="day">Day</button><button class="${layout === 'week' ? 'on' : ''}" data-layout="week">Week</button></div>
         <button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit full screen' : 'Rotate'}</span></button>
         ${kind === 'teachers' ? `<button class="btn small ghost" data-go="analysis/${esc(item.id)}">${icon('chart')} Profile</button>` : ''}<button class="btn small ghost" data-act="save">${icon('save')} Save</button>
       </div>
-      <main class="tt" id="tt">${instBlock('small', ownerLines(kind, item))}${layout === 'day' ? dayView(item) : weekGrid(item)}${fetFoot()}</main>
+      <main class="tt" id="tt">${instBlock('small', ownerLine(kind, item))}${layout === 'day' ? dayView(item) : weekGrid(item)}</main>
       <div class="vtools">
         <button class="icon-btn" data-act="prev" ${idx <= 0 ? 'disabled' : ''} aria-label="Previous">${icon('prev')}</button>
-        <span class="vcur"><small>${idx + 1} of ${sib.length}</small></span>
+        <span class="vcur">${kind === 'teachers' ? `<i class="sc">${esc(item.code)}</i>` : ''}<b>${esc(kind === 'teachers' ? teacherLabel(item) : item.name)}</b><small>${idx + 1} of ${sib.length}</small></span>
         <button class="icon-btn" data-act="next" ${idx >= sib.length - 1 ? 'disabled' : ''} aria-label="Next">${icon('next')}</button>
       </div>`;
     if (layout === 'week') fitGrid();
+    focusCurrent('view:' + id + ':' + layout + ':' + state.day + ':' + (state.full ? 'f' : 'n'), layout);
   }
   // ROTATE = full-screen landscape, whatever the phone's auto-rotate setting. The whole week fits on the screen.
   function applyForce() {
@@ -900,21 +898,13 @@
     const portrait = innerHeight > innerWidth;
     state.force = portrait; document.body.classList.toggle('force-land', portrait);
   }
-  // Normal screens keep the page steady (no accidental zoom); full screen allows pinch zoom in/out
-  function setPinchZoom(on) {
-    const vp = document.querySelector('meta[name="viewport"]'); if (!vp) return;
-    vp.setAttribute('content', on ? 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover'
-                                  : 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
-  }
   function releaseRotate() {
-    setPinchZoom(false);
     try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch { }
     try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => { }); } catch { }
     state.full = false; state.force = false; document.body.classList.remove('force-land', 'fullv');
   }
   async function toggleRotate() {
     if (state.full) { releaseRotate(); render(); return; }
-    setPinchZoom(true);
     state.full = true; document.body.classList.add('fullv');          // same arrangement — only the viewing angle changes
     // no browser full-screen request: it makes the browser show its own "…github.io is full screen" notice
     try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch { }
@@ -980,14 +970,17 @@
       const at = z => { tb.style.zoom = z; tb.style.width = (W / z) + 'px'; return tb.offsetHeight * z; };
       let lo = 0.2, hi = 1.5;                            // largest size at which the whole week still fits
       for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (at(mid) <= H) lo = mid; else hi = mid; }
-      const MIN = (innerWidth < 760 || innerHeight < 520) ? 0.4 : 0.85;   // big screens: never smaller than readable. Small phones: ALWAYS fit the whole week (pinch to zoom in)
-      if (lo < MIN) { tb.style.zoom = MIN; tb.style.minWidth = ''; tb.style.width = (W / MIN) + 'px'; wrap.classList.add('scroll2'); return; }
+      const MIN = 0.85;                                  // never too small to read: below this, scroll instead
+      const scrollMode = () => { rows.forEach(r => { r.style.height = ''; }); tb.style.zoom = MIN; tb.style.width = ''; tb.style.minWidth = (W / MIN) + 'px'; wrap.classList.add('scroll2'); };
+      if (lo < MIN) { scrollMode(); return; }
       wrap.classList.remove('scroll2'); tb.style.minWidth = '';
       const z = lo, h = at(z);
       if (h < H - 4 && rows.length) {                   // spread the rows to use the whole height
         const extra = (H - h) / z / rows.length;
         rows.forEach(r => { r.style.height = (r.offsetHeight + extra) + 'px'; });
       }
+      // Safety check on what is really on screen: if any day or period is still cut off, switch to scrolling (both directions)
+      if (wrap.scrollHeight > wrap.clientHeight + 2 || wrap.scrollWidth > wrap.clientWidth + 2) scrollMode();
       return;
     }
     const z = Math.min(1, (wrap.clientWidth - 2) / tb.scrollWidth);
@@ -1001,11 +994,12 @@
     const list = B.master.filter(m => state.grade === 'all' || gradeOf(m.name) === state.grade);
     const body = list.map((m, i) => `<tr class="${i > 0 && gradeOf(list[i - 1].name) !== gradeOf(m.name) ? 'gstart' : ''}"><th>${esc(m.name)}</th>${rowCells(m, 'master', d, n, i, list.length, 34)}</tr>`).join('');
     document.title = 'Master · ' + dayLabel(d);
-    app.innerHTML = `${topBar('Master', '', `<button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit' : 'Rotate'}</span></button><button class="icon-btn" data-act="save" aria-label="Save">${icon('save')}</button>`)}
+    app.innerHTML = `${topBar('Master timetable', esc(dayLabel(d)) + ' · all classes', `<button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit' : 'Rotate'}</span></button><button class="icon-btn" data-act="save" aria-label="Save">${icon('save')}</button>`)}
       <div class="mbar">${dayTabs(d)}${gradeChips()}</div>
-      <main class="tt">${instBlock('small', ownerLines('master', null, d))}<div class="gridwrap" id="gridwrap"><table class="wk master dc${d % 5}" id="wk"><thead><tr><th>Class</th>${headCells(d, n)}</tr></thead><tbody>${body}</tbody></table></div>${fetFoot()}
+      <main class="tt"><div class="gridwrap" id="gridwrap"><table class="wk master dc${d % 5}" id="wk"><thead><tr><th>Class</th>${headCells(d, n)}</tr></thead><tbody>${body}</tbody></table></div>
       <p class="swipe-hint">Slide the table sideways · press Rotate to see the whole day on one screen</p></main>`;
     if (fillOn()) fitGrid();
+    focusCurrent('master:' + state.grade + ':' + d + ':' + (state.full ? 'f' : 'n'), 'week');
   }
 
   // ------------------------------------------------------------------ FREE TEACHERS + FREE AFTERNOON
@@ -1174,7 +1168,7 @@
       <main class="page wide">
         <div class="stats"><div><b>${rows.length}</b><small>teachers</small></div><div><b>${sum}</b><small>lessons / week</small></div><div><b>${avg}</b><small>average load</small></div><div><b>${max}</b><small>highest load</small></div></div>
         <div class="seg wide-seg four"><button class="${A.tab === 'teachers' ? 'on' : ''}" data-antab="teachers">Teachers</button><button class="${A.tab === 'subjects' ? 'on' : ''}" data-antab="subjects">Subjects</button><button class="${A.tab === 'sessions' ? 'on' : ''}" data-antab="sessions">Sessions</button><button class="${A.tab === 'classes' ? 'on' : ''}" data-antab="classes">Classes</button></div>
-        <div class="anbtns"><button class="btn small" data-act="csv">${icon('save')} Teachers (CSV)</button><button class="btn small ghost" data-act="print">${icon('print')} Print</button></div>
+        <div class="anbtns"><button class="btn small" data-act="csv">${icon('save')} Teachers (CSV)</button><button class="btn small" data-act="printReport">${icon('print')} Print staff report</button><button class="btn small ghost" data-act="print">${icon('print')} Print this view</button></div>
         <div id="anbody"></div>
       </main>`;
     const draw = () => {
@@ -1349,6 +1343,48 @@
         <div class="anbtns"><button class="btn" data-go="view/${esc(t.id)}">Open timetable</button><button class="btn ghost" data-go="analysis">All teachers</button></div>
       </main>`;
   }
+  // ------------------------------------------------------------------ PRINT: staff analysis report (A4, all teachers in one table)
+  function printStaffReport() {
+    if (!state.data || !B) return;
+    const A = state.an || {};
+    const q = (A.q || '').toLowerCase();
+    let rows = B.teachers.map(t => ({ t, a: analyse(t) })).filter(r => r.a.total > 0 || true);
+    const tab = A.tab === 'teachers' || !A.tab;
+    if (tab) {
+      if (A.subj && A.subj !== 'all') rows = rows.filter(r => r.a.subjects.some(S => S.name === A.subj));
+      if (q) rows = rows.filter(r => `${r.t.code} ${r.t.name} ${r.a.subjects.map(S => S.name).join(' ')}`.toLowerCase().includes(q));
+    }
+    rows.sort((x, y) => A.sort === 'high' ? y.a.total - x.a.total : A.sort === 'low' ? x.a.total - y.a.total :
+      A.sort === 'subj' ? natural(x.a.subjects[0]?.name || 'zzz', y.a.subjects[0]?.name || 'zzz') || natural(x.t.code, y.t.code) : natural(x.t.code, y.t.code));
+    const loads = rows.map(r => r.a.total), sum = loads.reduce((s, v) => s + v, 0);
+    const avg = rows.length ? Math.round(sum / rows.length * 10) / 10 : 0, max = loads.length ? Math.max(...loads) : 0;
+    const sch = state.data.school || {};
+    const filt = tab && ((A.subj && A.subj !== 'all') || q) ? `Filter: ${[(A.subj && A.subj !== 'all') ? A.subj : '', q ? '“' + A.q + '”' : ''].filter(Boolean).join(' · ')}` : 'All teachers';
+    const dayHead = IDX.D.map(d => `<th class="n">${esc(String(d.label).slice(0, 3))}</th>`).join('');
+    const body = rows.map(({ t, a }) => `<tr>
+      <td class="n">${esc(t.code)}</td><td><b>${esc(t.name || ('Teacher ' + t.code))}</b></td>
+      <td>${a.subjects.map(S => `${esc(S.name)} (${S.periods})`).join(', ') || '—'}</td>
+      <td>${a.classes.map(C => esc(C.name)).join(', ') || '—'}</td>
+      ${a.perDay.map(v => `<td class="n">${v || ''}</td>`).join('')}
+      <td class="n tot">${a.total}</td><td class="n">${a.doubles || ''}</td></tr>`).join('');
+    const html = `<header class="prh"><h1>${esc(sch.name || 'School')}</h1>
+      <h2>Staff analysis — teaching load</h2>
+      <p>${esc(B.institution || sch.institution || '')}${state.data.ttName ? ' · ' + esc(state.data.ttName) : ''}</p>
+      <p class="prm">Report date: ${esc(new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }))} · Timetable updated: ${esc(fmtDate(B.published || sch.updated))} · ${esc(filt)}</p></header>
+      <div class="prs"><span><b>${rows.length}</b> teachers</span><span><b>${sum}</b> lessons / week</span><span><b>${avg}</b> average load</span><span><b>${max}</b> highest load</span></div>
+      <table class="prt"><thead><tr><th class="n">No.</th><th>Teacher</th><th>Subjects (lessons / week)</th><th>Classes</th>${dayHead}<th class="n">Total</th><th class="n">Dbl</th></tr></thead><tbody>${body}</tbody></table>
+      <footer class="prf">${esc(BRAND_LINE)} · Lessons per day columns show how many lessons each teacher has on that day. “Dbl” = double lessons.</footer>`;
+    let host = document.getElementById('printreport');
+    if (host) host.remove();
+    host = document.createElement('div'); host.id = 'printreport'; host.innerHTML = html;
+    document.body.appendChild(host);
+    document.body.classList.add('print-report');
+    const done = () => { document.body.classList.remove('print-report'); const h = document.getElementById('printreport'); if (h) h.remove(); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    setTimeout(() => { try { window.print(); } catch (e) { done(); toast('Printing is not available here. Use your browser menu → Print.'); } }, 80);
+    setTimeout(() => { if (document.body.classList.contains('print-report')) done(); }, 60000);
+  }
+
   function downloadCsv() {
     const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
     const out = [['Teacher No', 'Teacher Name', 'Subject', 'Class', 'Lessons per week (subject+class)', 'Subject total', 'Teacher total load'].map(q).join(',')];
@@ -1365,17 +1401,19 @@
 
   // ------------------------------------------------------------------ SCHOOLS using the app
   async function renderSchools() {
-    document.title = 'Schools using FET Timetable Program';
-    app.innerHTML = `${topBar('Schools using FET', 'Loading…')}<main class="page wide"><p class="muted center-t">Loading schools…</p></main>`;
-    const j = await fetchFet();
+    const cur = CODE;
+    document.title = 'Schools using Timetables';
+    app.innerHTML = `${topBar('Schools using this app', 'Loading…')}<main class="page wide"><p class="muted center-t">Loading schools…</p></main>`;
+    const j = await fetchSchools();
     if (route().name !== 'schools') return;
-    const n = fetNames(j).length;
-    app.innerHTML = `${topBar('Schools using FET', `${n} school${n === 1 ? '' : 's'}`)}
-      <main class="page wide">${fetHero(n)}
+    const n = j && j.schools ? j.schools.length : 0;
+    app.innerHTML = `${topBar('Schools using this app', `${n} school${n === 1 ? '' : 's'}`)}
+      <main class="page wide">
+        <div class="stats three"><div><b>${n}</b><small>schools</small></div><div><b>${(j?.schools || []).reduce((a, x) => a + (x.teachers || 0), 0)}</b><small>teachers</small></div><div><b>${(j?.schools || []).reduce((a, x) => a + (x.classes || 0), 0)}</b><small>classes</small></div></div>
         <div class="searchbox">${icon('search')}<input id="sq" type="search" autocomplete="off" placeholder="Search a school…"></div>
-        <div id="slist">${fetListHTML(j, '')}</div>
+        <div id="slist">${schoolsListHTML(j, cur, '')}</div>
       </main>`;
-    wireFetSearch(j);
+    wireSchoolSearch(j, cur);
   }
 
   // ------------------------------------------------------------------ MEETING FINDER
@@ -1488,33 +1526,32 @@
   }
   const currentTarget = () => { const r = route(); return r.name === 'master' ? { master: true, d: state.day, grade: state.grade } : { id: r.id }; };
   // who/what the page is for, written big at the top — exactly as in the FET timetables
-  // Lines under the school name and timetable name: teacher = code, then name (4 lines in all); class / lab / master = 1 line (3 in all)
-  function ownerLines(kind, item, d) {
-    if (kind === 'master') return [`MASTER TIMETABLE · ${dayLabel(d).toUpperCase()}`];
-    if (kind === 'teachers') return [String(item.code), item.name].filter(Boolean);
-    return [item.name];
+  function ownerLine(kind, item, d) {
+    if (kind === 'master') return { tag: 'MASTER TIMETABLE', name: dayLabel(d).toUpperCase() };
+    if (kind === 'teachers') return { tag: 'TEACHER', name: `${item.code}${item.name ? '  ·  ' + item.name : ''}` };
+    if (kind === 'classes') return { tag: 'CLASS', name: item.name };
+    return { tag: 'LAB / FIELD', name: item.name };
   }
   function drawTimetablePage(bw, tgt = currentTarget(), logoImg = null, SCALE = 2.2) {
     let title, rows, kind, own;
     if (tgt.master) {
       const d = tgt.d; kind = 'master'; title = `Master timetable — ${dayLabel(d)}`;
       rows = B.master.filter(m => !tgt.grade || tgt.grade === 'all' || gradeOf(m.name) === tgt.grade).map(m => ({ head: m.name, item: m, d }));
-      own = ownerLines('master', null, d);
+      own = ownerLine('master', null, d);
     } else {
       const item = IDX.byId[tgt.id]; kind = item.kind;
       title = kind === 'teachers' ? `${item.code}. ${teacherLabel(item)}` : item.name;
       rows = IDX.D.map((dd, d) => ({ head: dd.label, item, d }));
-      own = ownerLines(kind, item);
+      own = ownerLine(kind, item);
     }
     const P = IDX.P;
-    const TOPH = 98 + (own.length - 1) * 30 + 28;                // header height: school, term, then 1 or 2 owner lines
     const PW = 1600, PH = Math.round(1600 / Math.SQRT2);        // A4 landscape proportions
     const mctx = document.createElement('canvas').getContext('2d');
     const nL = P.filter(p => !p.brk).length, nB = P.length - nL;
     // fit everything onto one page: shrink the drawing (f) only if the content is taller than the page
     let f = 1, lay;
     for (let it = 0; it < 8; it++) {
-      const W = PW / f, H = PH / f, pad = 28, top = TOPH, foot = 82, headW = kind === 'master' ? 96 : 84, brkW = 40;
+      const W = PW / f, H = PH / f, pad = 28, top = 156, foot = 46, headW = kind === 'master' ? 96 : 84, brkW = 40;
       const colW = (W - pad * 2 - headW - nB * brkW) / nL;
       const colWs = P.map(p => p.brk ? brkW : colW);
       const cellText = (row, j) => {
@@ -1531,10 +1568,7 @@
         const t = cellText(row, j); h = Math.max(h, t.a.length * 18 + t.b.length * 15 + (t.t.length ? t.t.length * 14 + 10 : 0) + 22); } return h; });
       const bodyAvail = H - top - 52 - foot, sum = need.reduce((a, b) => a + b, 0);
       if (sum > bodyAvail * 1.001 && f > 0.42) { f = Math.max(0.42, f * Math.sqrt(bodyAvail / sum) * 0.98); continue; }
-      // don't blow the grid up to fill the page: teachers use at most 3/4 of the page, classes/rooms 85%
-      const cap = kind === 'teachers' ? 0.75 : kind === 'master' ? 1 : 0.85;
-      const capBody = Math.min(bodyAvail, H * cap - 52);
-      const extra = Math.max(0, capBody - sum), RH = need.map(h => h + extra / rows.length);
+      const extra = Math.max(0, bodyAvail - sum), RH = need.map(h => h + extra / rows.length);
       lay = { W, H, pad, top, foot, headW, brkW, colWs, cellText, RH }; break;
     }
     const { W, H, pad, top, foot, headW, colWs, cellText, RH } = lay;
@@ -1543,35 +1577,32 @@
     const cv = document.createElement('canvas'); cv.width = Math.round(PW * SCALE); cv.height = Math.round(PH * SCALE);
     const ctx = cv.getContext('2d'); ctx.scale(SCALE * f, SCALE * f); ctx.textBaseline = 'alphabetic';
     const INK = '#000000', NAVY = bw ? '#000000' : '#12284C', GOLD = bw ? '#000000' : '#C9A227';
-    // colours below are the same ones the app shows on screen (day colours, header tints, line weights)
-    const DAYC = ['#1F4E9C', '#1E7F5C', '#B7791F', '#6B46C1', '#B5463A'];
-    const LINE = bw ? '#1B2333' : '#2B3447', LW = bw ? 1.6 : 1.5;
-    const dayCol = d => bw ? '#ffffff' : DAYC[d % 5];
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
     // header: school + term on the left, PREPFIX logo top-right, then the owner in big letters
     const IL = instLines();
     const lh = 82, lw = logoImg ? lh * logoImg.width / logoImg.height : 0;
     if (logoImg) { ctx.save(); if (bw) ctx.filter = 'grayscale(1) contrast(1.15)'; ctx.drawImage(logoImg, W - pad - lw, 8, lw, lh); ctx.restore(); }
-    const textW = W - 2 * (pad + lw + 20), mid = W / 2;           // centred text stays clear of the logo
-    ctx.textAlign = 'center'; ctx.fillStyle = NAVY; ctx.font = '800 30px Poppins, Arial';
+    const textW = W - pad * 2 - lw - 20;
+    ctx.fillStyle = NAVY; ctx.font = '800 30px Poppins, Arial';
     const sname = (IL[0] || state.data.school?.name || '').toUpperCase();
     let sfs = 30; while (ctx.measureText(sname).width > textW && sfs > 18) { sfs -= 1; ctx.font = `800 ${sfs}px Poppins, Arial`; }
-    ctx.fillText(sname, mid, 38);
+    ctx.fillText(sname, pad, 44);
     ctx.font = '700 18px Poppins, Arial'; ctx.fillStyle = bw ? INK : '#1E7F5C';
-    ctx.fillText([IL.slice(1).join(' ').toUpperCase(), (state.data.ttName || '').toUpperCase()].filter((v, i, a) => v && a.indexOf(v) === i).join('   ·   '), mid, 66);
-    ctx.fillStyle = NAVY;
-    own.forEach((ln, i) => { let fs = 26; ctx.font = `800 ${fs}px Poppins, Arial`; while (ctx.measureText(ln).width > W - pad * 2 && fs > 14) { fs--; ctx.font = `800 ${fs}px Poppins, Arial`; } ctx.fillText(ln, mid, 98 + i * 30); });
-    ctx.fillStyle = GOLD; ctx.fillRect(pad, TOPH - 18, W - pad * 2, 4);
-    ctx.textAlign = 'left';
+    ctx.fillText([IL.slice(1).join(' ').toUpperCase(), (state.data.ttName || '').toUpperCase()].filter((v, i, a) => v && a.indexOf(v) === i).join('   ·   '), pad, 74);
+    ctx.fillStyle = GOLD; ctx.fillRect(pad, 94, W - pad * 2, 4);
+    ctx.fillStyle = bw ? '#000' : NAVY; ctx.fillRect(pad, 104, W - pad * 2, 42);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+    ctx.font = '700 15px Poppins, Arial'; const tagW = ctx.measureText(own.tag + '   ').width;
+    ctx.font = '800 26px Poppins, Arial'; const nmW = ctx.measureText(own.name).width;
+    const sx = W / 2 - (tagW + nmW) / 2;
+    ctx.textAlign = 'left'; ctx.font = '700 15px Poppins, Arial'; ctx.fillStyle = bw ? '#fff' : '#E8D48A'; ctx.fillText(own.tag, sx, 131);
+    ctx.font = '800 26px Poppins, Arial'; ctx.fillStyle = '#fff'; ctx.fillText(own.name, sx + tagW, 134);
     // column headings
-    ctx.fillStyle = bw ? '#fff' : '#EDE6D0'; ctx.fillRect(pad, y0, headW, 52);
-    ctx.lineWidth = LW; ctx.strokeStyle = LINE; ctx.strokeRect(pad, y0, headW, 52);
-    if (kind === 'master') { ctx.textAlign = 'center'; ctx.fillStyle = NAVY; ctx.font = '800 15px Poppins, Arial'; ctx.fillText('Class', pad + headW / 2, y0 + 31); ctx.textAlign = 'left'; }
     const colX = []; let x = pad + headW;
     P.forEach((p, j) => {
       const w = colWs[j]; colX[j] = [x, w];
-      ctx.fillStyle = bw ? '#fff' : (p.brk ? '#C9BE98' : p.pm ? '#DCE6F7' : '#EDE6D0'); ctx.fillRect(x, y0, w, 52);
-      ctx.lineWidth = LW; ctx.strokeStyle = LINE; ctx.strokeRect(x, y0, w, 52);
+      ctx.fillStyle = bw ? '#fff' : (p.brk ? '#E4DCC2' : '#F3EEDF'); ctx.fillRect(x, y0, w, 52);
+      ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(x, y0, w, 52);
       ctx.textAlign = 'center'; ctx.fillStyle = INK;
       if (p.brk) { const t = String(p.time || '').split('-'); ctx.font = '700 10.5px Poppins, Arial';
         if (t.length === 2) { ctx.fillText(t[0], x + w / 2, y0 + 15); ctx.fillText('–', x + w / 2, y0 + 28); ctx.fillText(t[1], x + w / 2, y0 + 41); } }
@@ -1581,7 +1612,7 @@
     // rows
     rows.forEach((row, ri) => {
       const y = y0 + 52 + Y[ri], rowH = RH[ri];
-      ctx.fillStyle = dayCol(kind === 'master' ? tgt.d : row.d); ctx.fillRect(pad, y, headW, rowH); ctx.lineWidth = LW; ctx.strokeStyle = LINE; ctx.strokeRect(pad, y, headW, rowH);
+      ctx.fillStyle = bw ? '#fff' : NAVY; ctx.fillRect(pad, y, headW, rowH); ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(pad, y, headW, rowH);
       ctx.fillStyle = bw ? INK : '#fff'; ctx.font = '800 16px Poppins, Arial'; ctx.textAlign = 'center';
       const hl = wrapText(ctx, row.head, headW - 10).slice(0, 3); hl.forEach((ln, k) => ctx.fillText(ln, pad + headW / 2, y + rowH / 2 - (hl.length - 1) * 9 + k * 18 + 5));
       ctx.textAlign = 'left';
@@ -1589,7 +1620,7 @@
         const [cx, w] = colX[j];
         if (P[j].brk) {
           if (ri === 0) {
-            const Hh = bodyH; ctx.fillStyle = bw ? '#fff' : '#E4DCC2'; ctx.fillRect(cx, y, w, Hh); ctx.lineWidth = LW; ctx.strokeStyle = LINE; ctx.strokeRect(cx, y, w, Hh);
+            const Hh = bodyH; ctx.fillStyle = bw ? '#fff' : '#E4DCC2'; ctx.fillRect(cx, y, w, Hh); ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(cx, y, w, Hh);
             const words = String(P[j].label || 'BREAK').toUpperCase().split(/\s+/).filter(Boolean);
             const units = words.reduce((t, wd) => t + wd.length, 0) + (words.length - 1) * 0.6;
             const lh = (Hh - 20) / units, fs = Math.max(9, Math.min(26, Math.floor(Math.min(lh * 0.86, w * 0.62))));
@@ -1603,7 +1634,7 @@
         const c = cellAt(row.item, row.d, j), T = cellText(row, j), L = T.L, cw = T.cw;
         const fc = !bw && L ? colourFor(kind, c, row.item.name) : null;
         ctx.fillStyle = fc ? fc[0] : '#ffffff'; ctx.fillRect(cx, y, cw, rowH);
-        ctx.lineWidth = LW; ctx.strokeStyle = LINE; ctx.strokeRect(cx, y, cw, rowH);
+        ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(cx, y, cw, rowH);
         if (L) {
           const blockH = T.a.length * 18 + T.b.length * 15 + (T.t.length ? T.t.length * 14 + 10 : 0);
           let ty = y + (rowH - blockH) / 2 + 14; ctx.textAlign = 'center';
@@ -1613,7 +1644,7 @@
             ctx.font = '700 12px Poppins, Arial';
             const bwid = Math.min(cw - 10, Math.max(...T.t.map(l => ctx.measureText(l).width)) + 14), bh = T.t.length * 14 + 6;
             const bx = cx + (cw - bwid) / 2, by = ty - 11;
-            ctx.fillStyle = bw ? '#ffffff' : 'rgba(255,255,255,0.92)'; ctx.strokeStyle = bw ? '#000' : '#0B3D91'; ctx.lineWidth = 1.2;
+            ctx.fillStyle = '#ffffff'; ctx.strokeStyle = bw ? '#000' : '#0B3D91'; ctx.lineWidth = 1.2;
             ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, bwid, bh, 6); else ctx.rect(bx, by, bwid, bh); ctx.fill(); ctx.stroke();
             ctx.fillStyle = bw ? '#000' : '#0B3D91'; ty += 2; T.t.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 14; });
           }
@@ -1621,26 +1652,13 @@
         }
       }
     });
-    if (!bw) {
-      const tx0 = pad, tx1 = pad + headW + colWs.reduce((a, b) => a + b, 0), NV = '#12284C';
-      ctx.strokeStyle = NV; ctx.lineCap = 'butt';
-      ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(tx0, y0 + 52); ctx.lineTo(tx1, y0 + 52); ctx.stroke();            // under the headings
-      ctx.lineWidth = 4; rows.forEach((_, ri) => { if (!ri) return; const yy = y0 + 52 + Y[ri]; ctx.beginPath(); ctx.moveTo(tx0, yy); ctx.lineTo(tx1, yy); ctx.stroke(); });   // between days / classes
-      ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(pad + headW, y0); ctx.lineTo(pad + headW, y0 + 52 + bodyH); ctx.stroke();   // beside the day names
-      ctx.lineWidth = 2.5; P.forEach((p, j) => { if (!p.brk) return; const [bx, bw2] = colX[j]; [bx, bx + bw2].forEach(xx => { ctx.beginPath(); ctx.moveTo(xx, y0); ctx.lineTo(xx, y0 + 52 + bodyH); ctx.stroke(); }); });   // break column edges
-      ctx.lineWidth = 2; ctx.strokeStyle = LINE; ctx.strokeRect(tx0, y0, tx1 - tx0, 52 + bodyH);                          // outer frame
-    }
-    if (isDemo()) { ctx.save(); ctx.globalAlpha = 0.09; ctx.fillStyle = bw ? '#000' : NAVY; ctx.font = '800 170px Poppins, Arial'; ctx.textAlign = 'center'; ctx.translate(W / 2, H / 2 + 60); ctx.rotate(-0.35); ctx.fillText('SAMPLE', 0, 0); ctx.restore(); }
-    // footer (always) — no diagonal watermark on saved or printed pages of real schools
-    const fy = H - 50;                                    // CREATED BY bar sits at the very bottom
+    // footer (always) — no diagonal watermark on saved or printed pages
+    const fy = H - foot + 8;
     ctx.fillStyle = bw ? '#000' : NAVY; ctx.fillRect(pad, fy, W - pad * 2, 30);
     ctx.fillStyle = '#fff'; ctx.font = '800 14px Poppins, Arial'; ctx.textAlign = 'center';
     ctx.fillText(`${LOCKED_BRAND}  ·  ${LOCKED_CONTACT}  ·  ${WATERMARK}`, W / 2, fy + 20);
     ctx.textAlign = 'right'; ctx.font = '600 10.5px Poppins, Arial'; ctx.fillStyle = '#9AA8C2';
-    ctx.fillText(`PREPFIX · ${new Date().toLocaleString('en-GB')}`, W - pad - 8, fy + 20);
-    // FET line: same words as FET's own pages, just ABOVE the CREATED BY bar, starting under the first lesson column
-    ctx.textAlign = 'left'; ctx.font = '600 12.5px Poppins, Arial'; ctx.fillStyle = bw ? '#000' : '#1B2333';
-    ctx.fillText(fetText(), pad + headW, fy - 9);
+    ctx.fillText(`PREPFIX · ${new Date().toLocaleString('en-GB')}`, W - pad - 8, fy + 20); ctx.textAlign = 'left';
     return cv;
   }
   // Minimal PDF writer: one A4 landscape page per picture
@@ -1780,7 +1798,7 @@
   async function qrSvg(text) { try { await loadQR(); const qr = self.qrcode(0, 'M'); qr.addData(text); qr.make(); return qr.createSvgTag(6, 2); } catch { return ''; } }
   async function openShare() {
     const link = linkFor(), name = state.data?.school?.name || 'our school';
-    const msg = `${name} timetables. Tap the link, then tap INSTALL to put the app on your phone (it updates itself and works offline): ${link}`;
+    const msg = `${name} timetables — open on your phone, it updates automatically: ${link}`;
     openSheet(`<div class="grab"></div><h3>Share with colleagues</h3><div class="qr" id="qrBox"><span class="muted">Loading QR code…</span></div>
       <p class="linktext">${esc(link)}</p>
       <div class="sharebtns"><a class="btn" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">WhatsApp</a>
@@ -1816,14 +1834,14 @@
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   function openAbout() {
-    openSheet(`<div class="grab"></div><div class="alogo about-logo" role="img" aria-label="PREPFIX — Prepare. Perfect. Present."><img class="a0" src="/brand/prepfix-logo-600.png" alt=""><img class="w w1" src="/brand/prepfix-logo-600.png" alt=""><img class="w w2" src="/brand/prepfix-logo-600.png" alt=""><img class="w w3" src="/brand/prepfix-logo-600.png" alt=""></div><h3>About</h3><p>${esc(state.data?.school?.name || '')} timetables. This app shows the latest version published by the school and updates itself when you open it, and keeps a copy for offline use.</p>
-      <p class="muted">${esc(state.data?.school?.institution || '')}<br>${esc(LOCKED_BRAND)}<br>${esc(LOCKED_CONTACT)}<br>App version ${esc(APP_VER)} · build ${esc(CFG.build || '')}</p>
+    openSheet(`<div class="grab"></div><img class="about-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX — Prepare. Perfect. Present."><h3>About</h3><p>${esc(state.data?.school?.name || '')} timetables. This app shows the latest version published by the school and updates itself when you open it, and keeps a copy for offline use.</p>
+      <p class="muted">${esc(state.data?.school?.institution || '')}<br>${esc(LOCKED_BRAND)}<br>${esc(LOCKED_CONTACT)}<br>App version ${esc(CFG.build || '')}</p>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   async function renderPoster() {
     const link = linkFor(), name = state.data?.school?.name || '';
     document.body.classList.add('poster-mode');
-    app.innerHTML = `<div class="poster"><div class="alogo plogo" role="img" aria-label="PREPFIX — Prepare. Perfect. Present."><img class="a0" src="/brand/prepfix-logo-600.png" alt=""><img class="w w1" src="/brand/prepfix-logo-600.png" alt=""><img class="w w2" src="/brand/prepfix-logo-600.png" alt=""><img class="w w3" src="/brand/prepfix-logo-600.png" alt=""></div><div class="ptop"><div class="logo big"></div><div><h1>${esc(name || 'School')} Timetables</h1><p>On your phone · Always up to date · Works offline</p></div></div>
+    app.innerHTML = `<div class="poster"><img class="plogo" src="/brand/prepfix-logo-600.png" alt="PREPFIX — Prepare. Perfect. Present."><div class="ptop"><div class="logo big"></div><div><h1>${esc(name || 'School')} Timetables</h1><p>On your phone · Always up to date · Works offline</p></div></div>
       <div class="pmain"><div class="pqr" id="pqr"></div><ol>
         <li><b>Scan</b> this QR code with your phone camera.</li>
         <li><b>Get the app</b> — Android (Chrome): tap <b>Install</b>. iPhone (Safari): Share ⬆ → <b>Add to Home Screen</b>. Computer (Chrome/Edge): click <b>Install</b> in the address bar.</li>
@@ -1870,6 +1888,7 @@
       case 'csv': downloadCsv(); break;
       case 'csv2': downloadSessionsCsv(); break;
       case 'print': window.print(); break;
+      case 'printReport': printStaffReport(); break;
       case 'prev': stepItem(-1); break;
       case 'next': stepItem(1); break;
       case 'save': openSaveSheet(); break;
@@ -1896,7 +1915,7 @@
       case 'remCal': remCalendar(); break;
       case 'refresh': closeSheet(); await checkUpdates(); break;
       case 'appUpdate': await applyAppUpdate(); break;
-      case 'share': track('share'); openShare(); break;
+      case 'share': openShare(); break;
       case 'copy': try { await navigator.clipboard.writeText(linkFor()); toast('Link copied'); } catch { toast(linkFor(), 6000); } break;
       case 'nativeShare': try { await navigator.share({ title: 'School timetables', url: linkFor() }); } catch { } break;
       case 'about': openAbout(); break;
@@ -1925,6 +1944,7 @@
     if (pushing) { pushing = false; history.replaceState({ d: (state.lastDepth || 0) + 1 }, ''); }
     else if (!history.state) history.replaceState({ d: r.name === 'home' ? 0 : (state.lastDepth || 0) }, '');
     state.lastDepth = depthNow(); state.navDepth = state.lastDepth;
+    state.focusKey = null;
     closeRail();
     if (r.name !== 'cover') state.coverPick = false;
     if (state.data) render(); window.scrollTo(0, 0);
@@ -1932,9 +1952,8 @@
   const mq = matchMedia('(orientation: landscape)');
   const onRotate = () => { if (state.data && ['view', 'master'].includes(route().name)) setTimeout(() => { applyForce(); fitGrid(); }, 200); };
   if (mq.addEventListener) mq.addEventListener('change', onRotate); else if (mq.addListener) mq.addListener(onRotate);
-  let _rz = 0, _rw = 0, _rh = 0;
-  addEventListener('resize', () => { if (innerWidth === _rw && Math.abs(innerHeight - _rh) < 120 && !state.full) return; clearTimeout(_rz); _rz = setTimeout(() => { _rw = innerWidth; _rh = innerHeight; _resize(); }, 150); });
-  const _resize = () => { applyForce(); document.body.classList.toggle('desk', isDesk()); if (state.data) document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name)); if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 60); };
+  if (window.visualViewport) visualViewport.addEventListener('resize', () => { if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 80); });
+  addEventListener('resize', () => { applyForce(); document.body.classList.toggle('desk', isDesk()); if (state.data) document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name)); if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 60); });
   addEventListener('hashchange', () => { if (state.full && !['view', 'master'].includes(route().name)) releaseRotate(); });
   addEventListener('online', () => { state.online = true; sync('online'); });
   addEventListener('offline', () => { state.online = false; renderStatus(); });
@@ -1949,92 +1968,8 @@
   setTimeout(() => autoCheckApp(), 4000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') autoCheckApp(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkReminders(); });
-  // ------------------------------------------------------------------ PRIVATE USAGE COUNTER (for Cyrus only: never shown to teachers)
-  // Sends one tiny anonymous note (random phone id, school, which screen) to Cyrus's own reminder service. No names, no timetable content.
-  const DID = (() => { try { let d = localStorage.getItem('ireri:did'); if (!d) { d = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); localStorage.setItem('ireri:did', d); } return d; } catch { return 'x' + Math.random().toString(36).slice(2, 10); } })();
-  const seenEv = new Set();
-  function track(ev) {
-    if (!PUSH || POSTER || !ev) return;
-    try {
-      const body = JSON.stringify({ did: DID, school: CODE || '', name: (state.data && state.data.school && state.data.school.name) || '', ev, plat: platformName(),
-        sa: isStandalone() ? 1 : 0, ver: APP_VER, rem: remOn() ? 1 : 0, me: store.get('me') != null ? 1 : 0 });
-      fetch(PUSH + '/hit', { method: 'POST', body, keepalive: true, mode: 'cors', headers: { 'Content-Type': 'text/plain' } }).catch(() => { });
-    } catch { }
-  }
-  function trackPage(name) { if (!state.data || !name || seenEv.has(name)) return; seenEv.add(name); track('p:' + name); }
-
-  // ------------------------------------------------------------------ INSTALL SCREEN: the first thing that appears when the shared link is opened in a browser
-  const GATE_KEY = 'ireri:gateUntil', INST_KEY = 'ireri:installed';
-  try { if (isStandalone()) localStorage.setItem(INST_KEY, '1'); } catch { }
-  const inAppBrowser = () => /FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Snapchat|TikTok|Line\/|; wv\)|WhatsApp/i.test(navigator.userAgent);
-  const wasInstalled = () => { try { return localStorage.getItem(INST_KEY) === '1'; } catch { return false; } };
-  let gateEl = null, gateWait = null;
-  function gateBody() {
-    const plat = platformName();
-    if (state.installEvt) return `<button class="btn wide gbig" data-gate="install">${icon('install')} Install PREPFIX</button><p class="gsub">One tap · free · no app store</p>`;
-    if (plat === 'ios') return `<ol class="steps gsteps"><li>Tap <b>Share ⬆</b> at the bottom of ${inAppBrowser() ? 'the screen (or open this link in <b>Safari</b> first)' : 'Safari'}.</li><li>Choose <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>. Done!</li></ol>
-      ${inAppBrowser() ? '<button class="btn ghost wide" data-gate="copy">Copy link to open in Safari</button>' : ''}`;
-    if (plat === 'android') {
-      const intent = `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
-      return inAppBrowser()
-        ? `<a class="btn wide gbig" href="${esc(intent)}">${icon('install')} Open in Chrome to install</a><p class="gsub">This window cannot install apps. Chrome will show <b>Install</b> straight away.</p>`
-        : `<ol class="steps gsteps"><li>Tap the <b>⋮</b> menu at the top right of Chrome.</li><li>Tap <b>Install app</b> (or <b>Add to Home screen</b>).</li><li>Tap <b>Install</b>. Done!</li></ol>`;
-    }
-    return '';
-  }
-  function gateRender() {
-    if (!gateEl) return;
-    const done = gateEl.dataset.done === '1';
-    gateEl.innerHTML = `<div class="gcardx"><div class="glogo" aria-hidden="true"></div>
-      <h2>${done ? 'Installed ✓' : 'Install PREPFIX'}</h2>
-      <p class="gwhy">${done ? 'Open <b>PREPFIX</b> from your home screen or app list. Your timetable, always up to date.' : esc(state.data?.school?.name || 'Your school timetable') + ' on your phone: one tap to open, updates itself, works offline.'}</p>
-      ${done ? '<button class="btn wide gbig" data-gate="close">Continue</button>' : gateBody()}
-      ${done ? '' : '<button class="gskip" data-gate="skip">Continue in browser</button>'}</div>`;
-  }
-  function gateShow() {
-    if (gateEl || isStandalone()) return;
-    gateEl = document.createElement('div'); gateEl.id = 'igate'; gateEl.setAttribute('role', 'dialog'); gateEl.setAttribute('aria-modal', 'true');
-    gateEl.addEventListener('click', async e => {
-      const b = e.target.closest('[data-gate]'); if (!b) return; const a = b.dataset.gate;
-      if (a === 'install' && state.installEvt) {
-        const ev = state.installEvt; track('gate-install'); ev.prompt();
-        const r = await ev.userChoice.catch(() => null); state.installEvt = null;
-        if (r && r.outcome === 'accepted') { try { localStorage.setItem(INST_KEY, '1'); } catch { } gateDone(); } else gateRender();
-      } else if (a === 'copy') { try { await navigator.clipboard.writeText(location.href); toast('Link copied. Paste it in Safari.'); } catch { toast(location.href, 6000); } }
-      else if (a === 'skip' || a === 'close') gateClose(a === 'skip');
-    });
-    document.body.appendChild(gateEl); document.body.classList.add('gate-open'); gateRender();
-    requestAnimationFrame(() => gateEl && gateEl.classList.add('show')); track('gate-shown');
-  }
-  function gateClose(snooze) {
-    if (snooze) { try { localStorage.setItem(GATE_KEY, String(Date.now() + 6 * 3600 * 1000)); } catch { } }
-    const el = gateEl; gateEl = null; document.body.classList.remove('gate-open');
-    if (el) { el.classList.remove('show'); setTimeout(() => el.remove(), 250); }
-  }
-  function gateDone() { if (gateEl) { gateEl.dataset.done = '1'; gateRender(); } }
-  function gateRefresh() { if (gateEl && gateEl.dataset.done !== '1') gateRender(); else if (!gateEl && gateStarted) gateTry(); }
-  let gateStarted = false;
-  function gateTry() {
-    if (POSTER || isStandalone() || document.getElementById('brandsplash')) return;
-    try { if (+localStorage.getItem(GATE_KEY) > Date.now()) return; } catch { }
-    if (state.installEvt) return gateShow();                                          // Chrome says the app can be installed: show it at once
-    if (platformName() === 'desktop' || wasInstalled()) return;                        // no event on a computer / already installed: stay quiet
-    gateShow();                                                                          // phone without the event: show the steps for this phone
-  }
-  function gateStart() {
-    if (gateStarted) return; gateStarted = true;
-    let tries = 0;
-    const wait = setInterval(() => {                                                    // wait for the PREPFIX logo splash to finish, then show the install screen
-      tries++;
-      if (!document.getElementById('brandsplash') || tries > 40) {
-        clearInterval(wait);
-        if (state.installEvt) gateTry(); else setTimeout(gateTry, 1500);              // give Chrome a moment to offer the install event
-      }
-    }, 150);
-  }
-
-  addEventListener('beforeinstallprompt', e => { e.preventDefault(); state.installEvt = e; gateRefresh(); if (state.data && route().name === 'home') renderBanners(); });
-  addEventListener('appinstalled', () => { state.installEvt = null; try { localStorage.setItem(INST_KEY, '1'); } catch { } track('install'); gateDone(); toast('Installed ✓'); });
+  addEventListener('beforeinstallprompt', e => { e.preventDefault(); state.installEvt = e; if (state.data && route().name === 'home') renderBanners(); });
+  addEventListener('appinstalled', () => { state.installEvt = null; toast('Installed ✓'); });
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch(err => console.warn('SW', err));
   }
@@ -2045,10 +1980,8 @@
     const cached = await loadCached();
     if (cached && cached.bundle && cached.bundle.format === 2) setData(cached);
     if (state.data || POSTER) render();
-    gateStart();                                   // the install screen is the first thing a visitor sees
     await sync('start');
     if (POSTER) renderPoster();
-    track('open');
   })();
   self.__ireri = { state, sync, render, nowSlot: () => nowSlot() };
 })();

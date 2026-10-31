@@ -562,7 +562,7 @@ body.fullv main.tt{flex:1;min-height:0;display:flex;flex-direction:column;paddin
 body.fullv .inst.small{display:flex;justify-content:center;align-items:baseline;gap:10px;padding:2px 8px;margin:0 0 3px;border-top-width:2px;border-radius:8px;box-shadow:none}
 body.fullv .inst.small b{font-size:12px;display:inline}
 body.fullv .inst.small span{font-size:10.5px;display:inline;margin:0}
-body.fullv .gridwrap{flex:1;min-height:0;overflow:hidden!important;max-height:none!important}
+body.fullv .gridwrap{flex:1;min-height:0;overflow:auto!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;max-height:none!important}
 body.fullv .swipe-hint{display:none}
 body.fullv .vtools{position:static;padding:2px 8px;gap:4px}
 body.fullv .vtools .icon-btn{width:28px;height:28px}
@@ -653,8 +653,12 @@ table.wk td.bl{position:relative;padding:0!important}
 table.wk td.bl .stk{position:absolute;inset:8px 0;justify-content:space-evenly;line-height:1}
 table.wk td.bl .stk i.sp{height:auto;flex:0 0 .5em}
 /* Left pop-out menu */
-#railtab{position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:46;width:22px;height:64px;border-radius:0 14px 14px 0;background:var(--navy);border:2px solid var(--gold);border-left:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;box-shadow:2px 2px 10px rgba(0,0,0,.25);opacity:.85}
-#railtab span{display:block;width:10px;height:2px;border-radius:2px;background:#fff}
+#railtab{position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:46;width:36px;height:92px;border-radius:0 18px 18px 0;background:var(--navy);border:2.5px solid var(--gold);border-left:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;box-shadow:3px 3px 12px rgba(0,0,0,.35);opacity:1;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#railtab::before{content:"";position:absolute;left:0;top:-10px;bottom:-10px;width:52px}
+#railtab span{display:block;width:18px;height:3px;border-radius:3px;background:#fff}
+#railtab:active{background:var(--gold)}#railtab:active span{background:var(--navy)}
+#railtab:focus-visible{outline:3px solid var(--gold-2);outline-offset:2px}
+.vtop .homebtn{background:rgba(255,255,255,.12)}
 body.rail-open #railtab{opacity:0;pointer-events:none}
 #rail{position:fixed;left:0;top:0;bottom:calc(var(--brandh) + var(--safe-b));z-index:47;width:88px;background:var(--navy);border-right:3px solid var(--gold);padding:calc(10px + var(--safe-t)) 6px 10px;display:flex;flex-direction:column;gap:4px;overflow-y:auto;transform:translateX(-110%);transition:transform .22s ease;box-shadow:6px 0 24px rgba(0,0,0,.3)}
 #rail.open{transform:none}
@@ -682,7 +686,7 @@ body.fillv.force-land #app{height:100vw}
 body.fillv .vtop{position:static}
 body.fillv main.tt{flex:1;min-height:0;display:flex;flex-direction:column;max-width:none;width:100%;box-sizing:border-box;overflow:auto;padding:6px 10px 4px}
 body.fillv main.tt > .dayview{flex:none}
-body.fillv .gridwrap{flex:1;min-height:0;overflow:hidden;max-height:none!important}
+body.fillv .gridwrap{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;max-height:none!important}
 body.fillv .gridwrap.scroll2{overflow:auto!important}
 body.fillv .vtools{position:static}
 body.fillv .swipe-hint{display:none}
@@ -769,262 +773,81 @@ html.theme-dark .av{box-shadow:0 0 0 1.5px rgba(255,255,255,.3)}
 html.theme-dark .acls,html.theme-dark .acls b,html.theme-dark .sortrow,html.theme-dark .acard,html.theme-dark .acard small{color:#DCE4F2!important}
 html.theme-dark .sortrow select{background:var(--card);color:#fff;border-color:var(--line)}
 
-/* ---- Colour rule (all themes): light backgrounds carry BLACK text, dark backgrounds carry WHITE text.
-        Never put a light colour on a light colour or a dark colour on a dark one. ---- */
-table.atable td,table.atable th,table.atable td b,table.atable th b{color:#000}
-table.atable thead th,table.atable th.gh{color:#000!important}
-table.atable tr.sr td:first-child,table.atable tr.sr td:first-child b{color:#000!important}
-table.atable i{color:#0B6B44}
-table.atable tr.tot td,table.atable tr.tot td b{color:#fff!important}
-.asubj em,.sx{color:#000!important}
-.asubj em b,.sx b{color:#fff!important}
-/* Dark mode: profile and staff-analysis tables stay like white paper with black writing */
-html.theme-dark table.atable{background:#fff;border-radius:10px}
-html.theme-dark table.atable td,html.theme-dark table.atable th{background:#fff;color:#000!important;border-color:#6B7488!important}
-html.theme-dark table.atable td b,html.theme-dark table.atable th b,html.theme-dark table.atable td small{color:#000!important}
-html.theme-dark table.atable thead th{background:#EDE6D0!important;color:#000!important}
-html.theme-dark table.atable th.gh{background:#DCE6F7!important;color:#000!important}
-html.theme-dark table.atable tr.sr td:first-child{background:hsl(var(--hl,40),85%,88%)!important}
-html.theme-dark table.atable i{color:#0B6B44!important}
-html.theme-dark table.atable tr.tot td{background:var(--navy)!important;color:#fff!important}
-html.theme-dark table.atable td.warn,html.theme-dark table.atable tr.warnrow td{background:#FADFDB!important;color:#8E2A20!important}
-html.theme-dark table.mx td,html.theme-dark table.mx th{color:#000}
-
-/* ===== v1.4: bigger lesson text + a steady screen (no sideways floating) ===== */
-/* v1.6 scroll fix: overflow-x:hidden on BOTH html and body (and overscroll-behavior:none) stops one-finger scrolling on many phones.
-   'clip' hides any sideways overflow without turning the page into a scroll box. */
-html,body{max-width:100%;overscroll-behavior-y:auto;touch-action:pan-x pan-y}
-body{overflow-x:clip}
-@supports not (overflow:clip){body{overflow-x:visible}}
-/* full screen (Rotate): pinch to zoom in/out is allowed */
-body.fullv,body.fullv #app{touch-action:pan-x pan-y pinch-zoom}
-table.wk td.l b{font-size:clamp(15px,2.4vw,19px);line-height:1.2}
-table.wk td.l small{font-size:clamp(12.5px,1.9vw,15px);line-height:1.25}
-table.wk td.l small.tn{font-size:clamp(11.5px,1.7vw,14px);padding:1px 5px}
-table.wk thead th b{font-size:clamp(14px,2vw,17px)}
-table.wk thead th small{font-size:clamp(11.5px,1.6vw,13.5px)!important}
-table.wk tbody th{font-size:clamp(13px,1.9vw,16px)}
-table.wk tbody th small{font-size:clamp(10px,1.4vw,12px)}
-table.wk th.b .vt,.bt{font-size:clamp(10px,1.3vw,12px)}
-table.wk td.l .curtag{font-size:clamp(10px,1.3vw,12px)}
-/* The week/master grid never pans sideways: columns share the width, text wraps, only up/down scrolling remains */
-body.fullv .gridwrap.scroll2,body.fillv .gridwrap.scroll2{overflow-x:hidden!important;overflow-y:auto!important}
-body.fullv .gridwrap.scroll2 table.wk,body.fillv .gridwrap.scroll2 table.wk{table-layout:fixed}
-body.fullv .gridwrap.scroll2 table.wk td.l,body.fillv .gridwrap.scroll2 table.wk td.l{min-width:0;white-space:normal;overflow-wrap:anywhere;overflow:hidden}
-.gridwrap{overscroll-behavior:contain}
-
-/* ===== v1.5: "Prepare. Perfect. Present." - three words fade up one after another (minimal) ===== */
-.alogo{position:relative;display:block;aspect-ratio:1366/392;line-height:0}
-.alogo img{position:absolute;inset:0;width:100%;height:100%;max-width:none;margin:0;display:block}
-.alogo .a0{clip-path:polygon(0 0,100% 0,100% 70.2%,18.3% 70.2%,18.3% 100%,0 100%)}
-.alogo .w1{clip-path:inset(70.2% 54.8% 0 18.3%)}
-.alogo .w2{clip-path:inset(70.2% 30.8% 0 45.2%)}
-.alogo .w3{clip-path:inset(70.2% 0 0 69.2%)}
-.alogo .w{opacity:0;transform:translateY(7px);animation:alw .7s cubic-bezier(.2,.7,.2,1) forwards}
-.alogo .w1{animation-delay:calc(.35s - var(--el,0s))}.alogo .w2{animation-delay:calc(.7s - var(--el,0s))}.alogo .w3{animation-delay:calc(1.05s - var(--el,0s))}
-@keyframes alw{to{opacity:1;transform:none}}
-@media (prefers-reduced-motion:reduce){.alogo .w{animation:none;opacity:1;transform:none}}
-html.theme-dark .inst .alogo.inst-logo{padding:0;background:#fff;border-radius:6px;box-shadow:0 0 0 3px #fff}
-
-/* bottom navigator now shows only the position (the name is shown once, in the top bar) */
-.vtools .vcur small:only-child{margin-top:0;font-size:14px;color:var(--navy);font-weight:700}
-body.fullv .vtools .vcur small:only-child{display:block;font-size:12px}
-
-/* centred header: school / timetable name / (teacher code) / name */
-.inst .ol{display:block;font-weight:800;font-size:19px;line-height:1.25;letter-spacing:.03em;color:var(--navy);margin-top:5px;text-transform:uppercase}
-.inst .ol.code{font-size:24px;margin-top:8px}
-html.theme-dark .inst .ol{color:#fff}
-body.fullv .inst .ol,body.fullv .inst .ol.code{display:inline;font-size:12px;margin:0}
-
-/* rotated / full-screen view: keep the header stacked and centred, one line under another */
-body.fullv .inst.small{display:block;text-align:center;position:relative;padding:2px 64px!important;line-height:1.15}
-body.fullv .inst.small b,body.fullv .inst.small span,body.fullv .inst .ol{display:block;margin:0}
-body.fullv .inst.small b{font-size:12px}
-body.fullv .inst.small span{font-size:10.5px}
-body.fullv .inst .ol{font-size:12px;margin-top:1px}
-body.fullv .inst .ol.code{font-size:13px;margin-top:1px}
-body.fullv .inst .inst-logo{position:absolute;top:3px;right:8px;height:22px;order:0}
-
-.fetfoot{margin:10px 8px 14px;text-align:center;font-size:11.5px;font-weight:600;color:var(--muted)}
-
-/* ===== v1.7: small phones - icons and buttons always stay inside the screen ===== */
-.tiles,body.desk .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}          /* minmax(0,..): a long caption can no longer widen a column */
-@media (min-width:620px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
-body.desk .tiles{grid-template-columns:repeat(6,minmax(0,1fr))}
-.tile{min-width:0;max-width:100%;overflow:hidden}
-.tile strong{max-width:100%;line-height:1.2;overflow-wrap:anywhere}
-.tile small{display:block;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}   /* captions wrap instead of running off */
-.home,.page,.tt{overflow-x:clip}
-.brandrow,.vtop,.vbar,.vtools,.mrow{min-width:0}
-.titles,.vtitles,.mrow>span{min-width:0}
-.mrow>span{flex:1;overflow-wrap:anywhere}
-.wide-seg button{min-width:0;overflow-wrap:anywhere}
-.allpick .ap{min-width:0;overflow-wrap:anywhere}
-@media (max-width:380px){
-  .home,.page{padding-left:10px;padding-right:10px}
-  .top{padding-left:10px;padding-right:10px}
-  .tiles{gap:8px}
-  .tile{padding:10px;min-height:92px}
-  .tic{width:34px;height:34px;margin-bottom:4px}
-  .tile strong{font-size:13.5px}
-  .tile small{font-size:11px}
-  .icon-btn{width:38px;height:38px}
-  .vtop{gap:2px;padding-left:2px;padding-right:2px}
-  .vtop .btn.rot,.vbar .btn.small{padding:6px 8px;font-size:12px}
-  .vbar{padding:6px 8px;gap:6px}
-  .seg button{padding:6px 12px}
-  .wide-seg{width:calc(100% - 16px)}
-  .wide-seg button{padding:7px 4px;font-size:12px}
-  .sheet{padding-left:12px;padding-right:12px}
-  .allpick{grid-template-columns:1fr}
-}
-@media (max-width:330px){
-  .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
-  .tile{padding:8px}
-  .tile strong{font-size:12.5px}
-  .vtop .btn.rot span{display:none}                       /* just the icon when the screen is very narrow */
-  .vbar .btn.small{padding:6px 7px}
+/* ===== Printed staff analysis report (A4 landscape) ===== */
+#printreport{display:none}
+@media print{
+  body.print-report{background:#fff!important;overflow:visible!important;height:auto!important}
+  body.print-report > *:not(#printreport){display:none!important}
+  body.print-report #printreport{display:block;color:#111;font:12px/1.35 Poppins,"Segoe UI",Arial,sans-serif}
+  @page{size:A4 landscape;margin:10mm}
+  #printreport .prh{border-bottom:3px solid #12284C;padding-bottom:6px;margin-bottom:8px}
+  #printreport h1{margin:0;font-size:20px;color:#12284C;text-transform:uppercase}
+  #printreport h2{margin:2px 0 2px;font-size:15px}
+  #printreport p{margin:0;font-size:11px}
+  #printreport .prm{color:#555;margin-top:2px}
+  #printreport .prs{display:flex;gap:18px;margin:6px 0 8px;font-size:12px}
+  #printreport .prs b{font-size:15px;color:#12284C}
+  #printreport table.prt{width:100%;border-collapse:collapse;font-size:10.5px}
+  #printreport .prt th{background:#12284C!important;color:#fff!important;text-align:left;padding:4px 5px;border:1px solid #12284C;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #printreport .prt td{padding:3px 5px;border:1px solid #9aa4b8;vertical-align:top}
+  #printreport .prt tr{break-inside:avoid;page-break-inside:avoid}
+  #printreport .prt thead{display:table-header-group}
+  #printreport .prt tbody tr:nth-child(even) td{background:#f1f4fa!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #printreport .n{text-align:center;white-space:nowrap}
+  #printreport td.tot{font-weight:800;background:#FFE9A8!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #printreport .prf{margin-top:8px;font-size:9.5px;color:#555;border-top:1px solid #9aa4b8;padding-top:4px}
 }
 
-/* ===== v1.7b: a small gap is ALWAYS kept on the left and right (and beside a notch when the phone is turned sideways) ===== */
-:root{--sl:env(safe-area-inset-left,0px);--sr:env(safe-area-inset-right,0px)}
-.top,.home,.page{padding-left:max(14px,var(--sl));padding-right:max(14px,var(--sr))}
-.tt,.vbar,.mbar{padding-left:max(12px,var(--sl));padding-right:max(12px,var(--sr))}
-.vtop{padding-left:max(8px,var(--sl));padding-right:max(8px,var(--sr))}
-.vtools{padding-left:max(10px,var(--sl));padding-right:max(10px,var(--sr))}
-body.fullv main.tt,body.fillv main.tt{padding-left:max(8px,var(--sl));padding-right:max(8px,var(--sr))}
-@media (max-width:380px){
-  .top,.home,.page,.tt,.vbar,.mbar{padding-left:max(10px,var(--sl));padding-right:max(10px,var(--sr))}
-  .vtop{padding-left:max(6px,var(--sl));padding-right:max(6px,var(--sr))}
-  body.fullv main.tt,body.fillv main.tt{padding-left:max(8px,var(--sl));padding-right:max(8px,var(--sr))}
+/* ===== v44: scroll every timetable (day + week, teachers/classes/master/labs) in both directions ===== */
+/* Real visible height on phones (the address bar made 100vh taller than the screen, hiding the last rows) */
+body.force-land{height:100vh;height:100dvh}
+body.force-land #app{width:100vh;width:100dvh}
+body.force-land #brandbar{width:100vh;width:100dvh}
+body.force-land.fullv #app{height:100vw}
+
+/* Full screen / desktop: the timetable area itself scrolls up-down and left-right */
+body.fillv main.tt,body.fullv main.tt{
+  overflow-x:auto!important;overflow-y:auto!important;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-x pan-y;
+  min-height:0;padding-bottom:calc(28px + var(--safe-b))}
+body.fillv main.tt > .dayview,body.fullv main.tt > .dayview,
+body.fillv main.tt > .daytabs,body.fullv main.tt > .daytabs,
+body.fillv main.tt > .inst,body.fullv main.tt > .inst,
+body.fillv main.tt > .swipe-hint{flex-shrink:0}
+body.fillv main.tt > .dayview,body.fullv main.tt > .dayview{margin-bottom:16px}
+
+/* Normal phone view: tables scroll both ways and always end above the bottom bars */
+.gridwrap{overflow:auto!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-x pan-y;
+  max-height:calc(100vh - 270px);max-height:calc(100dvh - 270px);min-height:220px}
+.gridwrap table.wk{margin-bottom:10px}
+.tt{touch-action:pan-x pan-y pinch-zoom}
+.dayview{touch-action:pan-x pan-y}
+@media (orientation:landscape) and (max-height:520px){
+  .gridwrap{max-height:calc(100vh - 190px);max-height:calc(100dvh - 190px);min-height:140px}
 }
+body.fillv .gridwrap,body.fullv .gridwrap{max-height:none!important}
+body.force-land .gridwrap{max-height:calc(100vw - 190px)}
+body.force-land.fillv .gridwrap,body.force-land.fullv .gridwrap{max-height:none!important}
 
-/* ===== v1.8: every dashboard box (Classes, Master, Free teachers ...) is exactly the same size ===== */
-.tiles{grid-auto-rows:1fr;align-items:stretch}           /* all rows share one height */
-.tile{height:100%;min-height:136px;justify-content:flex-start}
-.tile strong,.tile small{display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;white-space:normal;text-overflow:ellipsis}
-.tile strong{-webkit-line-clamp:2}
-.tile small{-webkit-line-clamp:2}
-@media (max-width:380px){.tile{min-height:124px}}
-@media (min-width:620px){.tile{min-height:132px}}
+/* ===== v44: BIG side-menu tab, visible on every screen (including Rotate / full screen) ===== */
+#railtab{width:54px;height:140px;border-radius:0 26px 26px 0;gap:9px;border-width:3px;
+  box-shadow:4px 4px 16px rgba(0,0,0,.45);z-index:90;opacity:.97}
+#railtab::before{width:72px;top:-16px;bottom:-16px}
+#railtab span{width:28px;height:4px;border-radius:4px}
+#railtab em{font-style:normal;font:800 10px/1 Poppins,"Segoe UI",Arial,sans-serif;letter-spacing:.12em;color:var(--gold-2);margin-top:2px}
+#railtab:active em{color:var(--navy)}
+#rail{width:108px;z-index:95}
+#rail .ri{padding:10px 3px;font-size:12px;gap:4px}
+#rail .ri .ic{width:26px;height:26px}
+body.rail-open::after{z-index:92}
+body.desk #railtab{width:48px;height:120px}
 
-/* ===== v1.9: full screen (Rotate) on small phones - the whole week fits on ONE screen ===== */
-@media (max-width:760px),(max-height:520px){
-  body.fullv table.wk td.l b{font-size:11px;line-height:1.15}
-  body.fullv table.wk td.l small{font-size:9.5px;line-height:1.15}
-  body.fullv table.wk td.l small.tn{font-size:9px;padding:0 3px;margin-top:2px}
-  body.fullv table.wk td.l .curtag{font-size:8px}
-  body.fullv table.wk thead th b{font-size:11px}
-  body.fullv table.wk thead th small{font-size:9px!important}
-  body.fullv table.wk thead th{padding:2px 1px}
-  body.fullv table.wk tbody th{font-size:10px;padding:2px 3px}
-  body.fullv table.wk tbody th small{font-size:8px}
-  body.fullv table.wk td{padding:2px 3px}
-  body.fullv table.wk thead th:first-child,body.fullv table.wk tbody th{width:40px}
-  body.fullv table.wk.master thead th:first-child,body.fullv table.wk.master tbody th{width:38px}
-  body.fullv table.wk th.b,body.fullv table.wk td.b{width:22px!important;min-width:22px!important;max-width:24px!important}
-  body.fullv .inst.small{padding:1px 6px;margin:0 0 2px}
-  body.fullv .inst.small b{font-size:10.5px}
-  body.fullv .inst.small span{font-size:9px}
-  body.fullv .fetfoot{margin:2px 6px;font-size:9px}
-  body.fullv .vtop{padding-top:1px;padding-bottom:1px}
-  body.fullv .vtop .icon-btn{width:26px;height:26px}
-  body.fullv .vtop h2{font-size:12px}
-  body.fullv .vbar{padding-top:1px;padding-bottom:1px}
-  body.fullv .vbar .btn,body.fullv .vbar .seg button{padding:2px 8px;font-size:11px}
-}
-
-/* ===== v1.10: the side menu tab no longer sits on top of the tiles; a clear gap is kept on the left ===== */
-#railtab{width:12px;height:56px;gap:3px;border-width:1.5px;opacity:.75}
-#railtab span{width:6px}
-.home,.page{padding-left:max(16px,var(--sl));padding-right:max(16px,var(--sr))}
-.tt{padding-left:max(14px,var(--sl));padding-right:max(14px,var(--sr))}
-@media (max-width:380px){
-  .home,.page,.tt{padding-left:max(14px,var(--sl));padding-right:max(12px,var(--sr))}
-}
-
-/* ===== v1.12: dashboard - the SAME gap on the left and the right, text wraps (never squeezed or cut), calmer modern cards ===== */
-html,body{width:100%;max-width:100%;overflow-x:clip}
-#app{width:100%;max-width:100%;overflow-x:clip}
-main.home{box-sizing:border-box;width:100%;max-width:760px;margin-left:auto;margin-right:auto;
-  padding-left:max(18px,var(--sl));padding-right:max(18px,var(--sr))}      /* identical left and right */
-body.desk main.home{max-width:1500px}
-main.home>*{min-width:0;max-width:100%}
-main.home .now-card,main.home .inst,main.home .banner{width:100%;overflow-wrap:break-word}
-main.home .now-card{margin:4px 0 16px}
-
-/* the grid can never grow wider than the screen: columns are exactly half each, whatever the text inside */
-main.home .tiles{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:auto!important;
-  align-items:stretch;gap:12px;width:100%;max-width:100%;margin:0;contain:inline-size}
-@media (min-width:620px){main.home .tiles{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
-body.desk main.home .tiles{grid-template-columns:repeat(6,minmax(0,1fr))!important}
-
-main.home .tile{--tc:var(--navy);position:relative;isolation:isolate;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;
-  gap:0;width:100%;min-width:0;height:100%;min-height:120px;padding:14px 14px 16px;border-radius:20px;overflow:hidden;
-  border:1px solid var(--line);box-shadow:0 1px 2px rgba(18,40,76,.05),0 8px 20px -10px rgba(18,40,76,.22);
-  transition:transform .12s ease,box-shadow .12s ease}
-main.home .tile:active{transform:scale(.97);box-shadow:0 1px 2px rgba(18,40,76,.08)}
-/* soft colour glow in the corner + small arrow, so every box looks tappable */
-main.home .tile::before{content:"";position:absolute;z-index:-1;right:-24px;top:-24px;width:76px;height:76px;border-radius:50%;background:var(--tc);opacity:.08}
-main.home .tile::after{content:"";position:absolute;right:15px;top:19px;width:7px;height:7px;border-top:2px solid var(--tc);border-right:2px solid var(--tc);transform:rotate(45deg);opacity:.55}
-main.home .tile .tic{width:42px;height:42px;border-radius:14px;margin:0 0 10px;flex:none;box-shadow:0 4px 10px -4px rgba(18,40,76,.45)}
-/* text: wraps onto as many lines as it needs - no "...", no clipping */
-main.home .tile strong,main.home .tile small{display:block!important;width:100%;max-width:100%;overflow:visible!important;
-  white-space:normal!important;text-overflow:clip!important;-webkit-line-clamp:unset!important;overflow-wrap:break-word;word-break:normal;hyphens:auto}
-main.home .tile strong{font-size:15.5px;font-weight:600;line-height:1.22;letter-spacing:-.005em}
-main.home .tile small{margin-top:4px;font-size:12.5px;line-height:1.35;color:var(--muted)}
-main.home .t-me{--tc:var(--gold)}.t-teachers{--tc:var(--navy)}
-main.home .t-classes{--tc:var(--green)}
-main.home .t-master{--tc:#3B4A66}
-main.home .t-rooms{--tc:#9A7616}
-main.home .t-free{--tc:#1E7F5C}
-main.home .t-cover{--tc:#B5562B}
-main.home .t-where{--tc:#5A3E8C}
-main.home .t-meet{--tc:var(--green)}
-main.home .t-analysis{--tc:#2F6FB0}
-main.home .t-printall{--tc:#334155}
-main.home .t-schools{--tc:var(--green)}
-html.theme-dark main.home .tile{box-shadow:0 8px 20px -10px rgba(0,0,0,.6)}
-
-@media (max-width:380px){
-  main.home{padding-left:max(16px,var(--sl));padding-right:max(16px,var(--sr))}
-  main.home .tiles{gap:10px}
-  main.home .tile{padding:12px 12px 14px;min-height:110px;border-radius:18px}
-  main.home .tile .tic{width:38px;height:38px;margin-bottom:8px}
-  main.home .tile strong{font-size:14.5px}
-  main.home .tile small{font-size:12px}
-}
-@media (max-width:330px){main.home .tiles{gap:8px}main.home .tile strong{font-size:13.5px}main.home .tile small{font-size:11.5px}}
-
-/* ===== v1.13: FET schools list (marketing) ===== */
-.fethero{position:relative;overflow:hidden;background:linear-gradient(135deg,#12284C,#1B3E78);color:#fff;border-radius:20px;padding:18px 18px 16px;margin:2px 0 14px;box-shadow:var(--shadow);border-bottom:4px solid var(--gold)}
-.fethero small{display:block;font-size:11px;letter-spacing:.14em;font-weight:600;color:var(--gold-2)}
-.fethero h2{margin:4px 0 8px;font-size:21px;line-height:1.2;color:#fff;overflow-wrap:break-word}
-.fethero p{margin:0 0 12px;font-size:14px;line-height:1.45;color:#DCE4F2}
-.fethero p b{color:var(--gold-2);font-size:17px}
-.fethero .btn{display:flex;width:100%;text-align:center;background:#25D366;color:#073B1E;font-weight:700;padding:12px 14px;line-height:1.25}
-.fethero .btn .ic{fill:#073B1E}
-.fethero .fetnote{display:block;margin-top:10px;font-size:12px;line-height:1.4;color:#AFC0DD;text-align:center}
-.fetlist{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
-@media (min-width:620px){.fetlist{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.fetrow{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px;box-shadow:var(--shadow);min-width:0}
-.fetrow b{font-size:14.5px;font-weight:600;color:var(--navy);line-height:1.3;overflow-wrap:break-word;min-width:0}
-.fetn{flex:none;min-width:32px;height:32px;padding:0 6px;border-radius:999px;display:grid;place-items:center;background:var(--navy);color:#fff;font-size:12.5px;font-weight:700;box-shadow:0 0 0 2px var(--gold-2)}
-html.theme-dark .fetrow{background:var(--card)!important;border-color:var(--line)!important}
-html.theme-dark .fetrow b{color:#F2F5FB}
-
-/* ===== v1.13: install screen - first thing shown when the shared link is opened ===== */
-body.gate-open{overflow:hidden}
-#igate{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px calc(18px + var(--sr)) calc(20px + var(--safe-b)) calc(18px + var(--sl));
-  background:radial-gradient(120% 90% at 50% 0%,#1B3E78 0%,#12284C 55%,#0B1B36 100%);opacity:0;transition:opacity .22s ease;overflow:auto}
-#igate.show{opacity:1}
-#igate .gcardx{width:100%;max-width:420px;background:#fff;color:var(--ink);border-radius:26px;padding:26px 22px 20px;text-align:center;box-shadow:0 24px 60px -18px rgba(0,0,0,.6);border-bottom:5px solid var(--gold)}
-#igate .glogo{width:76px;height:76px;margin:0 auto 12px;border-radius:22px;background:var(--navy) url('/icons/icon-192.png') center/cover;box-shadow:0 10px 24px -8px rgba(18,40,76,.6)}
-#igate h2{margin:0 0 6px;font-size:24px;color:var(--navy);line-height:1.2}
-#igate .gwhy{margin:0 0 18px;font-size:14.5px;line-height:1.5;color:#475467;overflow-wrap:break-word}
-#igate .gbig{display:flex;width:100%;padding:15px 16px;font-size:17px;border-radius:16px;box-shadow:0 10px 22px -10px rgba(30,127,92,.9)}
-#igate .gsub{margin:10px 0 0;font-size:12.5px;line-height:1.45;color:#667085}
-#igate .gsteps{text-align:left;margin:0 0 12px;padding-left:22px;font-size:14.5px;line-height:1.5;color:#1B2333}
-#igate .gsteps li{margin:6px 0}
-#igate .btn.ghost{margin-top:6px}
-#igate .gskip{display:block;width:100%;margin-top:14px;padding:10px;font-size:13.5px;font-weight:600;color:#667085;text-decoration:underline;text-underline-offset:3px}
+/* Rotate on a phone held upright: draw the tab and the menu in the same turned layout as the page */
+body.force-land #railtab,body.force-land #rail{display:flex!important}
+body.force-land #railtab{
+  top:calc((100vw - var(--brandh)) / 2 - 70px);left:0;
+  transform-origin:top left;transform:translateX(100vw) rotate(90deg)}
+body.force-land #rail{
+  top:0;left:0;bottom:auto;height:calc(100vw - var(--brandh));
+  transform-origin:top left;transform:translateX(100vw) rotate(90deg) translateX(-110%)}
+body.force-land #rail.open{transform:translateX(100vw) rotate(90deg)}

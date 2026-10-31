@@ -6,6 +6,10 @@
   "start_url": "/s/kianyaga-boys-sen-school-6k9n/",
   "scope": "/",
   "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "any",
   "background_color": "#FFFFFF",
   "theme_color": "#12284C",
