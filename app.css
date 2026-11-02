@@ -473,7 +473,7 @@ table.mx td small{font-size:10.5px;color:#4A4A4A}
 
 .list li.mine .row{background:#FFF7DD;border-color:var(--gold);box-shadow:inset 4px 0 0 var(--gold)}
 .now-me .nx{display:block;margin-top:4px}.now-me .nx i{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--gold);color:var(--navy);font-style:normal;font-size:11px;font-weight:700;margin-right:6px}.now-me .nx + .nx{border-top:1px dashed rgba(255,255,255,.25);padding-top:4px}
-/* Frozen footer: CREATED BY CYRUS IRERI · 0720872582 on every screen */
+/* Frozen footer: DESIGNED BY CYRUS IRERI 0720872582 on every screen */
 :root{--brandh:28px}
 #brandbar{position:fixed;left:0;right:0;bottom:0;z-index:45;height:calc(var(--brandh) + var(--safe-b));padding-bottom:var(--safe-b);display:flex;align-items:center;justify-content:center;gap:10px;background:var(--navy);color:#fff;font:600 11.5px/1 Poppins,"Segoe UI",Arial,sans-serif;letter-spacing:.08em;border-top:2px solid var(--gold);pointer-events:none;white-space:nowrap}
 #brandbar b{color:var(--gold-2);font-weight:700;letter-spacing:.04em}
@@ -1160,7 +1160,7 @@ body.fullv .inst .origin{font-size:10px;margin-top:1px}
 /* notes written in PREPFIX for this class / teacher, under the timetable */
 .ttnotes{margin:12px 0 16px;background:#fff;border:2px solid var(--gold);border-radius:14px;padding:10px 14px;box-shadow:var(--shadow)}
 .ttnotes h4{margin:0 0 6px;font:800 13px/1.2 Poppins,"Segoe UI",Arial,sans-serif;letter-spacing:.08em;color:var(--navy);text-transform:uppercase}
-.ttnotes p{margin:0 0 8px;white-space:pre-wrap;font:500 14.5px/1.45 Poppins,"Segoe UI",Arial,sans-serif;color:#111}
+.ttnotes p{margin:0 0 8px;white-space:pre-wrap;font:800 17px/1.45 Poppins,"Segoe UI",Arial,sans-serif;color:#000;text-transform:uppercase;letter-spacing:.02em}
 .ttnotes p:last-child{margin-bottom:0}
 html.theme-dark .ttnotes{background:#fff}html.theme-dark .ttnotes h4{color:#12284C}html.theme-dark .ttnotes p{color:#000}
 
@@ -1174,3 +1174,45 @@ html.is-desktop #pvstrip{background:#12284C}html.is-desktop #pvstrip #pvclose{ba
 .inst{padding-right:170px!important;padding-left:170px!important}
 @media (max-width:520px){.inst{padding-left:12px!important;padding-right:12px!important;padding-top:46px!important}.inst .inst-logo{height:36px}}
 html.is-desktop #banners{display:none!important}
+
+/* AS PRINTED: the A4 pages, big, on a grey desk */
+body:has(.pages){background:#4B5160}
+.pghead{position:sticky;top:0;z-index:5}
+.pgtabs{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 16px 12px}
+.pgtabs a,.pgtabs button{font:700 14px/1 Poppins,Arial,sans-serif;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.35);color:#fff;background:transparent;text-decoration:none;cursor:pointer}
+.pgtabs a small{opacity:.75;font-weight:600}
+.pgtabs a.on{background:#fff;color:#12284C}
+.pgtabs .pgbw{margin-left:auto}
+.pgtabs .pgprint{background:#C9A227;border-color:#C9A227;color:#12284C;display:inline-flex;gap:6px;align-items:center}
+.pgtabs .pgprint svg{width:16px;height:16px}
+.pgkey{margin:0;padding:0 16px 12px;color:#E8EDF7;font:600 12.5px/1.5 Poppins,Arial,sans-serif}
+.pgkey .k1,.pgkey .k2{display:inline-block;width:22px;height:13px;vertical-align:-2px;border:3px solid #FF5A5A;margin-right:4px}
+.pgkey .k2{border-style:dashed}
+.pages{max-width:1240px;margin:0 auto;padding:22px 16px 60px;display:flex;flex-direction:column;gap:26px}
+.pg{margin:0}
+.pg .pgsheet{background:#fff;aspect-ratio:1600/1131;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.45);display:grid;place-items:center;overflow:hidden}
+.pg .pgsheet img{width:100%;height:100%;display:block}
+.pg .pgwait{color:#98A2B3;font:600 14px Poppins,Arial,sans-serif}
+.pg figcaption{color:#fff;font:700 14px/1.4 Poppins,Arial,sans-serif;padding:8px 2px 0}
+.pg figcaption span{opacity:.7;font-weight:600}
+/* preview only: a lesson that breaks a rule PREPFIX could not fix */
+table.wk td.l.badc,.dayview li.badc{outline:4px solid #D11F1F;outline-offset:-4px}
+.badtag{display:inline-block;background:#D11F1F;color:#fff!important;font:800 9px/1.4 Poppins,Arial,sans-serif;letter-spacing:.06em;border-radius:5px;padding:0 5px;margin-bottom:2px;text-transform:uppercase}
+.pvstrip a.pvpg,#pvstrip a.pvpg{background:#C9A227;color:#12284C!important;border-radius:8px;padding:4px 10px;font-weight:800}
+body:has(.pages) #railtab{display:none}
+
+/* AS PRINTED, one A4 page per screen, paged left / right */
+body:has(.pages.h){overflow:hidden}
+.pages.h{max-width:none;flex-direction:row;gap:0;padding:0;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:thin}
+.pages.h .pg{flex:0 0 100%;height:100%;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 64px 4px;box-sizing:border-box}
+.pages.h .pgsheet{height:calc(100% - 30px);width:auto;max-width:100%}
+.pages.h figcaption{text-align:center}
+.pgnav{position:fixed;top:55%;z-index:6;width:46px;height:74px;border:0;border-radius:12px;background:rgba(18,40,76,.85);color:#fff;font:700 40px/1 Poppins,Arial,sans-serif;cursor:pointer}
+.pgnav.l{left:8px}.pgnav.r{right:8px}
+.pgnav:hover{background:#C9A227;color:#12284C}
+.pgcount{position:fixed;right:70px;bottom:40px;z-index:6;background:rgba(18,40,76,.85);color:#fff;font:700 13px Poppins,Arial,sans-serif;padding:5px 10px;border-radius:8px}
+#pvstrip .pvnav{background:#fff;color:#12284C;border:0;border-radius:8px;padding:4px 10px;font:700 12.5px Poppins,Arial,sans-serif;cursor:pointer}
+
+.pgjump{display:inline-flex;align-items:center;gap:6px;margin-left:10px;color:#E8EDF7;font:700 13px Poppins,Arial,sans-serif}
+.pgjump button{border:0;border-radius:9px;background:#C9A227;color:#12284C;font:800 14px/1 Poppins,Arial,sans-serif;padding:9px 13px;cursor:pointer}
+.pgjump button:hover{background:#fff}
