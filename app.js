@@ -77,7 +77,7 @@
 
   // ------------------------------------------------------------------ schools directory (works with or without a school code)
   // Every school's app reads Cyrus Ireri's list of ALL registered schools (also schools on their own GitHub).
-  const DIRECTORY = (self.IRERI_CONFIG && self.IRERI_CONFIG.directory) || 'https://irericyrus004.github.io/schools.json';
+  const DIRECTORY = (self.IRERI_CONFIG && self.IRERI_CONFIG.directory) || 'https://cbcrevisionhub.co.ke/schools.json';
   const schoolHref = x => `${x.site && x.site.startsWith('https://') ? x.site.replace(/\/$/, '') : ''}/s/${encodeURIComponent(x.code)}/`;
   async function fetchSchools() {
     try {
@@ -98,7 +98,7 @@ const own = isOwner();
     return list.map(x => { const link = own && x.code !== cur, t = link ? 'a' : 'div', same = !x.site || x.site.replace(/\/$/, '') === location.origin;
       return `<${t} class="school ${x.code === cur ? 'mine' : ''} ${link ? 'olink' : ''}"${link ? ` href="${esc(schoolHref(x))}"${same ? '' : ' target="_blank" rel="noopener"'}` : ''}>
       <span class="av av-classes">${esc(String(x.name).replace(/[^A-Za-z0-9 ]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'S')}</span>
-      <span class="nm"><b>${esc(x.name)}</b>${x.code === cur ? ' <i class="me-tag">Your school</i>' : ''}<small>${esc(x.institution || '')}${x.institution ? ' · ' : ''}${[Number.isFinite(x.teachers) ? x.teachers + ' teachers' : '', Number.isFinite(x.classes) ? x.classes + ' classes' : ''].filter(Boolean).join(' · ')}</small>
+      <span class="nm"><b>${esc(x.name)}</b>${x.code === cur ? ' <i class="me-tag">Your school</i>' : ''}${x.suspended ? ' <i class="me-tag">Suspended</i>' : ''}<small>${esc(x.institution || '')}${x.institution ? ' · ' : ''}${[Number.isFinite(x.teachers) ? x.teachers + ' teachers' : '', Number.isFinite(x.classes) ? x.classes + ' classes' : ''].filter(Boolean).join(' · ')}</small>
       ${x.updated ? `<small>Updated ${esc(fmtDate(x.updated))}</small>` : ''}</span>
       <span class="sstat">${Number.isFinite(x.teachers) ? `<span><b>${x.teachers}</b><small>teachers</small></span>` : ''}${Number.isFinite(x.classes) ? `<span><b>${x.classes}</b><small>classes</small></span>` : ''}</span>${link ? '<span class="sopen">Open ›</span>' : ''}</${t}>`; }).join('');
   }
@@ -215,14 +215,26 @@ const own = isOwner();
     return list.join(', ');
   }
   // Text for a lesson cell in each kind of timetable: [main line, small line]
+  // NOTES written in PREPFIX for one class, every class, one teacher or every teacher (shown under the timetable)
+  function notesFor(item) {
+    const all = (B && Array.isArray(B.notes)) ? B.notes : [];
+    if (!item) return [];
+    return all.filter(n => n && n.text && (
+      (item.kind === 'classes' && (n.to === 'classes' || (n.to === 'class' && String(n.name) === String(item.name)))) ||
+      (item.kind === 'teachers' && (n.to === 'teachers' || (n.to === 'teacher' && String(n.name) === String(item.code))))));
+  }
+  function notesHTML(item) {
+    const L = notesFor(item);
+    return L.length ? `<section class="ttnotes"><h4>📌 Notes</h4>${L.map(n => `<p>${esc(n.text)}</p>`).join('')}</section>` : '';
+  }
   function cellLines(kind, c, ownName) {
     if (!isLesson(c)) return null;
     const tag = c.g ? ` ${c.g}` : '';
     if (kind === 'teachers') return [classesText(c.c) || c.s || '', [c.c ? c.s : '', tag.trim(), c.r].filter(Boolean).join(' · ')];
     if (kind === 'classes' || kind === 'master') {
       const others = c.c ? c.c.split(',').map(s => s.trim()).filter(x => x !== ownName) : [];
-      // Class timetables show the teacher CODE; Master (for administrators) and Labs & Fields show the teacher's NAME
-      return [(c.s || '') + tag, [c.r, others.length && others.length < 3 ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · '), kind === 'master' ? teachersText(c.t) : teacherCodes(c.t)];
+      // Class and Master timetables show the subject only; tap the lesson to see the teacher's name
+      return [(c.s || '') + tag, [c.r, others.length && others.length < 3 ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · '), ''];
     }
     return [[classesText(c.c), c.s].filter(Boolean).join(' · '), '', teachersText(c.t)];
   }
@@ -479,6 +491,25 @@ const own = isOwner();
     if (!r.ok) throw new Error(`Server said ${r.status}`);
     return r.json();
   }
+  // SUSPENDED by Cyrus Ireri: no timetable is shown (not even the saved copy) until the school is restored
+  const SUSP_KEY = `ireri:${CODE}:suspended`;
+  async function lockOut(msg) {
+    state.error = 'locked'; state.lockMsg = msg || ''; state.data = null; B = null;
+    try { localStorage.setItem(SUSP_KEY, state.lockMsg || '1'); } catch { }
+    try { if ('caches' in self) await caches.delete(DATA_CACHE); } catch { }
+    try { Object.keys(localStorage).filter(k => k.startsWith(`ireri:${CODE}:data3:`)).forEach(k => localStorage.removeItem(k)); } catch { }
+    render();
+  }
+  const PC_ONLY_MSG = 'This school uses PREPFIX on the school computer only. Timetables on phones are not switched on for this school - ask the school office.';
+  async function dirSuspended() {              // Cyrus Ireri's list of schools: suspended, or the mobile app not allowed
+    if (CFG.preview) return '';                // the preview / desktop version on the school's own computer
+    try { const r = await fetch(DIRECTORY + '?v=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return '';
+      const j = await r.json(); const me = (j.schools || []).find(x => x.code === CODE);
+      if (!me) return '';
+      if (me.suspended) return 'suspended';
+      if (me.mobile === false) return PC_ONLY_MSG;
+      return ''; } catch { return ''; }
+  }
   function setData(d) { state.data = d; B = d.bundle; buildIndex(); buildColours(); if (remOn()) setTimeout(() => pushSubscribe(false), 1500); }
   async function sync(reason = '') {
     if (state.syncing) return;
@@ -486,6 +517,9 @@ const own = isOwner();
     const had = !!state.data;
     try {
       const meta = await getJson('meta.json', Date.now());          // tiny file: has anything changed?
+      const dirSays = meta.suspended ? '' : await dirSuspended();
+      if (meta.suspended || dirSays) { await lockOut(meta.message || (dirSays === 'suspended' ? '' : dirSays)); return; }
+      try { localStorage.removeItem(SUSP_KEY); } catch { }
       const list = Array.isArray(meta.timetables) ? meta.timetables : null;
       state.tts = list || [];
       try { localStorage.setItem(`ireri:${CODE}:tts`, JSON.stringify(state.tts)); } catch { }
@@ -509,7 +543,7 @@ const own = isOwner();
     } catch (e) {
       state.online = navigator.onLine && !(e instanceof TypeError);
       if (e instanceof NotFound) state.error = 'notfound';
-      else if (!state.data) state.error = state.online ? 'failed' : 'offline';
+      else if (!state.data && state.error !== 'locked') state.error = state.online ? 'failed' : 'offline';
       if (!state.data) render();
       if (reason === 'manual') toast(navigator.onLine ? 'Could not reach the server. Showing saved copy.' : 'You are offline. Showing saved copy.');
     } finally { state.syncing = false; renderStatus(); if (state.data && route().name === 'home') renderBanners(); }
@@ -573,7 +607,7 @@ const own = isOwner();
     document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name));
     document.body.classList.toggle('frame', !fillOn() && ['view', 'master'].includes(route().name));
     if ((state.full || state.force) && !['view', 'master'].includes(route().name)) releaseRotate();
-    if (state.error === 'locked') return renderMsg('Timetables not available', 'This school\'s timetable service is switched off. Please contact the school office.', false);
+    if (state.error === 'locked') return renderMsg('Timetables not available', state.lockMsg || 'This school\'s timetable service is suspended. Please contact the school office.', false);
     if (!state.data) return renderEmpty();
     const r = route();
     if (r.name === 'list') return renderList(r.kind, r.pick);
@@ -585,7 +619,27 @@ const own = isOwner();
     if (r.name === 'free') return renderFree();
     if (r.name === 'cover') return renderCover();
     if (r.name === 'where') return renderWhere();
-    return renderHome();
+    return CFG.preview && !CFG.desktop ? renderPreviewHome() : renderHome();
+  }
+  // PREVIEW on the PREPFIX computer: only what matters - teachers, classes, master (and print them all)
+  function renderPreviewHome() {
+    const sch = state.data.school || {};
+    document.title = (sch.name || 'School') + ' · Preview';
+    const tiles = [['teachers', 'teacher', 'Teachers', `${B.teachers.length} timetables`, 'list/teachers'],
+      ['classes', 'classes', 'Classes', `${B.classes.length} timetables`, 'list/classes'],
+      ['master', 'grid', 'Master', 'Every class, day by day', 'master'],
+      ['printall', 'print', 'Print all timetables', 'Teachers, classes, master · colour or black & white', '']];
+    app.innerHTML = `
+      <header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div>
+        <div class="titles"><h1>${esc(sch.name || 'School')}</h1><p class="sub">Preview · not published yet</p></div></div></header>
+      <main class="home pvhome">
+        ${instBlock()}
+        <nav class="tiles pvtiles">${tiles.map(([k, ic, t, sub, href]) => `
+          <button class="tile t-${k}" ${k === 'printall' ? 'data-act="allSheet"' : `data-go="${href}"`}>
+            <span class="tic">${icon(ic)}</span><strong>${esc(t)}</strong><small>${esc(sub)}</small></button>`).join('')}
+        </nav>
+        <footer class="foot">${esc(BRAND_LINE)}</footer>
+      </main>`;
   }
   function topBar(title, sub = '', right = '', html = '') {
     return `<header class="vtop"><button class="navbtn nb-back" data-act="back" aria-label="Back">${icon('back')}<span>Back</span></button><button class="navbtn nb-home" data-act="home" aria-label="Dashboard (home)">${icon('home')}<span>Home</span></button>
@@ -834,7 +888,8 @@ const own = isOwner();
   function instBlock(extra = '', owner = null) {
     const L = instLines();
     if (!L.length) return '';
-    return `<div class="inst ${extra}${owner ? ' has-owner' : ''}"><img class="inst-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX"><b>${esc(L[0])}</b>${L.slice(1).map(x => `<span>${esc(x)}</span>`).join('')}${owner ? `<div class="owner"><i>${esc(owner.tag)}</i><strong>${esc(owner.name)}</strong></div>` : ''}</div>`;
+    const og = B && B.origin && B.origin.text ? `<p class="origin o-${esc(B.origin.path || 'A')}">${esc(B.origin.text)}</p>` : '';
+    return `<div class="inst ${extra}${owner ? ' has-owner' : ''}"><img class="inst-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX Timetable Toolkit"><b>${esc(L[0])}</b>${L.slice(1).map(x => `<span>${esc(x)}</span>`).join('')}${owner ? `<div class="owner"><i>${esc(owner.tag)}</i><strong>${esc(owner.name)}</strong></div>` : ''}${og}</div>`;
   }
   function ttSwitcher() {
     const list = state.tts || [];
@@ -1031,7 +1086,7 @@ const own = isOwner();
         <button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit full screen' : 'Rotate'}</span></button>
         ${kind === 'teachers' ? `<button class="btn small ghost" data-go="analysis/${esc(item.id)}" aria-label="Profile">${icon('chart')} <span class="lbl">Profile</span></button>` : ''}<button class="btn small ghost" data-act="save" aria-label="Save">${icon('save')} <span class="lbl">Save</span></button>
       </div>
-      <main class="tt" id="tt">${instBlock('small', ownerLine(kind, item))}${layout === 'day' ? dayView(item) : weekGrid(item)}</main>
+      <main class="tt" id="tt">${instBlock('small', ownerLine(kind, item))}${layout === 'day' ? dayView(item) : weekGrid(item)}${notesHTML(item)}</main>
       <div class="vtools">
         <button class="icon-btn" data-act="prev" ${idx <= 0 ? 'disabled' : ''} aria-label="Previous">${icon('prev')}</button>
         <span class="vcur">${kind === 'teachers' ? `<i class="sc">${esc(item.code)}</i>` : ''}<b>${esc(kind === 'teachers' ? teacherLabel(item) : item.name)}</b><small>${idx + 1} of ${sib.length}</small></span>
@@ -1054,7 +1109,7 @@ const own = isOwner();
   async function toggleRotate() {
     if (state.full) { releaseRotate(); render(); return; }
     state.full = true; document.body.classList.add('fullv');          // same arrangement — only the viewing angle changes
-    // no browser full-screen request: it makes the browser show its own "…github.io is full screen" notice
+    // no browser full-screen request: it makes the browser show its own "… is full screen" notice
     try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch { }
     applyForce(); render();
     setTimeout(() => { applyForce(); fitGrid(); }, 350);
@@ -1075,8 +1130,8 @@ const own = isOwner();
       const cls = (isNow ? 'now' : isNext ? 'next' : '') + (p.pm ? ' pm' : '');
       if (isCont(item, d, j)) return `<li class="cont ${cls}"><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div><div class="pc">${tag}<span class="muted">↳ continues (double lesson)</span></div></li>`;
       const c = cellAt(item, d, j), L = cellLines(item.kind, c, item.name);
-      return `<li class="${cls}${L ? ' has tap' : ''}"${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c, item.kind, item.name)}><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div>
-        <div class="pc">${tag}${L ? `<strong>${esc(L[0])}</strong>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${L[2] ? `<span class="tn">${esc(L[2])}</span>` : ''}${isDoubleStart(item, d, j) ? '<span class="dbl">double</span>' : ''}` : c === 'X' ? '<span class="muted">Not available</span>' : '<span class="freec">Free</span>'}</div></li>`;
+      return `<li class="${cls}${L ? ' has tap' : ''}${L && c.mv ? ' mvd' : ''}"${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c, item.kind, item.name)}><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div>
+        <div class="pc">${tag}${L && c.mv ? '<span class="mvtag">MOVED</span>' : ''}${L ? `<strong>${esc(L[0])}</strong>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${L[2] ? `<span class="tn">${esc(L[2])}</span>` : ''}${isDoubleStart(item, d, j) ? '<span class="dbl">double</span>' : ''}` : c === 'X' ? '<span class="muted">Not available</span>' : '<span class="freec">Free</span>'}</div></li>`;
     }).join('');
     return `${dayTabs(d)}<ul class="dayview dv-${item.kind}" style="zoom:${zmGet('Day')}">${rows}</ul><p class="swipe-hint"><b>Tap a lesson</b> to see ${item.kind === 'classes' ? 'the teacher\'s name and who can cover' : 'who can be there'} · swipe for the next ${item.kind === 'teachers' ? 'teacher' : item.kind === 'classes' ? 'class' : 'timetable'} · press <b>Rotate</b> for the whole week</p>`;
   }
@@ -1100,7 +1155,7 @@ const own = isOwner();
       let span = 1; while ((item.grid[d] || [])[j + span] === '^') span++;
       const c = cellAt(item, d, j), L = cellLines(kind, c, item.name);
       const nowc = n.d === d && n.j >= j && n.j < j + span ? ' now' : '';
-      tds += `<td${span > 1 ? ` colspan="${span}"` : ''}${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c, kind, item.name)} class="${L ? 'l' : c === 'X' ? 'x' : 'f'}${IDX.P[j].pm ? ' pmc' : ''}${nowc}">${nowc && n.status === 'lesson' ? '<span class="curtag sm">● CURRENT</span>' : ''}${L ? `<b>${esc(L[0])}</b>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${L[2] ? `<small class="tn">${esc(L[2])}</small>` : ''}` : ''}</td>`;
+      tds += `<td${span > 1 ? ` colspan="${span}"` : ''}${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c, kind, item.name)} class="${L ? 'l' : c === 'X' ? 'x' : 'f'}${IDX.P[j].pm ? ' pmc' : ''}${nowc}${L && c.mv ? ' mvd' : ''}">${nowc && n.status === 'lesson' ? '<span class="curtag sm">● CURRENT</span>' : ''}${L && c.mv ? '<span class="mvtag">MOVED</span>' : ''}${L ? `<b>${esc(L[0])}</b>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${L[2] ? `<small class="tn">${esc(L[2])}</small>` : ''}` : ''}</td>`;
     }
     return tds;
   }
@@ -1168,7 +1223,7 @@ const own = isOwner();
     app.innerHTML = `${topBar('Master timetable', esc(dayLabel(d)) + ' · all classes', `<button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit' : 'Rotate'}</span></button><button class="icon-btn" data-act="save" aria-label="Save">${icon('save')}</button>`)}
       <div class="mbar">${dayTabs(d)}${gradeChips()}</div>
       <main class="tt"><div class="gridwrap" id="gridwrap"><table class="wk master dc${d % 5}" id="wk"><thead><tr><th>Class</th>${headCells(d, n)}</tr></thead><tbody>${body}</tbody></table></div>
-      <p class="swipe-hint">Slide the table sideways · swipe here for the next section (Labs &amp; Fields) · press Rotate for the whole day on one screen</p></main>${zoomCtl()}`;
+      <p class="swipe-hint"><b>Tap a lesson</b> to see the teacher · slide the table sideways · swipe here for the next section (Labs &amp; Fields) · press Rotate for the whole day on one screen</p></main>${zoomCtl()}`;
     if (fillOn() || Math.abs(zmGet('Week') - 1) > 0.01) fitGrid();
     focusCurrent('master:' + state.grade + ':' + d + ':' + (state.full ? 'f' : 'n'), 'week');
   }
@@ -1667,8 +1722,14 @@ const own = isOwner();
 
   // ------------------------------------------------------------------ SAVE as picture
   function wrapText(ctx, text, maxW) {
-    const words = String(text).split(/\s+/); const lines = []; let cur = '';
-    for (const w of words) { const t = cur ? cur + ' ' + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; }
+    // break at spaces; a word still too wide (e.g. T.FILM/F.ART/GEO) may also break after a "/"
+    const toks = [];
+    String(text).split(/\s+/).filter(Boolean).forEach(w => {
+      if (ctx.measureText(w).width <= maxW || !w.includes('/')) { toks.push([w, ' ']); return; }
+      const parts = w.split(/(?<=\/)/); parts.forEach((x, i) => toks.push([x, i === 0 ? ' ' : '']));
+    });
+    const lines = []; let cur = '';
+    for (const [w, glue] of toks) { const t = cur ? cur + glue + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; }
     if (cur) lines.push(cur); return lines;
   }
   // ------------------------------------------------------------------ SAVE: picture (PNG) or PDF · coloured or black & white · fills an A4 page
@@ -1697,7 +1758,7 @@ const own = isOwner();
   let LOGO = null;
   function loadLogo() {
     if (LOGO) return LOGO;
-    LOGO = new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = '/brand/prepfix-logo-600.png'; });
+    LOGO = new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = '/brand/prepfix-logo.png'; });
     return LOGO;
   }
   const currentTarget = () => { const r = route(); return r.name === 'master' ? { master: true, d: state.day, grade: state.grade } : { id: r.id }; };
@@ -1727,7 +1788,7 @@ const own = isOwner();
     // fit everything onto one page: shrink the drawing (f) only if the content is taller than the page
     let f = 1, lay;
     for (let it = 0; it < 8; it++) {
-      const W = PW / f, H = PH / f, pad = 28, top = 156, foot = 46, headW = kind === 'master' ? 96 : 84, brkW = 40;
+      const W = PW / f, H = PH / f, pad = 28, top = 156, foot = (B && B.origin && B.origin.text) ? 66 : 46, headW = kind === 'master' ? 96 : 84, brkW = 40;
       const colW = (W - pad * 2 - headW - nB * brkW) / nL;
       const colWs = P.map(p => p.brk ? brkW : colW);
       let S = 1;                                       // text size multiplier: as big as still fits on the page
@@ -1735,19 +1796,27 @@ const own = isOwner();
         let span = 1; while ((row.item.grid[row.d] || [])[j + span] === '^') span++;
         let cw = 0; for (let k = j; k < j + span; k++) cw += colWs[k];
         const c = cellAt(row.item, row.d, j), L = cellLines(kind, c, row.item.name);
-        if (!L) return { cw, L, a: [], b: [], t: [] };
-        mctx.font = `800 ${15 * S}px Poppins, Arial`; const a = wrapText(mctx, L[0], cw - 14).slice(0, 3);
+        if (!L) return { cw, L, a: [], b: [], t: [], k: 1 };
+        // the subject gets smaller in its own box until it fits (at most 3 lines, nothing past the border)
+        let k = 1, a;
+        for (; ; k *= 0.9) {
+          mctx.font = `800 ${15 * S * k}px Poppins, Arial`; a = wrapText(mctx, L[0], cw - 14);
+          if ((a.length <= 3 && a.every(x => mctx.measureText(x).width <= cw - 10)) || k < 0.5) break;
+        }
+        a = a.slice(0, 3);
         mctx.font = `600 ${12.5 * S}px Poppins, Arial`; const b = L[1] ? wrapText(mctx, L[1], cw - 14) : [];
         mctx.font = `700 ${12 * S}px Poppins, Arial`; const t = L[2] ? wrapText(mctx, L[2], cw - 22) : [];
-        return { cw, L, a, b, t };
+        return { cw, L, a, b, t, k };
       };
       const calcNeed = () => rows.map(row => { let h = 56; for (let j = 0; j < P.length; j++) { if (P[j].brk || isCont(row.item, row.d, j)) continue;
-        const t = cellText(row, j); h = Math.max(h, t.a.length * 18 * S + t.b.length * 15 * S + (t.t.length ? t.t.length * 14 * S + 10 * S : 0) + 22); } return h; });
+        const t = cellText(row, j); h = Math.max(h, t.a.length * 18 * S * t.k + t.b.length * 15 * S + (t.t.length ? t.t.length * 14 * S + 10 * S : 0) + 22); } return h; });
       const bodyAvail = H - top - 52 - foot;
       let need, sum;
       for (const cand of [1.75, 1.6, 1.45, 1.32, 1.2, 1.1, 1]) { S = cand; need = calcNeed(); sum = need.reduce((a, b) => a + b, 0); if (sum <= bodyAvail * 1.001) break; }
-      if (sum > bodyAvail * 1.001 && f > 0.42) { f = Math.max(0.42, f * Math.sqrt(bodyAvail / sum) * 0.98); continue; }
-      const extra = Math.max(0, bodyAvail - sum), RH = need.map(h => h + extra / rows.length);
+      // only the master fills the A4 page; teachers', classes' and labs' timetables use 3/4 of it
+      const capBody = kind === 'master' ? bodyAvail : Math.min(bodyAvail, H * 0.75 - top - 52);
+      if (sum > capBody * 1.001 && f > 0.42) { f = Math.max(0.42, f * Math.sqrt(capBody / sum) * 0.98); continue; }
+      const extra = Math.max(0, capBody - sum), RH = need.map(h => h + extra / rows.length);
       lay = { W, H, pad, top, foot, headW, brkW, colWs, cellText, RH, S }; break;
     }
     const { W, H, pad, top, foot, headW, colWs, cellText, RH, S } = lay;
@@ -1822,9 +1891,9 @@ const own = isOwner();
         ctx.fillStyle = fc ? fc[0] : '#ffffff'; ctx.fillRect(cx, y, cw, rowH);
         ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(cx, y, cw, rowH);
         if (L) {
-          const blockH = T.a.length * 18 * S + T.b.length * 15 * S + (T.t.length ? T.t.length * 14 * S + 10 * S : 0);
+          const blockH = T.a.length * 18 * S * T.k + T.b.length * 15 * S + (T.t.length ? T.t.length * 14 * S + 10 * S : 0);
           let ty = y + (rowH - blockH) / 2 + 14 * S; ctx.textAlign = 'center';
-          ctx.fillStyle = fc ? fc[1] : INK; ctx.font = `800 ${15 * S}px Poppins, Arial`; T.a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 18 * S; });
+          ctx.fillStyle = fc ? fc[1] : INK; ctx.font = `800 ${15 * S * T.k}px Poppins, Arial`; T.a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 18 * S * T.k; });
           ctx.font = `600 ${12.5 * S}px Poppins, Arial`; T.b.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 15 * S; });
           if (T.t.length) {                                    // teacher names in their own box and colour
             ctx.font = `700 ${12 * S}px Poppins, Arial`;
@@ -1838,8 +1907,35 @@ const own = isOwner();
         }
       }
     });
+    // notes for this class / teacher, in the space under the timetable
+    const fy = H - 46 + 8;
+    const nItem = tgt.master ? null : IDX.byId[tgt.id], notes = notesFor(nItem);
+    if (notes.length) {
+      const nx = pad, nw = W - pad * 2, ny = y0 + 52 + bodyH + 14, nh = fy - (B && B.origin && B.origin.text ? 24 : 10) - ny;
+      if (nh > 40) {
+        let fs = 24, lines = [];
+        const lay = () => { ctx.font = `600 ${fs}px Poppins, Arial`; lines = [];
+          notes.forEach((n, i) => { String(n.text).split(/\r?\n/).forEach(par => { lines.push(...(par.trim() ? wrapText(ctx, par, nw - 28) : [''])); }); if (i < notes.length - 1) lines.push(''); }); };
+        lay();
+        while (lines.length * fs * 1.35 + 34 > nh && fs > 9) { fs -= 1; lay(); }
+        const maxL = Math.max(1, Math.floor((nh - 34) / (fs * 1.35)));
+        if (lines.length > maxL) { lines = lines.slice(0, maxL); lines[maxL - 1] += ' …'; }
+        const boxH = Math.min(nh, lines.length * fs * 1.35 + 34);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(nx, ny, nw, boxH);
+        ctx.lineWidth = 2; ctx.strokeStyle = bw ? '#000' : GOLD; ctx.strokeRect(nx, ny, nw, boxH);
+        ctx.textAlign = 'left'; ctx.fillStyle = bw ? '#000' : NAVY; ctx.font = '800 15px Poppins, Arial';
+        ctx.fillText('NOTES', nx + 14, ny + 20);
+        ctx.fillStyle = INK; ctx.font = `600 ${fs}px Poppins, Arial`;
+        lines.forEach((ln, i) => ctx.fillText(ln, nx + 14, ny + 22 + (i + 1) * fs * 1.35));
+      }
+    }
     // footer (always) — no diagonal watermark on saved or printed pages
-    const fy = H - foot + 8;
+    if (B && B.origin && B.origin.text) {
+      ctx.textAlign = 'left'; ctx.font = 'italic 600 12px Poppins, Arial';
+      ctx.fillStyle = bw ? '#000' : (B.origin.path === 'B' ? '#1E7F5C' : '#B5463A');
+      let t = B.origin.text; while (ctx.measureText(t).width > W - pad * 2 && t.length > 20) t = t.slice(0, -2);
+      ctx.fillText(t, pad, fy - 7);
+    }
     ctx.fillStyle = bw ? '#000' : NAVY; ctx.fillRect(pad, fy, W - pad * 2, 30);
     ctx.fillStyle = '#fff'; ctx.font = '800 14px Poppins, Arial'; ctx.textAlign = 'center';
     ctx.fillText(`${LOCKED_BRAND}  ·  ${LOCKED_CONTACT}  ·  ${WATERMARK}`, W / 2, fy + 20);
@@ -2029,14 +2125,14 @@ const own = isOwner();
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   function openAbout() {
-    openSheet(`<div class="grab"></div><img class="about-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX — Prepare. Perfect. Present."><h3>About</h3><p>${esc(state.data?.school?.name || '')} timetables. This app shows the latest version published by the school and updates itself when you open it, and keeps a copy for offline use.</p>
+    openSheet(`<div class="grab"></div><img class="about-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX Timetable Toolkit — Prepare. Perfect. Present."><h3>PREPFIX Timetable Toolkit</h3><p>${esc(state.data?.school?.name || '')} timetables. This app shows the latest version published by the school and updates itself when you open it, and keeps a copy for offline use.</p>
       <p class="muted">${esc(state.data?.school?.institution || '')}<br>${esc(LOCKED_BRAND)}<br>${esc(LOCKED_CONTACT)}<br>App version ${esc(CFG.build || '')}</p>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   async function renderPoster() {
     const link = linkFor(), name = state.data?.school?.name || '';
     document.body.classList.add('poster-mode');
-    app.innerHTML = `<div class="poster"><img class="plogo" src="/brand/prepfix-logo-600.png" alt="PREPFIX — Prepare. Perfect. Present."><div class="ptop"><div class="logo big"></div><div><h1>${esc(name || 'School')} Timetables</h1><p>On your phone · Always up to date · Works offline</p></div></div>
+    app.innerHTML = `<div class="poster"><img class="plogo" src="/brand/prepfix-logo-600.png" alt="PREPFIX Timetable Toolkit — Prepare. Perfect. Present."><div class="ptop"><div class="logo big"></div><div><h1>${esc(name || 'School')} Timetables</h1><p>On your phone · Always up to date · Works offline</p></div></div>
       <div class="pmain"><div class="pqr" id="pqr"></div><ol>
         <li><b>Scan</b> this QR code with your phone camera.</li>
         <li><b>Get the app</b> — Android (Chrome): tap <b>Install</b>. iPhone (Safari): Share ⬆ → <b>Add to Home Screen</b>. Computer (Chrome/Edge): click <b>Install</b> in the address bar.</li>
@@ -2199,21 +2295,54 @@ const own = isOwner();
   setInterval(() => { if (document.visibilityState === 'visible' && state.data && route().name === 'home') { const c = $('.now-card'); if (c) c.outerHTML = nowCard(); } }, 60000);
   setInterval(checkReminders, 15000);
   try { if (sessionStorage.getItem('prepfix:updated')) { sessionStorage.removeItem('prepfix:updated'); setTimeout(() => toast('✓ PREPFIX updated to the newest version', 3500), 2200); } } catch { }
-  setTimeout(() => autoCheckApp(), 4000);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') autoCheckApp(); });
+  if (!CFG.preview) {
+    setTimeout(() => autoCheckApp(), 4000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') autoCheckApp(); });
+  }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkReminders(); });
   addEventListener('beforeinstallprompt', e => { e.preventDefault(); state.installEvt = e; if (state.data && route().name === 'home') renderBanners(); });
   addEventListener('appinstalled', () => { state.installEvt = null; toast('Installed ✓'); });
-  if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator && !CFG.preview) {
     navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch(err => console.warn('SW', err));
+  }
+  // ------------------------------------------------------------------ PREVIEW on the PREPFIX computer (nothing published yet)
+  if (CFG.preview) {
+    document.documentElement.classList.add('is-preview');
+    const strip = document.createElement('div');
+    strip.id = 'pvstrip';
+    if (CFG.desktop) document.documentElement.classList.add('is-desktop');
+    strip.innerHTML = `${CFG.desktop ? '<b>PREPFIX TIMETABLE TOOLKIT</b><span>Desktop · on this computer</span>' : '<b>PREVIEW</b><span>Not published yet</span>'}
+      <a href="#list/teachers">Teachers</a><a href="#list/classes">Classes</a><a href="#master">Master</a>
+      <button type="button" id="pvfs"></button><button type="button" id="pvclose">✕ Close preview</button>`;
+    document.body.prepend(strip);
+    const fsOn = () => !!document.fullscreenElement || (innerHeight >= screen.height - 2 && innerWidth >= screen.width - 2);
+    const label = () => { const b = document.getElementById('pvfs'); if (b) b.textContent = fsOn() ? '⤡ Exit full screen' : '⛶ Full screen'; };
+    // Full screen on/off without the F11 key: PREPFIX (on this computer) presses it for the window, or the browser's own full screen is used
+    document.getElementById('pvfs').addEventListener('click', async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else {
+          const r = await fetch('/__prepfix/fullscreen', { method: 'POST', cache: 'no-store' }).then(x => x.json()).catch(() => ({}));
+          if (!r.ok) { if (fsOn()) toast('Press F11 to leave full screen', 3000); else await document.documentElement.requestFullscreen(); }
+        }
+      } catch { toast('Use ✕ Close preview to close this window', 3000); }
+      setTimeout(label, 500);
+    });
+    document.getElementById('pvclose').addEventListener('click', async () => {
+      const r = await fetch('/__prepfix/close', { method: 'POST', cache: 'no-store' }).then(x => x.json()).catch(() => ({}));
+      if (!r.ok) { try { window.close(); } catch { } setTimeout(() => toast('Close this window with the ✕ at its top right (or Alt + F4)', 4000), 300); }
+    });
+    addEventListener('resize', label); document.addEventListener('fullscreenchange', label); label();
   }
 
   // ------------------------------------------------------------------ start
   (async () => {
     try { state.tts = JSON.parse(localStorage.getItem(`ireri:${CODE}:tts`) || '[]'); } catch { state.tts = []; }
-    const cached = await loadCached();
+    let susp = null; try { susp = localStorage.getItem(SUSP_KEY); } catch { }
+    if (susp) { state.error = 'locked'; state.lockMsg = susp === '1' ? '' : susp; }
+    const cached = susp ? null : await loadCached();
     if (cached && cached.bundle && cached.bundle.format === 2) setData(cached);
-    if (state.data || POSTER) render();
+    if (state.data || POSTER || susp) render();
     await sync('start');
     if (POSTER) renderPoster();
   })();

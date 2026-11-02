@@ -1,6 +1,6 @@
 {
  "title": "Schools using FET Timetable Program",
- "note": "EDIT THIS LIST: add or remove school names below, then run Start Publisher.bat -> Publish. Teachers see this list under 'Schools using FET Timetable Program'.",
+ "note": "EDIT THIS LIST: add or remove school names below, then run Start PREPFIX.bat -> Publish. Teachers see this list under 'Schools using FET Timetable Program'.",
  "schools": [
   "Gaichanjiru High School",
   "Kirwara High School",
