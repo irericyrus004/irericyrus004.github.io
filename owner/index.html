@@ -109,7 +109,8 @@ async function loadSchools() {
     const dir = await fetch('/schools.json?t=' + Date.now()).then(r => r.json()).catch(() => ({ schools: [] }));
     let use = null;
     if (WORKER) {
-      const r = await fetch(WORKER + '/owner.json?key=' + encodeURIComponent(KEY), { cache: 'no-store' });
+      const r = await fetch(WORKER + '/owner.json?key=' + encodeURIComponent(KEY), { cache: 'no-store' })
+        .catch(() => { throw new Error('The timetable service did not accept the owner key (or cannot be reached). Tap ⚙ and type the key again.'); });
       if (r.status === 403) throw new Error('The owner key is wrong for the timetable service. Tap ⚙ and type it again.');
       if (!r.ok) throw new Error('The timetable service did not answer (' + r.status + ').');
       use = await r.json();
@@ -255,7 +256,9 @@ function render() {
 $('#tabS').onclick = () => { TAB = 'S'; st.set('tab', TAB); q = ''; render(); };
 $('#tabC').onclick = () => { TAB = 'C'; st.set('tab', TAB); q = ''; render(); };
 $('#dlg').addEventListener('click', e => { if (e.target === $('#dlg')) $('#dlg').close(); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && KEY && (!S || days(S.at) > 1 / 96)) refresh(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && KEY) refresh(); });
+setInterval(() => { if (!document.hidden && KEY && navigator.onLine && !$('#dlg').open) refresh(); }, 60000);   // live: fresh numbers every minute
+addEventListener('online', () => { if (KEY) refresh(); });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/owner/sw.js', { scope: '/owner/' }).catch(() => { });
 render(); if (KEY) refresh();
 </script>
