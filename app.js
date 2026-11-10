@@ -234,7 +234,7 @@ const own = isOwner();
   }
   function notesHTML(item) {
     const L = notesFor(item);
-    return L.length ? `<section class="ttnotes"><h4>📌 NOTE</h4>${L.map(n => `<p>${esc(String(n.text).toUpperCase())}</p>`).join('')}</section>` : '';
+    return L.length ? `<section class="ttnotes"><h4><mark>NOTE:</mark></h4>${L.map(n => `<p>${esc(String(n.text).toUpperCase())}</p>`).join('')}</section>` : '';
   }
   function cellLines(kind, c, ownName) {
     if (!isLesson(c)) return null;
@@ -494,6 +494,123 @@ const own = isOwner();
   }
   class NotFound extends Error { }
   class Locked extends Error { }
+  class NeedJoin extends Error { }
+
+  // ------------------------------------------------------------------ SCHOOL LOCK: only teachers on the school's
+  // list (by phone number) open its timetables. The phone gets the school's key once, then works offline too.
+  const LK_KEY = `ireri:${CODE}:lk`, PH_KEY = `ireri:${CODE}:ph`;
+  const lockKey = () => { try { return localStorage.getItem(LK_KEY) || ''; } catch { return ''; } };
+  const DID = (() => { try { let d = localStorage.getItem('ireri:did'); if (!d) { d = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join(''); localStorage.setItem('ireri:did', d); } return d; } catch { return 'x' + Date.now(); } })();
+  const PLAT = /android/i.test(navigator.userAgent) ? 'and' : /iphone|ipad|ipod/i.test(navigator.userAgent) ? 'ios' : 'pc';
+  const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  async function openBox(key, box) {
+    const k = b64d(key), S = crypto.subtle;
+    const mk = new Uint8Array(await S.digest('SHA-256', new Uint8Array([...k, ...new TextEncoder().encode('|mac')])));
+    const iv = b64d(box.iv), ct = b64d(box.ct), mac = b64d(box.mac);
+    const hk = await S.importKey('raw', mk, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+    const both = new Uint8Array(iv.length + ct.length); both.set(iv); both.set(ct, iv.length);
+    if (!await S.verify('HMAC', hk, mac, both)) throw new NeedJoin('key');
+    const ek = await S.importKey('raw', k, 'AES-CTR', false, ['decrypt']);
+    const z = await S.decrypt({ name: 'AES-CTR', counter: iv, length: 128 }, ek, ct);
+    return JSON.parse(await new Response(new Blob([z]).stream().pipeThrough(new DecompressionStream('deflate'))).text());
+  }
+  function normPhone(s) {
+    const raw = String(s || '').trim(); let d = raw.replace(/\D/g, '');
+    if (raw.startsWith('+') && d.length >= 9) return d.startsWith('2540') ? '254' + d.slice(4) : d;
+    if (d.startsWith('2540')) d = '254' + d.slice(4);
+    if (d.length === 10 && d[0] === '0' && '17'.includes(d[1])) return '254' + d.slice(1);
+    if (d.length === 9 && '17'.includes(d[0])) return '254' + d;
+    if (d.length === 12 && d.startsWith('254') && '17'.includes(d[3])) return d;
+    return '';
+  }
+  async function phoneHash(n) {
+    const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`prepfix|${CODE}|${n}`)));
+    return Array.from(h, b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+  }
+  // still this number's phone? Asked when online (at most every 20 minutes). If the timetable office freed the
+  // number or took the teacher off the list, this phone forgets the school and asks again.
+  async function stillMine() {
+    if (!CFG.push || CFG.preview || !lockKey()) return;
+    const k = 'ireri:chk:' + CODE; try { if (Date.now() - (+localStorage.getItem(k) || 0) < 20 * 60e3) return; } catch { }
+    let ph = ''; try { ph = localStorage.getItem(PH_KEY) || ''; } catch { }
+    if (!ph) return;
+    try {
+      const r = await fetch(CFG.push + '/check', { method: 'POST', body: JSON.stringify({ school: CODE, ph, did: DID }) });
+      const j = await r.json();
+      try { localStorage.setItem(k, Date.now()); } catch { }
+      if (j.ok && j.locked && j.mine === false) {
+        try { [LK_KEY, PH_KEY, k].forEach(x => localStorage.removeItem(x)); Object.keys(localStorage).filter(x => x.startsWith(`ireri:${CODE}:data3:`)).forEach(x => localStorage.removeItem(x)); } catch { }
+        try { if ('caches' in self) await caches.delete(DATA_CACHE); } catch { }
+        state.data = null; B = null; state.error = 'join';
+        state.joinMsg = 'You were signed out by the timetable office. Type your number and make a PIN to sign in again.';
+        render();
+      }
+    } catch { }
+  }
+  // SIGN OUT (with the member's PIN): this phone forgets the school; the number can sign in again anywhere
+  function openSignOut() {
+    openSheet(`<div class="grab"></div><h3>Sign out</h3><p>Your number becomes free to sign in on another phone. Type your PIN to sign out.</p>
+      <input id="soPin" type="password" inputmode="numeric" maxlength="4" placeholder="Your PIN" style="font:600 20px/1.2 Poppins,Arial,sans-serif;padding:12px;border:2px solid #12284C;border-radius:12px;text-align:center;width:100%">
+      <p class="joinmsg" id="soMsg"></p><button class="btn wide" data-act="signOutGo">Sign out</button><button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
+  }
+  async function signOutGo() {
+    const m = $('#soMsg'), pin = ($('#soPin').value || '').replace(/\D/g, '');
+    let ph = ''; try { ph = localStorage.getItem(PH_KEY) || ''; } catch { }
+    if (pin.length !== 4) { m.textContent = 'Type your 4-number PIN.'; return; }
+    m.textContent = 'Signing out…';
+    try {
+      const r = await fetch(CFG.push + '/signout', { method: 'POST', body: JSON.stringify({ school: CODE, ph, did: DID, pin }) });
+      const j = await r.json();
+      if (!j.ok) { m.textContent = j.error === 'wrong-pin' ? 'That is not your PIN.' : j.error === 'too-many' ? 'Too many tries. Wait an hour.' : 'Could not sign out. Try again.'; return; }
+    } catch { m.textContent = 'You need the internet to sign out.'; return; }
+    try { [LK_KEY, PH_KEY].forEach(x => localStorage.removeItem(x)); Object.keys(localStorage).filter(x => x.startsWith(`ireri:${CODE}:data3:`)).forEach(x => localStorage.removeItem(x)); } catch { }
+    try { if ('caches' in self) await caches.delete(DATA_CACHE); } catch { }
+    closeSheet(); state.data = null; B = null; state.error = 'join'; state.joinMsg = 'You have signed out.'; render();
+  }
+  function seenPing() {                          // so Cyrus sees who uses the app (once in 6 hours, no timetable details)
+    if (!CFG.push || CFG.preview) return;
+    const k = 'ireri:ping:' + CODE; try { if (Date.now() - (+localStorage.getItem(k) || 0) < 6 * 3600e3) return; localStorage.setItem(k, Date.now()); } catch { }
+    fetch(CFG.push + '/hit', { method: 'POST', body: JSON.stringify({ did: DID, ev: 'open', school: CODE, name: store.get('myname', '') || '', plat: PLAT }) }).catch(() => { });
+  }
+  function renderJoin() {
+    const nm = (state.joinSchool || CODE).replace(/</g, '');
+    app.innerHTML = `<div class="splash joinbox"><div class="splash-logo"></div><h2>${esc(nm)}</h2>
+      <p>This school's timetables are for its teachers. Type <b>the phone number you registered with</b> and <b>make your own 4-number PIN</b>. You stay signed in on this phone.</p>
+      <form id="joinf" autocomplete="off"><input id="joinph" type="tel" inputmode="tel" placeholder="Phone number, e.g. 0712 345 678" aria-label="Your phone number" required>
+      <input id="joinpin" type="password" inputmode="numeric" maxlength="4" placeholder="Make a PIN (4 numbers)" aria-label="Make a PIN" autocomplete="new-password">
+      <input id="joinpin2" type="password" inputmode="numeric" maxlength="4" placeholder="Type the PIN again" aria-label="Type the PIN again" autocomplete="new-password">
+      <button class="btn" type="submit">Open the timetables</button></form>
+      <p class="joinmsg" id="joinmsg">${esc(state.joinMsg || '')}</p>
+      <p class="muted small">One phone per number. Changing phones? Sign out on the old phone first (menu ☰ → Sign out).</p></div>`;
+    $('#joinf').addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const msg = $('#joinmsg'), n = normPhone($('#joinph').value);
+      if (!n) { msg.textContent = 'That is not a phone number. Type it like 0712 345 678.'; return; }
+      if (!CFG.push) { msg.textContent = 'The timetable service is not ready yet. Please ask the school office.'; return; }
+      msg.textContent = 'Checking…';
+      try {
+        const pin = ($('#joinpin').value || '').replace(/\D/g, ''), pin2 = ($('#joinpin2').value || '').replace(/\D/g, '');
+        if (pin.length !== 4) { msg.textContent = 'Make a PIN of 4 numbers.'; return; }
+        if (pin !== pin2) { msg.textContent = 'The two PINs are not the same. Type them again.'; return; }
+        const r = await fetch(CFG.push + '/join', { method: 'POST', body: JSON.stringify({ school: CODE, ph: await phoneHash(n), pin, did: DID, plat: PLAT }) });
+        const j = await r.json().catch(() => ({}));
+        if (j.ok && j.key) {
+          try { localStorage.setItem(LK_KEY, j.key); localStorage.setItem(PH_KEY, await phoneHash(n)); localStorage.setItem('ireri:chk:' + CODE, Date.now()); } catch { }
+          try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch { }   // keep it: do not let the browser clear it
+          if (j.t) store.set('me', j.t);
+          if (j.name) store.set('myname', j.name);
+          state.error = null; state.joinMsg = '';
+          toast(j.name ? `Welcome, ${j.name} ✓` : 'Welcome ✓', 4000);
+          renderEmpty(); sync('manual'); return;
+        }
+        msg.textContent = (j.error === 'no-match' || j.error === 'not-registered') ? 'This number is not registered for this school. Check it, or ask the timetable office.'
+          : j.error === 'in-use' ? 'This number is already signed in on another phone. If that is not you, tell the timetable office - they will remove that sign-in.'
+          : j.error === 'need-pin' ? 'Make a PIN of 4 numbers.'
+          : j.error === 'too-many' ? 'Too many tries. Wait an hour and try again.'
+          : j.error === 'not-locked' ? 'Please try again in a minute.' : 'Could not check the number. Try again.';
+      } catch { msg.textContent = navigator.onLine ? 'Could not reach the timetable service. Try again.' : 'You are offline. Connect to the internet and try again.'; }
+    });
+  }
   const BASE = `/s/${encodeURIComponent(CODE)}/`;
   async function getJson(name, bust) {
     const r = await fetch(`${BASE}${name}?v=${encodeURIComponent(bust)}`, { cache: 'no-store' });
@@ -541,17 +658,32 @@ const own = isOwner();
         tt = t.id; ver = t.version; path = `t/${encodeURIComponent(t.id)}/data.json`;
         if (want !== tt) store.set('tt', tt);
       }
+      state.joinSchool = meta.name || '';
+      if (meta.locked && !lockKey() && !CFG.preview) throw new NeedJoin('no key');
       if (!state.data || state.data.tt !== tt || state.data.version !== ver) {
         const switching = state.data && state.data.tt !== tt;
         const full = await getJson(path, ver);                       // the timetable itself
+        if (full.benc) {                                             // a locked school: open it with this phone's key
+          if (!lockKey()) throw new NeedJoin('no key');
+          try { full.bundle = await openBox(lockKey(), full.benc); }
+          catch (e) { try { localStorage.removeItem(LK_KEY); } catch { } throw new NeedJoin('key'); }
+        }
+        if (meta.locked || full.benc) seenPing();
         setData({ tt, ttName: (full.timetable || {}).name || '', version: full.version || ver, school: { ...(full.school || {}), ...meta, note: (full.school || {}).note || '' }, bundle: full.bundle, savedAt: Date.now() });
         await saveCached(state.data);
         if (had && !switching) toast('Timetable updated to the latest version ✓');
         state.error = null; render();
       } else { state.data.school = { ...state.data.school, ...meta, note: state.data.school.note }; state.data.savedAt = Date.now(); saveCached(state.data); }
+      if (meta.locked && lockKey()) stillMine();          // signed out here if the number was used on another phone
       state.online = true; state.lastSync = Date.now(); state.error = null;
     } catch (e) {
       state.online = navigator.onLine && !(e instanceof TypeError);
+      if (e instanceof NeedJoin) {                                   // not this phone's school (yet): ask for the number
+        state.error = 'join'; state.data = null; B = null;
+        try { if ('caches' in self) await caches.delete(DATA_CACHE); } catch { }
+        try { Object.keys(localStorage).filter(k => k.startsWith(`ireri:${CODE}:data3:`)).forEach(k => localStorage.removeItem(k)); } catch { }
+        render(); return;
+      }
       if (e instanceof NotFound) state.error = 'notfound';
       else if (!state.data && state.error !== 'locked') state.error = state.online ? 'failed' : 'offline';
       if (!state.data) render();
@@ -618,6 +750,7 @@ const own = isOwner();
     document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name));
     document.body.classList.toggle('frame', !fillOn() && ['view', 'master'].includes(route().name));
     if ((state.full || state.force) && !['view', 'master'].includes(route().name)) releaseRotate();
+    if (state.error === 'join') return renderJoin();
     if (state.error === 'locked') return renderMsg('Timetables not available', state.lockMsg || 'This school\'s timetable service is suspended. Please contact the school office.', false);
     if (!state.data) return renderEmpty();
     const r = route();
@@ -1988,17 +2121,21 @@ const own = isOwner();
         let fs = 30, lines = [];
         const lay = () => { ctx.font = `800 ${fs}px Poppins, Arial`; lines = [];
           notes.forEach((n, i) => { String(n.text).toUpperCase().split(/\r?\n/).forEach(par => { lines.push(...(par.trim() ? wrapText(ctx, par, nw - 28) : [''])); }); if (i < notes.length - 1) lines.push(''); }); };
+        const hdrH = () => Math.round(fs * 1.4) + 18;          // the NOTE: label is bigger than the note itself
         lay();
-        while (lines.length * fs * 1.35 + 34 > nh && fs > 9) { fs -= 1; lay(); }
-        const maxL = Math.max(1, Math.floor((nh - 34) / (fs * 1.35)));
+        while (lines.length * fs * 1.35 + hdrH() + 12 > nh && fs > 9) { fs -= 1; lay(); }
+        const maxL = Math.max(1, Math.floor((nh - hdrH() - 12) / (fs * 1.35)));
         if (lines.length > maxL) { lines = lines.slice(0, maxL); lines[maxL - 1] += ' …'; }
-        const boxH = Math.min(nh, lines.length * fs * 1.35 + 34);
+        const boxH = Math.min(nh, lines.length * fs * 1.35 + hdrH() + 12);
         ctx.fillStyle = '#ffffff'; ctx.fillRect(nx, ny, nw, boxH);
         ctx.lineWidth = 2; ctx.strokeStyle = bw ? '#000' : GOLD; ctx.strokeRect(nx, ny, nw, boxH);
-        ctx.textAlign = 'left'; ctx.fillStyle = bw ? '#000' : NAVY; ctx.font = '800 15px Poppins, Arial';
-        ctx.fillText('NOTE', nx + 14, ny + 20);
+        const lf = Math.round(fs * 1.4);
+        ctx.textAlign = 'left'; ctx.font = `900 ${lf}px Poppins, Arial`;
+        const tw = ctx.measureText('NOTE:').width;
+        ctx.fillStyle = bw ? '#D0D0D0' : '#FFE14D'; ctx.fillRect(nx + 8, ny + 7, tw + 16, lf + 6);   // highlighted
+        ctx.fillStyle = '#000'; ctx.fillText('NOTE:', nx + 16, ny + 7 + lf * 0.92);
         ctx.fillStyle = INK; ctx.font = `800 ${fs}px Poppins, Arial`;
-        lines.forEach((ln, i) => ctx.fillText(ln, nx + 14, ny + 22 + (i + 1) * fs * 1.35));
+        lines.forEach((ln, i) => ctx.fillText(ln, nx + 14, ny + hdrH() + (i + 1) * fs * 1.35 - fs * 0.3));
       }
     }
     // footer (always) — no diagonal watermark on saved or printed pages
@@ -2153,6 +2290,7 @@ const own = isOwner();
       <button class="mrow" data-act="theme">${icon('info')}<span>Appearance: ${({ auto: 'Auto (like my phone)', light: 'Light', dark: 'Dark' })[getTheme()]}<small>Tap to switch Light · Dark · Auto</small></span></button>
       <button class="mrow" data-act="contact">${icon('wa')}<span>Contact Cyrus Ireri<small>WhatsApp · call · SMS — ${esc(LOCKED_CONTACT)}</small></span></button>
       <button class="mrow" data-act="about">${icon('info')}<span>About<small>${esc(BRAND_LINE)}</small></span></button>
+      ${lockKey() && !CFG.preview ? `<button class="mrow" data-act="signOut">${icon('info')}<span>Sign out<small>Frees your number to sign in on another phone · needs your PIN</small></span></button>` : ''}
       ${isOwner() ? `<button class="mrow" data-go="schools">${icon('grid')}<span>Owner mode: all schools<small>Open any school's timetables · tap to choose a school</small></span></button><button class="mrow" data-act="ownerOff">${icon('info')}<span>Turn off owner mode<small>This phone goes back to normal</small></span></button>` : ''}
       <p class="muted small center-t" data-act="verTap" style="padding:6px 0 2px">App version v62 · build ${esc(CFG.build || '-')}</p>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
@@ -2301,6 +2439,8 @@ const own = isOwner();
       case 'copy': try { await navigator.clipboard.writeText(linkFor()); toast('Link copied'); } catch { toast(linkFor(), 6000); } break;
       case 'nativeShare': try { await navigator.share({ title: 'School timetables', url: linkFor() }); } catch { } break;
       case 'about': openAbout(); break;
+      case 'signOut': openSignOut(); break;
+      case 'signOutGo': await signOutGo(); break;
       case 'contact': openContact(); break;
       case 'theme': { const t = THEMES[(THEMES.indexOf(getTheme()) + 1) % 3]; try { localStorage.setItem('ireri:theme', t); } catch { } applyTheme(); openMenu(); toast(({ auto: 'Appearance: Auto', light: 'Light mode', dark: 'Dark mode' })[t]); break; }
       case 'getapp': openGetApp(); break;

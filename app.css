@@ -1159,7 +1159,8 @@ body.fullv .inst .origin{font-size:10px;margin-top:1px}
 
 /* notes written in PREPFIX for this class / teacher, under the timetable */
 .ttnotes{margin:12px 0 16px;background:#fff;border:2px solid var(--gold);border-radius:14px;padding:10px 14px;box-shadow:var(--shadow)}
-.ttnotes h4{margin:0 0 6px;font:800 13px/1.2 Poppins,"Segoe UI",Arial,sans-serif;letter-spacing:.08em;color:var(--navy);text-transform:uppercase}
+.ttnotes h4{margin:0 0 8px;font:900 25px/1.2 Poppins,"Segoe UI",Arial,sans-serif;letter-spacing:.04em;color:#000;text-transform:uppercase}
+.ttnotes h4 mark{background:#FFE14D;color:#000;padding:1px 10px;border-radius:6px}
 .ttnotes p{margin:0 0 8px;white-space:pre-wrap;font:800 17px/1.45 Poppins,"Segoe UI",Arial,sans-serif;color:#000;text-transform:uppercase;letter-spacing:.02em}
 .ttnotes p:last-child{margin-bottom:0}
 html.theme-dark .ttnotes{background:#fff}html.theme-dark .ttnotes h4{color:#12284C}html.theme-dark .ttnotes p{color:#000}
@@ -1216,3 +1217,9 @@ body:has(.pages.h){overflow:hidden}
 .pgjump{display:inline-flex;align-items:center;gap:6px;margin-left:10px;color:#E8EDF7;font:700 13px Poppins,Arial,sans-serif}
 .pgjump button{border:0;border-radius:9px;background:#C9A227;color:#12284C;font:800 14px/1 Poppins,Arial,sans-serif;padding:9px 13px;cursor:pointer}
 .pgjump button:hover{background:#fff}
+
+/* school lock: sign in with the phone number */
+.joinbox form{display:flex;flex-direction:column;gap:10px;width:min(340px,100%);margin:6px auto 0}
+.joinbox input{font:600 20px/1.2 Poppins,"Segoe UI",Arial,sans-serif;padding:12px 14px;border:2px solid var(--navy,#12284C);border-radius:12px;text-align:center;letter-spacing:.04em}
+.joinbox .btn{font-size:16px;padding:12px}
+.joinmsg{min-height:1.4em;font-weight:700;color:#B3261E}
