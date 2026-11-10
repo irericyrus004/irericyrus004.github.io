@@ -1183,6 +1183,7 @@ body:has(.pages){background:#4B5160}
 .pgtabs a,.pgtabs button{font:700 14px/1 Poppins,Arial,sans-serif;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.35);color:#fff;background:transparent;text-decoration:none;cursor:pointer}
 .pgtabs a small{opacity:.75;font-weight:600}
 .pgtabs a.on{background:#fff;color:#12284C}
+.pgtabs .pgrep{background:rgba(255,255,255,.12)}
 .pgtabs .pgbw{margin-left:auto}
 .pgtabs .pgprint{background:#C9A227;border-color:#C9A227;color:#12284C;display:inline-flex;gap:6px;align-items:center}
 .pgtabs .pgprint svg{width:16px;height:16px}
@@ -1230,9 +1231,10 @@ html.pv-dup #pvstrip a{display:none}
 /* AS PRINTED: choose who to see (a list of every teacher / class / lab / day) instead of only scrolling */
 .pgpick{display:flex;gap:10px;align-items:flex-start;padding:0 16px 12px}
 .pgq{flex:0 0 210px;font:600 14px Poppins,Arial,sans-serif;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.45);background:#fff;color:#12284C}
-.pgchips{flex:1;display:flex;flex-wrap:wrap;gap:6px;max-height:92px;overflow-y:auto;scrollbar-width:thin}
+.pgchips{flex:1;display:flex;flex-wrap:wrap;gap:6px;max-height:64px;overflow-y:auto;scrollbar-width:thin}
 .pgc{font:700 13px/1 Poppins,Arial,sans-serif;padding:8px 11px;border-radius:9px;border:1px solid rgba(255,255,255,.35);color:#fff;background:rgba(255,255,255,.08);cursor:pointer;white-space:nowrap}
 .pgc:hover{background:rgba(255,255,255,.25)}
+.pgc.code{padding:6px 8px;font-size:12px;min-width:34px;text-align:center}
 .pgc.on{background:#C9A227;border-color:#C9A227;color:#12284C}
 @media (max-width:640px){.pgpick{flex-direction:column}.pgq{flex:none;width:100%;box-sizing:border-box}}
 

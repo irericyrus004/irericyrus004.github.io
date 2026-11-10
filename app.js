@@ -283,8 +283,20 @@ const own = isOwner();
   // FET's own subject colours (as exported), else a steady colour per subject
   const fetColour = subj => { const C = (B && B.colours) || {}, k = String(subj || '').trim().toUpperCase();
     return C[k] || C[k.split(/\s*[,+]\s*/)[0]] || C[k.replace(/\s*\d+$/, '')] || null; };
-  // One colour for each CLASS + SUBJECT pair, so a teacher's 11 I CHEM and 4 B CHEM look different
-  const colKey = (kind, c, own) => `${(kind === 'classes' || kind === 'master') ? own : (c.c || '')}|${c.s || ''}`.toUpperCase().replace(/\s+/g, ' ');
+  // One colour for each CLASS + SUBJECT pair (a double lesson and a single lesson of the same subject are the SAME pair, so the same colour).
+  // A BLOCKED lesson (one subject taught to many classes at the same time) gets ONE colour for the whole block,
+  // the same in teachers', classes', master and labs timetables - not a different colour per class.
+  const subjKey = s => String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
+  const clsList = c => String(c || '').split(',').map(x => x.trim()).filter(Boolean);
+  const colKey = (kind, c, own) => {
+    const subj = subjKey(c.s);
+    if (kind === 'classes' || kind === 'master') {
+      const cls = subjKey(own);
+      return (IDX.blockPairs && IDX.blockPairs.has(`${cls}|${subj}`)) ? `*BLOCK*|${subj}` : `${cls}|${subj}`;
+    }
+    const list = clsList(c.c);
+    return list.length > 1 ? `*BLOCK*|${subj}` : `${subjKey(c.c)}|${subj}`;
+  };
   function hslHex(h, s, l) { s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
     const f = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, '0'); return `#${f(0)}${f(8)}${f(4)}`; }
   // The text colour (navy-black or white) that reads best on a lesson colour. Dark mode uses it so text never collides with the box.
@@ -295,6 +307,10 @@ const own = isOwner();
   }
   function buildColours() {
     const keys = new Set();
+    // which (class, subject) pairs belong to a blocked lesson? (read from the teachers' timetables, which name every class of a block)
+    const bp = new Set();
+    B.teachers.forEach(t => t.grid.forEach(r => r.forEach(c => { if (isLesson(c)) { const list = clsList(c.c); if (list.length > 1) list.forEach(x => bp.add(`${subjKey(x)}|${subjKey(c.s)}`)); } })));
+    IDX.blockPairs = bp;
     B.teachers.forEach(t => t.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey('teachers', c)); })));
     ['classes', 'master', 'rooms'].forEach(k => (B[k] || []).forEach(it => it.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey(k, c, it.name)); }))));
     const L = [74, 60, 84, 67, 52], S = [78, 70, 85, 62, 72], map = {};
@@ -775,6 +791,7 @@ const own = isOwner();
   }
   // AS PRINTED: every A4 page exactly as it will print (the same drawing as Print / Save), big on the screen
   let PAGES_OBS = null;
+  let PG_KEEP = { kind: '', i: 0, keep: false };   // the page you are on, kept when you switch colour <-> black & white
   function renderPages(kind) {
     const kinds = [['teachers', 'Teachers', B.teachers.length], ['classes', 'Classes', B.classes.length],
       ['rooms', 'Labs & Fields', (B.rooms || []).length], ['master', 'Master', IDX.D.length]].filter(k => k[2]);
@@ -790,10 +807,11 @@ const own = isOwner();
         <div class="titles"><h1>As printed · A4</h1><p class="sub">${esc(sch.name || '')}${state.data.ttName ? ' · ' + esc(state.data.ttName) : ''} — exactly what the printer gets</p></div></div>
         <nav class="pgtabs">${kinds.map(([k, l, n]) => `<a href="#pages/${k}" class="${k === kind ? 'on' : ''}">${esc(l)} <small>${n}</small></a>`).join('')}
           ${kind === 'classes' && IDX.grades.length > 1 ? `<span class="pgjump">Go to:${IDX.grades.map(g => `<button type="button" data-pgjump="${B.classes.findIndex(c => gradeOf(c.name) === g)}">${esc(g)}</button>`).join('')}</span>` : ''}
+          <a href="#analysis" class="pgrep">📊 Analysis & reports</a>
           <button type="button" class="pgbw ${bw ? 'on' : ''}" data-act="pgbw">${bw ? '⚫ Black & white' : '🎨 Colour'}</button>
           <button type="button" class="pgprint" data-act="allSheet">${icon('print')} Print / save…</button></nav>
         <div class="pgpick"><input type="search" class="pgq" id="pgq" autocomplete="off" placeholder="Choose ${kind === 'teachers' ? 'a teacher' : kind === 'classes' ? 'a class' : kind === 'rooms' ? 'a lab or field' : 'a day'}…  (${T.length})">
-          <div class="pgchips" id="pgchips">${T.map((x, i) => `<button type="button" class="pgc${i === 0 ? ' on' : ''}" data-pgjump="${i}" data-pgi="${i}">${esc(kind === 'master' ? x.lab.replace('Master — ', '') : x.lab)}</button>`).join('')}</div></div>
+          <div class="pgchips" id="pgchips">${T.map((x, i) => `<button type="button" class="pgc${i === 0 ? ' on' : ''}${kind === 'teachers' ? ' code' : ''}" data-pgjump="${i}" data-pgi="${i}" data-pgs="${esc(x.lab.toLowerCase())}" title="${esc(x.lab)}">${esc(kind === 'master' ? x.lab.replace('Master — ', '') : kind === 'teachers' ? (B.teachers[i].code || x.lab) : x.lab)}</button>`).join('')}</div></div>
         ${CFG.preview && bad ? '<p class="pgkey"><span class="k1"></span> red box = breaks a rule that could not be fixed (the rule is written on it) — shown only in the preview</p>' : ''}
       </header>
       <button type="button" class="pgnav l" data-act="pgprev" aria-label="Previous page">‹</button>
@@ -814,11 +832,11 @@ const own = isOwner();
     const main = document.querySelector('.pages');
     const fit = () => { const top = main.getBoundingClientRect().top; main.style.height = Math.max(240, innerHeight - top - 30) + 'px'; };
     fit(); addEventListener('resize', fit, { once: true });
-    const count = () => { const n = Math.round(main.scrollLeft / Math.max(1, main.clientWidth)); const c = document.getElementById('pgcount'); if (c) c.textContent = `${n + 1} / ${T.length}`;
+    const count = () => { const n = Math.round(main.scrollLeft / Math.max(1, main.clientWidth)); PG_KEEP.kind = kind; PG_KEEP.i = n; const c = document.getElementById('pgcount'); if (c) c.textContent = `${n + 1} / ${T.length}`;
       document.querySelectorAll('#pgchips .pgc').forEach(b => b.classList.toggle('on', +b.dataset.pgi === n)); };
     const pq = document.getElementById('pgq');
     if (pq) pq.addEventListener('input', () => { const q = pq.value.trim().toLowerCase();
-      document.querySelectorAll('#pgchips .pgc').forEach(b => { b.style.display = !q || b.textContent.toLowerCase().includes(q) ? '' : 'none'; }); fit(); });
+      document.querySelectorAll('#pgchips .pgc').forEach(b => { b.style.display = !q || (b.dataset.pgs || b.textContent).toLowerCase().includes(q) ? '' : 'none'; }); fit(); });
     main.addEventListener('scroll', () => requestAnimationFrame(count), { passive: true });
     // Double-click a page -> that page fills the whole screen (sharp re-draw). Esc / double-click / click / ✕ closes; ← → change page.
     const openFull = (idx) => {
@@ -863,6 +881,14 @@ const own = isOwner();
     main.addEventListener('dblclick', e => { const f = e.target.closest('.pg'); if (f) { e.preventDefault(); openFull(+f.dataset.pg); } });
     PAGES_OBS = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { PAGES_OBS.unobserve(e.target); drawOne(e.target); } }), { root: main, rootMargin: '0px 120%' }) : null;
     document.querySelectorAll('.pages .pg').forEach((f, i) => { if (PAGES_OBS) PAGES_OBS.observe(f); else if (i < 3) drawOne(f); });
+    // coming back from the colour switch: stay on the same teacher / class / day (a new visit starts at the first page)
+    const keepI = (PG_KEEP.keep && PG_KEEP.kind === kind) ? Math.min(PG_KEEP.i, T.length - 1) : 0;
+    PG_KEEP.keep = false; PG_KEEP.kind = kind; PG_KEEP.i = keepI;
+    if (keepI > 0) {
+      main.style.scrollBehavior = 'auto'; main.scrollLeft = keepI * main.clientWidth;
+      const f = document.querySelector(`.pages .pg[data-pg="${keepI}"]`); if (f) drawOne(f);
+      count(); requestAnimationFrame(() => { main.scrollLeft = keepI * main.clientWidth; count(); main.style.scrollBehavior = ''; });
+    }
   }
   function pageStep(dir) {                       // one A4 page at a time, left and right
     const m = document.querySelector('.pages.h'); if (!m) return false;
@@ -876,15 +902,19 @@ const own = isOwner();
     const tiles = [['pages', 'print', 'As printed (A4)', 'Every page exactly as it prints — big', 'pages/teachers'],
       ['teachers', 'teacher', 'Teachers', `${B.teachers.length} timetables`, 'list/teachers'],
       ['classes', 'classes', 'Classes', `${B.classes.length} timetables`, 'list/classes'],
+      ...((B.rooms || []).length ? [['rooms', 'lab', 'Labs & Fields', `${B.rooms.length} timetables`, 'list/rooms']] : []),
       ['master', 'grid', 'Master', 'Every class, day by day', 'master'],
-      ['printall', 'print', 'Print all timetables', 'Teachers, classes, master · colour or black & white', '']];
+      ['printall', 'print', 'Print all timetables', 'Teachers, classes, labs, master · colour or black & white', ''],
+      ['analysis', 'chart', 'Staff analysis', 'Subjects, classes, teaching load · print any view', 'analysis'],
+      ['report', 'print', 'Print staff report', 'A4 table: every teacher, lessons per day', '@printReport'],
+      ['csv', 'save', 'Staff analysis (Excel)', 'Download all teachers, subjects, classes', '@csv']];
     app.innerHTML = `
       <header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div>
         <div class="titles"><h1>${esc(sch.name || 'School')}</h1><p class="sub">Preview · not published yet</p></div></div></header>
       <main class="home pvhome">
         ${instBlock()}
         <nav class="tiles pvtiles">${tiles.map(([k, ic, t, sub, href]) => `
-          <button class="tile t-${k}" ${k === 'printall' ? 'data-act="allSheet"' : `data-go="${href}"`}>
+          <button class="tile t-${k}" ${k === 'printall' ? 'data-act="allSheet"' : href.startsWith('@') ? `data-act="${href.slice(1)}"` : `data-go="${href}"`}>
             <span class="tic">${icon(ic)}</span><strong>${esc(t)}</strong><small>${esc(sub)}</small></button>`).join('')}
         </nav>
         <footer class="foot">${esc(BRAND_LINE)}</footer>
@@ -1970,16 +2000,21 @@ const own = isOwner();
   }
 
   // ------------------------------------------------------------------ SAVE as picture
-  function wrapText(ctx, text, maxW) {
-    // break at spaces; a word still too wide (e.g. T.FILM/F.ART/GEO) may also break after a "/"
+  function wrapText(ctx, text, maxW, hard = false) {
+    // break at spaces; a word still too wide (e.g. T.FILM/F.ART/GEO) may also break after a "/" or a ","
     const toks = [];
     String(text).split(/\s+/).filter(Boolean).forEach(w => {
-      if (ctx.measureText(w).width <= maxW || !w.includes('/')) { toks.push([w, ' ']); return; }
+      if (ctx.measureText(w).width <= maxW || !/[\/]/.test(w)) { toks.push([w, ' ']); return; }
       const parts = w.split(/(?<=\/)/); parts.forEach((x, i) => toks.push([x, i === 0 ? ' ' : '']));
     });
     const lines = []; let cur = '';
     for (const [w, glue] of toks) { const t = cur ? cur + glue + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; }
-    if (cur) lines.push(cur); return lines;
+    if (cur) lines.push(cur);
+    if (!hard) return lines;
+    const out = [];                                   // last resort: cut a word that is still wider than the box, letter by letter
+    lines.forEach(ln => { if (ctx.measureText(ln).width <= maxW) { out.push(ln); return; }
+      let part = ''; for (const ch of ln) { if (part && ctx.measureText(part + ch).width > maxW) { out.push(part); part = ch; } else part += ch; } if (part) out.push(part); });
+    return out;
   }
   // ------------------------------------------------------------------ SAVE: picture (PNG) or PDF · coloured or black & white · fills an A4 page
   function openSaveSheet() {
@@ -2041,25 +2076,42 @@ const own = isOwner();
       const colW = (W - pad * 2 - headW - nB * brkW) / nL;
       const colWs = P.map(p => p.brk ? brkW : colW);
       let S = 1;                                       // text size multiplier: as big as still fits on the page
+      // line spacing (x font size) and the gaps between the subject, the classes line and the teacher box - one set of numbers for measuring AND drawing
+      const GA = 1.3, GB = 1.42, GT = 1.5;
+      const setLS = (c2, px) => { try { if ('letterSpacing' in c2) c2.letterSpacing = px + 'px'; } catch { } };
       const cellText = (row, j) => {
         let span = 1; while ((row.item.grid[row.d] || [])[j + span] === '^') span++;
         let cw = 0; for (let k = j; k < j + span; k++) cw += colWs[k];
         const c = cellAt(row.item, row.d, j), L = cellLines(kind, c, row.item.name);
-        if (!L) return { cw, L, a: [], b: [], t: [], k: 1 };
+        if (!L) return { cw, L, a: [], b: [], t: [], k: 1, h: 0 };
+        const ls = 0.45 * S; setLS(mctx, ls);          // a little air between letters
         // the subject gets smaller in its own box until it fits (at most 3 lines, nothing past the border)
-        let k = 1, a;
+        let k = 1, a, hard = false;
         for (; ; k *= 0.9) {
-          mctx.font = `800 ${15 * S * k}px Poppins, Arial`; a = wrapText(mctx, L[0], cw - 14);
-          if ((a.length <= 3 && a.every(x => mctx.measureText(x).width <= cw - 10)) || k < 0.5) break;
+          mctx.font = `800 ${15 * S * k}px Poppins, Arial`; a = wrapText(mctx, L[0], cw - 18);
+          if ((a.length <= 3 && a.every(x => mctx.measureText(x).width <= cw - 14)) || k < 0.5) break;
         }
-        a = a.slice(0, 3);
-        mctx.font = `600 ${12.5 * S}px Poppins, Arial`; const b = L[1] ? wrapText(mctx, L[1], cw - 14) : [];
-        mctx.font = `700 ${12 * S}px Poppins, Arial`; const t = L[2] ? wrapText(mctx, L[2], cw - 22) : [];
-        return { cw, L, a, b, t, k };
+        if (!a.every(x => mctx.measureText(x).width <= cw - 14)) { hard = true; a = wrapText(mctx, L[0], cw - 18, true); }
+        // classes line and teacher line shrink too, rather than touch the border or the line above
+        let kb = Math.min(1, Math.max(k, 0.62)), b = [], t = [];
+        for (; ; kb *= 0.92) {
+          mctx.font = `600 ${12.5 * S * kb}px Poppins, Arial`; b = L[1] ? wrapText(mctx, L[1], cw - 18) : [];
+          mctx.font = `700 ${12 * S * kb}px Poppins, Arial`; t = L[2] ? wrapText(mctx, L[2], cw - 30) : [];
+          const okB = b.every(x => (mctx.font = `600 ${12.5 * S * kb}px Poppins, Arial`, mctx.measureText(x).width <= cw - 14));
+          const okT = t.every(x => (mctx.font = `700 ${12 * S * kb}px Poppins, Arial`, mctx.measureText(x).width <= cw - 26));
+          if ((okB && okT) || kb < 0.55) break;
+        }
+        mctx.font = `600 ${12.5 * S * kb}px Poppins, Arial`; if (!b.every(x => mctx.measureText(x).width <= cw - 14)) b = wrapText(mctx, L[1], cw - 18, true);
+        mctx.font = `700 ${12 * S * kb}px Poppins, Arial`; if (!t.every(x => mctx.measureText(x).width <= cw - 26)) t = wrapText(mctx, L[2], cw - 30, true);
+        setLS(mctx, 0);
+        const sA = 15 * S * k, sB = 12.5 * S * kb, sT = 12 * S * kb;
+        const hA = a.length * sA * GA, hB = b.length * sB * GB, hT = t.length ? t.length * sT * GT + 8 * S : 0;
+        const g1 = a.length && b.length ? 4 * S : 0, g2 = t.length ? 8 * S : 0;
+        return { cw, L, a, b, t, k, kb, sA, sB, sT, hA, hB, hT, g1, g2, ls, h: hA + g1 + hB + g2 + hT };
       };
       let minK = 1;                                    // the smallest the subject had to shrink to fit its box
       const calcNeed = () => { minK = 1; return rows.map(row => { let h = 56; for (let j = 0; j < P.length; j++) { if (P[j].brk || isCont(row.item, row.d, j)) continue;
-        const t = cellText(row, j); minK = Math.min(minK, t.k); h = Math.max(h, t.a.length * 18 * S * t.k + t.b.length * 15 * S + (t.t.length ? t.t.length * 14 * S + 10 * S : 0) + 22); } return h; }); };
+        const t = cellText(row, j); minK = Math.min(minK, t.k); h = Math.max(h, t.h + 26); } return h; }); };
       const bodyAvail = H - top - 52 - foot;
       // master = the full A4 page; every teacher and class timetable = 3/4 of the page (the last quarter stays free for notes)
       const capBody = kind === 'master' ? bodyAvail : Math.max(120, H * 0.75 - top - 52);
@@ -2151,19 +2203,26 @@ const own = isOwner();
           tl.forEach((l, i) => ctx.fillText(l, cx + 10, y + 15 + i * 12, tw - 8));
         }
         if (L) {
-          const blockH = T.a.length * 18 * S * T.k + T.b.length * 15 * S + (T.t.length ? T.t.length * 14 * S + 10 * S : 0);
-          let ty = y + (rowH - blockH) / 2 + 14 * S; ctx.textAlign = 'center';
-          ctx.fillStyle = fc ? fc[1] : INK; ctx.font = `800 ${15 * S * T.k}px Poppins, Arial`; T.a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 18 * S * T.k; });
-          ctx.font = `600 ${12.5 * S}px Poppins, Arial`; T.b.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 15 * S; });
+          ctx.save(); ctx.beginPath(); ctx.rect(cx + 1, y + 1, cw - 2, rowH - 2); ctx.clip();   // nothing can ever run into the next box
+          try { if ('letterSpacing' in ctx) ctx.letterSpacing = T.ls + 'px'; } catch { }
+          let top2 = y + (rowH - T.h) / 2; ctx.textAlign = 'center';
+          const base = (lineTop, lineH, size) => lineTop + lineH / 2 + size * 0.35;         // baseline that centres a line inside its own line box
+          ctx.fillStyle = fc ? fc[1] : INK; ctx.font = `800 ${T.sA}px Poppins, Arial`;
+          T.a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, base(top2, T.sA * 1.3, T.sA)); top2 += T.sA * 1.3; });
+          top2 += T.g1;
+          ctx.font = `600 ${T.sB}px Poppins, Arial`;
+          T.b.forEach(ln => { ctx.fillText(ln, cx + cw / 2, base(top2, T.sB * 1.42, T.sB)); top2 += T.sB * 1.42; });
           if (T.t.length) {                                    // teacher names in their own box and colour
-            ctx.font = `700 ${12 * S}px Poppins, Arial`;
-            const bwid = Math.min(cw - 10, Math.max(...T.t.map(l => ctx.measureText(l).width)) + 14), bh = T.t.length * 14 * S + 6 * S;
-            const bx = cx + (cw - bwid) / 2, by = ty - 11 * S;
+            top2 += T.g2; ctx.font = `700 ${T.sT}px Poppins, Arial`;
+            const bwid = Math.min(cw - 10, Math.max(...T.t.map(l => ctx.measureText(l).width)) + 20), bh = T.hT;
+            const bx = cx + (cw - bwid) / 2;
             ctx.fillStyle = '#ffffff'; ctx.strokeStyle = bw ? '#000' : '#0B3D91'; ctx.lineWidth = 1.2;
-            ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, bwid, bh, 6); else ctx.rect(bx, by, bwid, bh); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = bw ? '#000' : '#0B3D91'; ty += 2 * S; T.t.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 14 * S; });
+            ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, top2, bwid, bh, 6); else ctx.rect(bx, top2, bwid, bh); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = bw ? '#000' : '#0B3D91'; let ty2 = top2 + 4 * S;
+            T.t.forEach(ln => { ctx.fillText(ln, cx + cw / 2, base(ty2, T.sT * 1.5, T.sT)); ty2 += T.sT * 1.5; });
           }
-          ctx.textAlign = 'left';
+          try { if ('letterSpacing' in ctx) ctx.letterSpacing = '0px'; } catch { }
+          ctx.restore(); ctx.textAlign = 'left';
         }
       }
     });
@@ -2473,7 +2532,7 @@ const own = isOwner();
       case 'next': stepItem(1); break;
       case 'save': openSaveSheet(); break;
       case 'allSheet': closeRail(); openAllSheet(); break;
-      case 'pgbw': store.set('pgBW', !store.get('pgBW', false)); render(); break;
+      case 'pgbw': store.set('pgBW', !store.get('pgBW', false)); PG_KEEP.keep = true; render(); break;
       case 'pgprev': pageStep(-1); break;
       case 'pgnext': pageStep(1); break;
       case 'pvhome': goHome(); break;
@@ -2596,7 +2655,7 @@ const own = isOwner();
     if (CFG.desktop) document.documentElement.classList.add('is-desktop');
     strip.innerHTML = `${CFG.desktop ? '<b>PREPFIX TIMETABLE TOOLKIT</b><span>Desktop · on this computer</span>' : '<b>PREVIEW</b><span>Not published yet</span>'}
       <button type="button" class="pvnav" data-act="pvback">← Back</button><button type="button" class="pvnav" data-act="pvhome">⌂ Home</button>
-      <a href="#pages/teachers" class="pvpg">📄 As printed</a><a href="#list/teachers">Teachers</a><a href="#list/classes">Classes</a><a href="#master">Master</a>
+      <a href="#pages/teachers" class="pvpg">📄 As printed</a><a href="#list/teachers">Teachers</a><a href="#list/classes">Classes</a><a href="#master">Master</a><a href="#analysis">📊 Analysis</a>
       <button type="button" id="pvfs"></button><button type="button" id="pvclose">✕ Close preview</button>`;
     document.body.prepend(strip);
     const fsOn = () => !!document.fullscreenElement || (innerHeight >= screen.height - 2 && innerWidth >= screen.width - 2);
