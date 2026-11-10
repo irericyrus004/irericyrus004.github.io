@@ -1,1 +1,1 @@
-self.IRERI_CONFIG = {"brand": "DESIGNED BY CYRUS IRERI", "contact": "0720872582", "build": "dc25b6cc", "directory": "https://cbcrevisionhub.co.ke/schools.json", "push": "https://prepfix-reminders.irericyrus004.workers.dev"};
+self.IRERI_CONFIG = {"brand": "DESIGNED BY CYRUS IRERI", "contact": "0720872582", "build": "30aa909b", "directory": "https://cbcrevisionhub.co.ke/schools.json", "push": "https://prepfix-reminders.irericyrus004.workers.dev"};

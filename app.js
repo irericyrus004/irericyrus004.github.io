@@ -205,7 +205,7 @@ const own = isOwner();
   function teacherLabel(t) {
     if (!t) return '';
     if (t.name) return t.name;
-    return /^\d+$/.test(t.code) ? `Teacher ${t.code}` : t.code;
+    return /^\d+$/.test(t.code) ? `TEACHER ${t.code}` : t.code;
   }
   const tLabel = t => t ? (t.name ? `${t.code} · ${t.name}` : teacherLabel(t)) : '';
   function teachersText(codes, max = Infinity) {          // every teacher by NAME (code only when FET has no name)
@@ -217,7 +217,7 @@ const own = isOwner();
   // Class timetables show only the teacher CODE (short, prints neatly); tapping a lesson shows the full name. Master and Labs & Fields show names.
   function teacherCodes(codes) { return codes ? String(codes).split(',').map(x => x.trim()).filter(Boolean).join(', ') : ''; }
   function teacherList(codes) {
-    return String(codes || '').split(',').map(x => x.trim()).filter(Boolean).map(code => { const t = IDX.tByCode[code]; return { code, name: t ? teacherLabel(t) : (/^\d+$/.test(code) ? `Teacher ${code}` : code) }; });
+    return String(codes || '').split(',').map(x => x.trim()).filter(Boolean).map(code => { const t = IDX.tByCode[code]; return { code, name: t ? teacherLabel(t) : (/^\d+$/.test(code) ? `TEACHER ${code}` : code) }; });
   }
   function classesText(c) {                         // every class by its name - never "All 11s"
     if (!c) return '';
@@ -752,6 +752,7 @@ const own = isOwner();
   function render() {
     if (POSTER) return renderPoster();
     ensureRail();
+    document.documentElement.classList.toggle('pv-dup', !!CFG.preview && ['home', 'pages'].includes(route().name));   // preview: the top tab row repeats the page's own tabs there
     document.body.classList.toggle('desk', isDesk());
     document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name));
     document.body.classList.toggle('frame', !fillOn() && ['view', 'master'].includes(route().name));
@@ -789,10 +790,11 @@ const own = isOwner();
         <div class="titles"><h1>As printed · A4</h1><p class="sub">${esc(sch.name || '')}${state.data.ttName ? ' · ' + esc(state.data.ttName) : ''} — exactly what the printer gets</p></div></div>
         <nav class="pgtabs">${kinds.map(([k, l, n]) => `<a href="#pages/${k}" class="${k === kind ? 'on' : ''}">${esc(l)} <small>${n}</small></a>`).join('')}
           ${kind === 'classes' && IDX.grades.length > 1 ? `<span class="pgjump">Go to:${IDX.grades.map(g => `<button type="button" data-pgjump="${B.classes.findIndex(c => gradeOf(c.name) === g)}">${esc(g)}</button>`).join('')}</span>` : ''}
-          ${kind === 'master' ? `<span class="pgjump">Go to:${IDX.D.map((dd, d) => `<button type="button" data-pgjump="${d}">${esc(String(dd.label).slice(0, 3).toUpperCase())}</button>`).join('')}</span>` : ''}
           <button type="button" class="pgbw ${bw ? 'on' : ''}" data-act="pgbw">${bw ? '⚫ Black & white' : '🎨 Colour'}</button>
           <button type="button" class="pgprint" data-act="allSheet">${icon('print')} Print / save…</button></nav>
-        ${CFG.preview && bad ? '<p class="pgkey"><span class="k1"></span> red box = breaks a rule that could not be fixed (the rule is written on it) &nbsp; <span class="k2"></span> dashed = moved — these marks are only in the preview</p>' : CFG.preview ? '<p class="pgkey"><span class="k2"></span> dashed = moved — marks show only in the preview, never on paper</p>' : ''}
+        <div class="pgpick"><input type="search" class="pgq" id="pgq" autocomplete="off" placeholder="Choose ${kind === 'teachers' ? 'a teacher' : kind === 'classes' ? 'a class' : kind === 'rooms' ? 'a lab or field' : 'a day'}…  (${T.length})">
+          <div class="pgchips" id="pgchips">${T.map((x, i) => `<button type="button" class="pgc${i === 0 ? ' on' : ''}" data-pgjump="${i}" data-pgi="${i}">${esc(kind === 'master' ? x.lab.replace('Master — ', '') : x.lab)}</button>`).join('')}</div></div>
+        ${CFG.preview && bad ? '<p class="pgkey"><span class="k1"></span> red box = breaks a rule that could not be fixed (the rule is written on it) — shown only in the preview</p>' : ''}
       </header>
       <button type="button" class="pgnav l" data-act="pgprev" aria-label="Previous page">‹</button>
       <button type="button" class="pgnav r" data-act="pgnext" aria-label="Next page">›</button>
@@ -812,8 +814,53 @@ const own = isOwner();
     const main = document.querySelector('.pages');
     const fit = () => { const top = main.getBoundingClientRect().top; main.style.height = Math.max(240, innerHeight - top - 30) + 'px'; };
     fit(); addEventListener('resize', fit, { once: true });
-    const count = () => { const c = document.getElementById('pgcount'); if (c) c.textContent = `${Math.round(main.scrollLeft / Math.max(1, main.clientWidth)) + 1} / ${T.length}`; };
+    const count = () => { const n = Math.round(main.scrollLeft / Math.max(1, main.clientWidth)); const c = document.getElementById('pgcount'); if (c) c.textContent = `${n + 1} / ${T.length}`;
+      document.querySelectorAll('#pgchips .pgc').forEach(b => b.classList.toggle('on', +b.dataset.pgi === n)); };
+    const pq = document.getElementById('pgq');
+    if (pq) pq.addEventListener('input', () => { const q = pq.value.trim().toLowerCase();
+      document.querySelectorAll('#pgchips .pgc').forEach(b => { b.style.display = !q || b.textContent.toLowerCase().includes(q) ? '' : 'none'; }); fit(); });
     main.addEventListener('scroll', () => requestAnimationFrame(count), { passive: true });
+    // Double-click a page -> that page fills the whole screen (sharp re-draw). Esc / double-click / click / ✕ closes; ← → change page.
+    const openFull = (idx) => {
+      idx = Math.max(0, Math.min(T.length - 1, idx));
+      let box = document.getElementById('pgfull');
+      if (!box) {
+        box = document.createElement('div'); box.id = 'pgfull';
+        box.innerHTML = '<button type="button" class="pgf-x" aria-label="Close">✕</button><button type="button" class="pgf-n l" aria-label="Previous">‹</button><button type="button" class="pgf-n r" aria-label="Next">›</button><div class="pgf-box"><span class="pgf-wait">Loading…</span></div><div class="pgf-cap"></div>';
+        document.body.appendChild(box);
+        const close = () => {
+          document.removeEventListener('keydown', box._key, true); box.remove();
+          try { if (document.fullscreenElement) document.exitFullscreen(); } catch { }
+        };
+        box._close = close;
+        box.querySelector('.pgf-x').addEventListener('click', e => { e.stopPropagation(); close(); });
+        box.querySelector('.pgf-n.l').addEventListener('click', e => { e.stopPropagation(); openFull(box._i - 1); });
+        box.querySelector('.pgf-n.r').addEventListener('click', e => { e.stopPropagation(); openFull(box._i + 1); });
+        box.addEventListener('dblclick', close);
+        box.addEventListener('click', e => { if (!e.target.closest('img,button')) close(); });
+        box._key = e => {
+          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+          else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); openFull(box._i + 1); }
+          else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); openFull(box._i - 1); }
+        };
+        document.addEventListener('keydown', box._key, true);
+        document.addEventListener('fullscreenchange', function f() { if (!document.fullscreenElement) { document.removeEventListener('fullscreenchange', f); if (document.getElementById('pgfull') === box) box._close(); } });
+        try { const r = box.requestFullscreen && box.requestFullscreen(); if (r && r.catch) r.catch(() => { }); } catch { }
+      }
+      box._i = idx;
+      const holder = box.querySelector('.pgf-box'); holder.innerHTML = '<span class="pgf-wait">Loading…</span>';
+      box.querySelector('.pgf-cap').textContent = `${T[idx].lab}  ·  ${idx + 1} / ${T.length}`;
+      setTimeout(async () => {
+        try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { }
+        const logo = await loadLogo();
+        const cv = drawTimetablePage(bw, T[idx].t, logo, 2.4, !!CFG.preview);
+        if (box._i !== idx || !document.getElementById('pgfull')) { cv.width = cv.height = 1; return; }
+        const im = new Image(); im.alt = T[idx].lab; im.src = cv.toDataURL('image/jpeg', 0.92); cv.width = cv.height = 1;
+        holder.innerHTML = ''; holder.appendChild(im);
+      }, 30);
+      const m = document.querySelector('.pages.h'); if (m) m.scrollTo({ left: idx * m.clientWidth });   // the page behind follows
+    };
+    main.addEventListener('dblclick', e => { const f = e.target.closest('.pg'); if (f) { e.preventDefault(); openFull(+f.dataset.pg); } });
     PAGES_OBS = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { PAGES_OBS.unobserve(e.target); drawOne(e.target); } }), { root: main, rootMargin: '0px 120%' }) : null;
     document.querySelectorAll('.pages .pg').forEach((f, i) => { if (PAGES_OBS) PAGES_OBS.observe(f); else if (i < 3) drawOne(f); });
   }
@@ -1795,7 +1842,7 @@ const own = isOwner();
     const filt = tab && ((A.subj && A.subj !== 'all') || q) ? `Filter: ${[(A.subj && A.subj !== 'all') ? A.subj : '', q ? '“' + A.q + '”' : ''].filter(Boolean).join(' · ')}` : 'All teachers';
     const dayHead = IDX.D.map(d => `<th class="n">${esc(String(d.label).slice(0, 3))}</th>`).join('');
     const body = rows.map(({ t, a }) => `<tr>
-      <td class="n">${esc(t.code)}</td><td><b>${esc(t.name || ('Teacher ' + t.code))}</b></td>
+      <td class="n">${esc(t.code)}</td><td><b>${esc(t.name || ('TEACHER ' + t.code))}</b></td>
       <td>${a.subjects.map(S => `${esc(S.name)} (${S.periods})`).join(', ') || '—'}</td>
       <td>${a.classes.map(C => esc(C.name)).join(', ') || '—'}</td>
       ${a.perDay.map(v => `<td class="n">${v || ''}</td>`).join('')}
@@ -1936,15 +1983,15 @@ const own = isOwner();
   }
   // ------------------------------------------------------------------ SAVE: picture (PNG) or PDF · coloured or black & white · fills an A4 page
   function openSaveSheet() {
-    const fmt = store.get('saveFmt', 'image'), col = store.get('saveCol', 'colour');
+    const fmt = store.get('saveFmt', outDefault() === 'print' ? 'print' : 'image'), col = store.get('saveCol', 'colour');
     openSheet(`<div class="grab"></div><h3>Save this timetable</h3>
       <p class="muted small">${esc(saveName().base)}</p>
       <h4 class="svh">Save as</h4>
-      <div class="seg wide-seg sv"><button class="${fmt === 'image' ? 'on' : ''}" data-savefmt="image">🖼 Picture (PNG)</button><button class="${fmt === 'pdf' ? 'on' : ''}" data-savefmt="pdf">📄 PDF</button><button class="${fmt === 'print' ? 'on' : ''}" data-savefmt="print">🖨 Print now</button></div>
+      <div class="seg wide-seg sv"><button class="${fmt === 'image' ? 'on' : ''}" data-savefmt="image">🖼 Picture (PNG)</button><button class="${fmt === 'pdf' ? 'on' : ''}" data-savefmt="pdf">📄 PDF</button><button class="${fmt === 'print' ? 'on' : ''}" data-savefmt="print">🖨 Print…</button></div>
       <h4 class="svh">Colour</h4>
       <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-savecol="colour">🎨 Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-savecol="bw">⚫ Black & white</button></div>
-      <p class="muted small">A4 size, sharp HD quality, ready to print.</p>
-      <button class="btn wide" data-act="doSave">${icon(fmt === 'print' ? 'print' : 'save')} ${fmt === 'print' ? 'Print' : 'Save'}</button>
+      <p class="muted small">${fmt === 'print' ? esc(printHint()) + ' ' : ''}A4 size, sharp HD quality, ready to print.</p>
+      <button class="btn wide" data-act="doSave">${icon(fmt === 'print' ? 'print' : 'save')} ${fmt === 'print' ? 'Print…' : 'Save'}</button>
       <button class="btn ghost wide" data-act="allSheet">${icon('print')} Print / save ALL timetables</button>
       <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
   }
@@ -2010,13 +2057,14 @@ const own = isOwner();
         mctx.font = `700 ${12 * S}px Poppins, Arial`; const t = L[2] ? wrapText(mctx, L[2], cw - 22) : [];
         return { cw, L, a, b, t, k };
       };
-      const calcNeed = () => rows.map(row => { let h = 56; for (let j = 0; j < P.length; j++) { if (P[j].brk || isCont(row.item, row.d, j)) continue;
-        const t = cellText(row, j); h = Math.max(h, t.a.length * 18 * S * t.k + t.b.length * 15 * S + (t.t.length ? t.t.length * 14 * S + 10 * S : 0) + 22); } return h; });
+      let minK = 1;                                    // the smallest the subject had to shrink to fit its box
+      const calcNeed = () => { minK = 1; return rows.map(row => { let h = 56; for (let j = 0; j < P.length; j++) { if (P[j].brk || isCont(row.item, row.d, j)) continue;
+        const t = cellText(row, j); minK = Math.min(minK, t.k); h = Math.max(h, t.a.length * 18 * S * t.k + t.b.length * 15 * S + (t.t.length ? t.t.length * 14 * S + 10 * S : 0) + 22); } return h; }); };
       const bodyAvail = H - top - 52 - foot;
+      // master = the full A4 page; every teacher and class timetable = 3/4 of the page (the last quarter stays free for notes)
+      const capBody = kind === 'master' ? bodyAvail : Math.max(120, H * 0.75 - top - 52);
       let need, sum;
-      for (const cand of [1.75, 1.6, 1.45, 1.32, 1.2, 1.1, 1]) { S = cand; need = calcNeed(); sum = need.reduce((a, b) => a + b, 0); if (sum <= bodyAvail * 1.001) break; }
-      // only the master fills the A4 page; teachers', classes' and labs' timetables use 3/4 of it
-      const capBody = kind === 'master' ? bodyAvail : Math.min(bodyAvail, H * 0.75 - top - 52);
+      for (const cand of [1.75, 1.6, 1.45, 1.32, 1.2, 1.1, 1]) { S = cand; need = calcNeed(); sum = need.reduce((a, b) => a + b, 0); if (sum <= capBody * 1.001 && (minK >= 0.62 || cand <= 1.45)) break; }
       if (sum > capBody * 1.001 && f > 0.42) { f = Math.max(0.42, f * Math.sqrt(capBody / sum) * 0.98); continue; }
       const extra = Math.max(0, capBody - sum), RH = need.map(h => h + extra / rows.length);
       lay = { W, H, pad, top, foot, headW, brkW, colWs, cellText, RH, S }; break;
@@ -2070,8 +2118,9 @@ const own = isOwner();
     rows.forEach((row, ri) => {
       const y = y0 + 52 + Y[ri], rowH = RH[ri];
       ctx.fillStyle = bw ? '#fff' : NAVY; ctx.fillRect(pad, y, headW, rowH); ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(pad, y, headW, rowH);
-      const HK = Math.min(S, 1.35); ctx.fillStyle = bw ? INK : '#fff'; ctx.font = `800 ${16 * HK}px Poppins, Arial`; ctx.textAlign = 'center';
-      const hl = wrapText(ctx, row.head, headW - 10).slice(0, 3); hl.forEach((ln, k) => ctx.fillText(ln, pad + headW / 2, y + rowH / 2 - (hl.length - 1) * 9 * HK + k * 18 * HK + 5 * HK));
+      let HK = 1; ctx.fillStyle = bw ? INK : '#fff'; ctx.textAlign = 'center';
+      let hl; for (; ; HK *= 0.92) { ctx.font = `800 ${16 * HK}px Poppins, Arial`; hl = wrapText(ctx, row.head, headW - 10).slice(0, 3);
+        if (HK < 0.8 || (hl.length <= 3 && hl.every(l => ctx.measureText(l).width <= headW - 8))) break; } hl.forEach((ln, k) => ctx.fillText(ln, pad + headW / 2, y + rowH / 2 - (hl.length - 1) * 9 * HK + k * 18 * HK + 5 * HK));
       ctx.textAlign = 'left';
       for (let j = 0; j < P.length; j++) {
         const [cx, w] = colX[j];
@@ -2195,6 +2244,16 @@ const own = isOwner();
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 20000);
     toast(`Saved: ${full} ✓`, 3500);
   }
+  // Is a printer set up on this computer? (preview on the toolkit computer only; phones use their own print screen)
+  let PRINTERS = null;                                   // null = not known, 0 = none, n = how many
+  const outDefault = () => PRINTERS === 0 ? 'pdf' : 'print';
+  async function checkPrinters() {
+    if (!CFG.preview) return;
+    try { const j = await (await fetch('/__prepfix/printers', { cache: 'no-store' })).json(); PRINTERS = Number(j.count) || 0; } catch { PRINTERS = null; }
+  }
+  checkPrinters();
+  const printHint = () => PRINTERS === 0 ? 'No printer was found on this computer. Connect one, or choose the PDF file.'
+    : 'Print opens the print window: choose the printer, copies, pages and more.';
   // Print straight away (opens the phone's / computer's print screen)
   function printPictures(urls, title) {
     const fr = document.createElement('iframe'); fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
@@ -2208,7 +2267,7 @@ const own = isOwner();
   }
   // ---- ALL timetables at once: one PDF (or straight to the printer), coloured or black & white
   function openAllSheet() {
-    const sel = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }), col = store.get('saveCol', 'colour'), out = store.get('allOut', 'pdf');
+    const sel = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }), col = store.get('saveCol', 'colour'), out = store.get('allOut', outDefault());
     const n = { teachers: B.teachers.length, classes: B.classes.length, rooms: (B.rooms || []).length, master: IDX.D.length };
     const lab = { teachers: 'Teachers', classes: 'Classes', rooms: 'Labs & Fields', master: 'Master (one page per day)' };
     const total = Object.keys(n).reduce((a, k) => a + (sel[k] ? n[k] : 0), 0);
@@ -2219,13 +2278,13 @@ const own = isOwner();
       <h4 class="svh">Colour</h4>
       <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-allcol="colour">🎨 Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-allcol="bw">⚫ Black & white</button></div>
       <h4 class="svh">Get them as</h4>
-      <div class="seg wide-seg sv"><button class="${out === 'pdf' ? 'on' : ''}" data-allout="pdf">📄 One PDF file</button><button class="${out === 'print' ? 'on' : ''}" data-allout="print">🖨 Print now</button></div>
-      <p class="muted small">${total} A4 pages, each with its name at the top, your school and the PREPFIX logo.</p>
-      <button class="btn wide" data-act="doAll" ${total ? '' : 'disabled'}>${icon('print')} Make ${total} page${total === 1 ? '' : 's'}</button>
+      <div class="seg wide-seg sv"><button class="${out === 'pdf' ? 'on' : ''}" data-allout="pdf">📄 One PDF file</button><button class="${out === 'print' ? 'on' : ''}" data-allout="print">🖨 Print…</button></div>
+      <p class="muted small">${out === 'print' ? esc(printHint()) + ' ' : ''}${total} A4 pages, each with its name at the top, your school and the PREPFIX logo.</p>
+      <button class="btn wide" data-act="doAll" ${total ? '' : 'disabled'}>${icon('print')} ${out === 'print' ? 'Print' : 'Make'} ${total} page${total === 1 ? '' : 's'}${out === 'print' ? '…' : ''}</button>
       <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
   }
   async function makeAll() {
-    const sel = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }), bw = store.get('saveCol', 'colour') === 'bw', out = store.get('allOut', 'pdf');
+    const sel = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }), bw = store.get('saveCol', 'colour') === 'bw', out = store.get('allOut', outDefault());
     const T = [];
     if (sel.teachers) B.teachers.forEach(t => T.push({ id: t.id }));
     if (sel.classes) B.classes.forEach(c => T.push({ id: c.id }));
@@ -2252,7 +2311,7 @@ const own = isOwner();
     deliverFile(pdfFromPages(pages, name), name + '.pdf', name);
   }
   async function saveImage() {
-    const fmt = store.get('saveFmt', 'image'), bw = store.get('saveCol', 'colour') === 'bw';
+    const fmt = store.get('saveFmt', outDefault() === 'print' ? 'print' : 'image'), bw = store.get('saveCol', 'colour') === 'bw';
     try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { }
     const cv = drawTimetablePage(bw, currentTarget(), await loadLogo());
     const name = saveName().base + (bw ? ' (B&W)' : ''), full = name + (fmt === 'pdf' ? '.pdf' : '.png');
