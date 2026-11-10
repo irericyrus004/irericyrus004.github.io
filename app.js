@@ -241,9 +241,10 @@ const own = isOwner();
     const tag = c.g ? ` ${c.g}` : '';
     if (kind === 'teachers') return [classesText(c.c) || c.s || '', [c.c ? c.s : '', tag.trim(), c.r].filter(Boolean).join(' · ')];
     if (kind === 'classes' || kind === 'master') {
-      const others = c.c ? c.c.split(',').map(s => s.trim()).filter(x => x !== ownName) : [];
-      // Class and Master timetables: the subject and the teacher CODES (tap the lesson for the teachers' names)
-      return [(c.s || '') + tag, [c.r, others.length ? 'with ' + others.join(', ') : ''].filter(Boolean).join(' · '),
+      const all = c.c ? c.c.split(',').map(s => s.trim()).filter(Boolean) : [];
+      // Class and Master timetables: the subject and the teacher CODES (tap the lesson for the teachers' names).
+      // A lesson for several classes names every one of them (never "with ...").
+      return [(c.s || '') + tag, [c.r, all.length > 1 ? all.join(', ') : ''].filter(Boolean).join(' · '),
         String(c.t || '').split(',').map(s => s.trim()).filter(Boolean).join(', ')];
     }
     return [[classesText(c.c), c.s].filter(Boolean).join(' · '), '', teachersText(c.t)];
@@ -650,7 +651,12 @@ const own = isOwner();
       const list = Array.isArray(meta.timetables) ? meta.timetables : null;
       state.tts = list || [];
       try { localStorage.setItem(`ireri:${CODE}:tts`, JSON.stringify(state.tts)); } catch { }
-      if (list && !list.length) throw new NotFound('none');
+      if (list && !list.length) {                      // every timetable was deleted: phones stop showing the old one
+        state.data = null; B = null;
+        try { if ('caches' in self) await caches.delete(DATA_CACHE); } catch { }
+        try { Object.keys(localStorage).filter(k => k.startsWith(`ireri:${CODE}:data3:`)).forEach(k => localStorage.removeItem(k)); } catch { }
+        throw new NotFound('none');
+      }
       let tt = '', ver = meta.version, path = 'data.json';
       if (list) {
         const want = curTT();
@@ -2292,7 +2298,7 @@ const own = isOwner();
       <button class="mrow" data-act="about">${icon('info')}<span>About<small>${esc(BRAND_LINE)}</small></span></button>
       ${lockKey() && !CFG.preview ? `<button class="mrow" data-act="signOut">${icon('info')}<span>Sign out<small>Frees your number to sign in on another phone · needs your PIN</small></span></button>` : ''}
       ${isOwner() ? `<button class="mrow" data-go="schools">${icon('grid')}<span>Owner mode: all schools<small>Open any school's timetables · tap to choose a school</small></span></button><button class="mrow" data-act="ownerOff">${icon('info')}<span>Turn off owner mode<small>This phone goes back to normal</small></span></button>` : ''}
-      <p class="muted small center-t" data-act="verTap" style="padding:6px 0 2px">App version v62 · build ${esc(CFG.build || '-')}</p>
+      <p class="muted small center-t" data-act="verTap" style="padding:6px 0 2px">App version v63 · build ${esc(CFG.build || '-')}</p>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   function loadQR() { if (self.qrcode) return Promise.resolve(); return new Promise((res, rej) => { const s = document.createElement('script'); s.src = '/qrcode.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }

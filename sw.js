@@ -1,7 +1,7 @@
 /* PREPFIX service worker: keeps the app working offline.
    UPDATES ARE NEVER AUTOMATIC: the app files a phone is running stay exactly as they are until the teacher
    taps "Update" in the app. Keep the SHELL name below unchanged, so a new sw.js never swaps the app files by itself. */
-const SHELL = 'ireri-shell-v44';
+const SHELL = 'ireri-shell-v45';
 const SHELL_FILES = ['/app.css', '/app.js', '/config.js', '/qrcode.js',
   '/icons/icon-192.png', '/icons/icon-512.png', '/brand/prepfix-logo-600.png', '/brand/prepfix-mark.png'];
 const APP_FILE = /\/(app\.js|app\.css|qrcode\.js|config\.js)$/;

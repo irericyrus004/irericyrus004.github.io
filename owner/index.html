@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#12284C">
+<title>PREPFIX Owner</title>
+<link rel="manifest" href="/owner/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#12284C;--navy2:#1D3A68;--gold:#C9A227;--ink:#16202F;--mute:#5E6B7E;--line:#DCE2EC;--bg:#EEF1F6;--card:#fff;
+  --ok:#1E7F5C;--warn:#B7791F;--bad:#B4382E;--off:#8A94A6;--f:'Archivo',system-ui,Segoe UI,Roboto,sans-serif}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--f);-webkit-font-smoothing:antialiased;padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+button,input,textarea{font:inherit;color:inherit}
+header{background:var(--navy);color:#fff;padding:calc(14px + env(safe-area-inset-top)) 16px 14px;position:sticky;top:0;z-index:5}
+.hrow{display:flex;align-items:center;gap:10px}
+.hrow h1{margin:0;font-size:20px;font-weight:800;font-stretch:112%;letter-spacing:.01em;flex:1}
+.hrow h1 small{display:block;font-size:12.5px;font-weight:400;font-stretch:100%;color:#B9C5DA;letter-spacing:0}
+.ib{background:transparent;border:1px solid #3A5584;color:#fff;border-radius:10px;height:38px;min-width:38px;padding:0 10px;cursor:pointer}
+.ib:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,.row:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.tot{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#2B4675;border-radius:12px;overflow:hidden;margin-top:12px}
+.tot div{background:var(--navy2);padding:9px 8px}
+.tot b{display:block;font-size:22px;font-weight:800;font-stretch:118%;line-height:1.05;font-variant-numeric:tabular-nums}
+.tot span{font-size:11.5px;color:#C4CEE0;line-height:1.2;display:block}
+main{max-width:760px;margin:0 auto;padding:12px 12px 24px}
+.note{font-size:13px;color:var(--mute);margin:6px 4px 10px}
+.spark{display:flex;align-items:flex-end;gap:3px;height:46px;margin:12px 0 4px}
+.spark i{flex:1;background:var(--gold);border-radius:3px 3px 0 0;min-height:3px;opacity:.9}
+.spark-l{display:flex;justify-content:space-between;font-size:11px;color:#B9C5DA}
+.find{width:100%;border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px;margin:2px 0 10px}
+.list{background:var(--card);border-radius:14px;border:1px solid var(--line);overflow:hidden}
+.row{display:grid;grid-template-columns:6px 1fr auto;gap:0 12px;align-items:center;padding:12px 14px 12px 0;border-bottom:1px solid #EDF0F5;cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left}
+.row:last-child{border-bottom:0}
+.rail{align-self:stretch;border-radius:0 4px 4px 0}
+.rail.ok{background:var(--ok)}.rail.idle{background:var(--warn)}.rail.bad{background:var(--bad)}.rail.off{background:var(--off)}
+.nm{font-weight:700;font-size:15.5px;line-height:1.25}
+.sub{font-size:13px;color:var(--mute);margin-top:2px}
+.fig{text-align:right;font-variant-numeric:tabular-nums}
+.fig b{display:block;font-size:20px;font-weight:800;font-stretch:115%;line-height:1}
+.fig span{font-size:11.5px;color:var(--mute)}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:1px 6px;margin-right:4px}
+.t-bad{background:#F8E1DE;color:var(--bad)}.t-warn{background:#FBEFD8;color:#8A5A12}.t-off{background:#E9ECF2;color:#4B5568}.t-ok{background:#DDF1E8;color:#176548}
+.tabs{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;padding:8px 10px calc(8px + env(safe-area-inset-bottom));gap:8px;z-index:6}
+.tabs button{flex:1;border:0;border-radius:12px;padding:11px 6px;background:transparent;font-weight:700;color:var(--mute);cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--navy);color:#fff}
+.empty{padding:28px 18px;text-align:center;color:var(--mute)}
+.err{background:#F8E1DE;color:#7A221B;border-radius:12px;padding:10px 12px;margin:0 0 10px;font-size:14px}
+dialog{border:0;border-radius:18px 18px 0 0;padding:0;width:100%;max-width:760px;margin:auto auto 0;max-height:88vh;background:#fff;color:var(--ink)}
+dialog::backdrop{background:rgba(10,20,40,.45)}
+.dh{position:sticky;top:0;background:#fff;padding:16px 16px 10px;border-bottom:1px solid #EDF0F5;display:flex;gap:10px;align-items:flex-start}
+.dh h2{margin:0;font-size:19px;font-weight:800;font-stretch:108%;flex:1;line-height:1.2}
+.db{padding:12px 16px 22px}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px}
+.kv div{background:var(--bg);border-radius:10px;padding:8px 10px}
+.kv b{display:block;font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+.kv span{font-size:12px;color:var(--mute)}
+h3{font-size:14.5px;margin:16px 0 6px}
+.ppl{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.ppl div{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid #EDF0F5;font-size:14px}
+.ppl div:last-child{border-bottom:0}
+.ppl em{font-style:normal;color:var(--mute);font-size:12.5px;text-align:right}
+.btn{border:0;border-radius:12px;padding:11px 16px;font-weight:700;cursor:pointer;background:var(--navy);color:#fff}
+.btn.ghost{background:var(--bg);color:var(--navy)}
+.btn.red{background:var(--bad)}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px;min-height:70px}
+.gate{max-width:420px;margin:12vh auto 0;padding:0 20px}
+.gate h1{font-size:28px;font-weight:800;font-stretch:118%;color:var(--navy);margin:0 0 6px}
+.gate p{color:var(--mute)}
+.gate input{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;margin:6px 0 12px}
+.pills{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.pill{background:#EEF1F6;border-radius:6px;padding:2px 7px;font-size:12px}
+@media (prefers-reduced-motion:no-preference){dialog[open]{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="tabs" id="tabs" role="tablist" hidden>
+  <button role="tab" id="tabS" aria-selected="true">Schools</button>
+  <button role="tab" id="tabC" aria-selected="false">Churches</button>
+</div>
+<dialog id="dlg"></dialog>
+<script>
+/* PREPFIX Owner - for Cyrus Ireri only. Reads: the timetable reminder service (Cloudflare) and the church check-in
+   Google Sheet. The owner key is typed once and kept on this phone only. DEVELOPED BY CYRUS IRERI */
+const WORKER = 'https://prepfix-reminders.irericyrus004.workers.dev'.startsWith('__') ? '' : 'https://prepfix-reminders.irericyrus004.workers.dev';
+const CHURCH = 'https://script.google.com/macros/s/AKfycbyU3Qfwfsu_sF0gC5GGuclMPkMfcFBmTKdw41-2GZRS2zGWbHHU1AJdZ48JyEHNa74e/exec';
+const $ = s => document.querySelector(s);
+const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const st = { get(k, d) { try { const v = localStorage.getItem('pfxo-' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('pfxo-' + k, JSON.stringify(v)); } catch { } } };
+let KEY = st.get('key', ''), TAB = st.get('tab', 'S'), S = st.get('S', null), C = st.get('C', null), errS = '', errC = '', busy = false, q = '';
+const ago = iso => { if (!iso) return 'never'; const t = Date.parse(iso); if (!t) return String(iso).slice(0, 10); const m = (Date.now() - t) / 6e4;
+  if (m < 2) return 'just now'; if (m < 60) return Math.round(m) + ' min ago'; if (m < 1440) return Math.round(m / 60) + ' h ago'; const d = Math.round(m / 1440); return d === 1 ? 'yesterday' : d + ' days ago'; };
+const days = iso => { const t = Date.parse(iso); return t ? (Date.now() - t) / 864e5 : 1e9; };
+const dateOnly = iso => { const t = Date.parse(iso); return t ? new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : (iso || '—'); };
+
+async function post(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
+  return r.json();
+}
+async function loadSchools() {
+  errS = '';
+  try {
+    const dir = await fetch('/schools.json?t=' + Date.now()).then(r => r.json()).catch(() => ({ schools: [] }));
+    let use = null;
+    if (WORKER) {
+      const r = await fetch(WORKER + '/owner.json?key=' + encodeURIComponent(KEY), { cache: 'no-store' });
+      if (r.status === 403) throw new Error('The owner key is wrong for the timetable service. Tap ⚙ and type it again.');
+      if (!r.ok) throw new Error('The timetable service did not answer (' + r.status + ').');
+      use = await r.json();
+    } else errS = 'The reminder service link is not set in PREPFIX (Setup), so only registered schools are shown.';
+    S = { dir, use, at: new Date().toISOString() }; st.set('S', S);
+  } catch (e) { errS = navigator.onLine ? e.message : 'Offline - showing what was saved ' + (S ? ago(S.at) : '') + '.'; }
+}
+async function loadChurches() {
+  errC = '';
+  try {
+    const r = await post(CHURCH, { action: 'owner', key: KEY });
+    if (r.error === 'setup') throw new Error('One step left: in the church Google Sheet open Extensions → Apps Script → Project Settings → Script properties, add OWNER_KEY with your owner key, then deploy a new version.');
+    if (r.error === 'key') throw new Error('The owner key is wrong for the church sheet. It must be the same as OWNER_KEY in the sheet\'s Script properties.');
+    if (r.error) throw new Error(r.error);
+    C = { list: r.churches || [], at: r.now || new Date().toISOString() }; st.set('C', C);
+  } catch (e) { errC = navigator.onLine ? (e.message || 'The church sheet did not answer.') : 'Offline - showing what was saved ' + (C ? ago(C.at) : '') + '.'; }
+}
+async function refresh() {
+  if (busy) return; busy = true; render();
+  await Promise.all([loadSchools(), loadChurches()]);
+  busy = false; render();
+}
+
+/* ---------- schools ---------- */
+function schoolRows() {
+  const dir = (S && S.dir && S.dir.schools) || [], use = (S && S.use && S.use.schools) || [];
+  const U = Object.fromEntries(use.map(r => [r.code, r]));
+  const rows = dir.map(s => ({ s, u: U[s.code] || null }));
+  use.filter(r => !dir.some(s => s.code === r.code)).forEach(u => rows.push({ s: { code: u.code, name: u.code || '(no school)' }, u }));
+  rows.forEach(r => { const u = r.u || {}; r.state = r.s.suspended ? 'bad' : r.s.mobile === false ? 'off' : u.active7 ? 'ok' : 'idle'; });
+  return rows.sort((a, b) => ((b.u && b.u.last) || '').localeCompare((a.u && a.u.last) || '') || a.s.name.localeCompare(b.s.name));
+}
+function viewSchools() {
+  const t = (S && S.use && S.use.totals) || {}, rows = schoolRows().filter(r => !q || r.s.name.toLowerCase().includes(q));
+  const daily = (S && S.use && S.use.daily) || [], mx = Math.max(1, ...daily.map(d => d.opens));
+  const reg = ((S && S.dir && S.dir.schools) || []).length;
+  return { head: `<div class="tot"><div><b>${reg}</b><span>registered</span></div><div><b>${t.schools || 0}</b><span>using the app</span></div>
+    <div><b>${t.devices || 0}</b><span>phones</span></div><div><b>${t.active7 || 0}</b><span>active this week</span></div></div>
+    ${daily.length ? `<div class="spark" aria-label="App opens per day, last 14 days">${daily.map(d => `<i title="${esc(d.day)}: ${d.opens} opens" style="height:${Math.max(6, Math.round(100 * d.opens / mx))}%"></i>`).join('')}</div>
+    <div class="spark-l"><span>${esc(daily[0].day.slice(5))}</span><span>opens per day</span><span>${esc(daily[daily.length - 1].day.slice(5))}</span></div>` : ''}`,
+    body: `${errS ? `<div class="err">${esc(errS)}</div>` : ''}
+    <input class="find" type="search" placeholder="Find a school" value="${esc(q)}" aria-label="Find a school">
+    <div class="list">${rows.map((r, i) => { const u = r.u || {};
+      const tags = (r.s.suspended ? '<span class="tag t-bad">Suspended</span>' : '') + (r.s.mobile === false ? '<span class="tag t-off">PC only</span>' : '');
+      return `<button class="row" data-s="${i}"><span class="rail ${r.state}"></span><span><div class="nm">${esc(r.s.name)}</div>
+        <div class="sub">${tags}${u.last ? 'Last opened ' + esc(ago(u.last)) : 'No phone has opened it yet'}</div></span>
+        <span class="fig"><b>${u.active7 || 0}</b><span>active / ${u.devices || 0}</span></span></button>`; }).join('') || '<div class="empty">No schools yet. Register one in PREPFIX on the computer.</div>'}</div>
+    <p class="note">Green: used this week · amber: not used this week · red: suspended · grey: PC only. Suspend, restore or delete a school in PREPFIX on the computer (Schools tab).</p>` , rows };
+}
+async function openSchool(r) {
+  const u = r.u || {}, s = r.s, d = $('#dlg');
+  d.innerHTML = `<div class="dh"><h2>${esc(s.name)}</h2><button class="ib" style="border-color:var(--line);color:var(--navy)" id="x" aria-label="Close">✕</button></div><div class="db">
+    <div class="kv"><div><b>${u.devices || 0}</b><span>phones</span></div><div><b>${u.installed || 0}</b><span>installed</span></div>
+    <div><b>${u.active7 || 0}</b><span>active this week</span></div><div><b>${u.o7 || 0} / ${u.o30 || 0}</b><span>opens 7 / 30 days</span></div>
+    <div><b>${u.rem || 0}</b><span>lesson reminders on</span></div><div><b>${esc(ago(u.last))}</b><span>last opened</span></div></div>
+    ${(u.top || []).length ? `<h3>Most used (30 days)</h3><div class="pills">${u.top.map(x => `<span class="pill">${esc(x)}</span>`).join('')}</div>` : ''}
+    <h3>Timetables published</h3><div class="pills">${(s.timetables || []).map(x => `<span class="pill">${esc(x)}</span>`).join('') || '<span class="sub">None yet</span>'}</div>
+    <p class="sub">${s.updated ? 'Last published ' + esc(dateOnly(s.updated)) + '. ' : ''}${s.teachers ? esc(s.teachers) + ' teachers, ' + esc(s.classes) + ' classes. ' : ''}${s.registered ? 'Registered ' + esc(dateOnly(s.registered)) + '.' : ''}</p>
+    <h3>Teachers on the list</h3><div id="ppl" class="sub">Loading…</div></div>`;
+  d.showModal(); $('#x').onclick = () => d.close();
+  if (!WORKER || !s.code) { $('#ppl').textContent = 'Not available.'; return; }
+  try {
+    const r2 = await post(WORKER + '/roster-status', { key: KEY, school: s.code });
+    if (!r2.ok) throw new Error(r2.error || 'no answer');
+    const p = (r2.people || []).sort((a, b) => (b.joined - a.joined) || (b.last || '').localeCompare(a.last || '') || String(a.name).localeCompare(b.name));
+    const n = p.filter(x => x.joined).length;
+    $('#ppl').outerHTML = !r2.locked ? '<p class="sub">This school is not locked to a teachers list, so anyone with the link can open it.</p>' :
+      `<p class="sub">${n} of ${p.length} teachers have signed in.</p><div class="ppl">${p.map(x => `<div><span>${x.joined ? '✓ ' : ''}${esc(x.name || '—')}</span><em>${x.joined ? esc((x.plat || 'phone') + ' · ' + ago(x.last)) : 'not yet'}</em></div>`).join('')}</div>`;
+  } catch (e) { $('#ppl').textContent = 'The list could not be loaded: ' + e.message; }
+}
+
+/* ---------- churches ---------- */
+function churchState(c) {
+  if (/suspend|remov/i.test(c.status)) return 'bad';
+  if (/made - not used/i.test(c.state) || !c.last) return 'off';
+  return days(c.last) <= 7 ? 'ok' : 'idle';
+}
+function viewChurches() {
+  const list = ((C && C.list) || []).map(c => ({ ...c, st: churchState(c), left: c.until ? Math.ceil((Date.parse(c.until) - Date.now()) / 864e5) : null }))
+    .filter(c => !q || c.church.toLowerCase().includes(q)).sort((a, b) => (b.last || '').localeCompare(a.last || ''));
+  const all = (C && C.list) || [], act = all.filter(c => churchState(c) === 'ok').length;
+  const due = all.filter(c => { const l = c.until ? (Date.parse(c.until) - Date.now()) / 864e5 : null; return l != null && l < 30; }).length;
+  return { head: `<div class="tot"><div><b>${all.length}</b><span>churches</span></div><div><b>${act}</b><span>used this week</span></div>
+    <div><b>${due}</b><span>to renew (30 days)</span></div><div><b>${all.reduce((a, c) => a + (c.withApp || 0), 0)}</b><span>team phones</span></div></div>`,
+    body: `${errC ? `<div class="err">${esc(errC)}</div>` : ''}
+    <input class="find" type="search" placeholder="Find a church" value="${esc(q)}" aria-label="Find a church">
+    <div class="list">${list.map((c, i) => {
+      const tags = (/suspend/i.test(c.status) ? '<span class="tag t-bad">Suspended</span>' : /remov/i.test(c.status) ? '<span class="tag t-bad">Removed</span>' : '') +
+        (c.left != null && c.left < 0 ? '<span class="tag t-bad">Expired</span>' : c.left != null && c.left < 30 ? `<span class="tag t-warn">Renew in ${c.left} d</span>` : '') +
+        (/pirat/i.test(c.state) ? '<span class="tag t-bad">Copied?</span>' : '');
+      return `<button class="row" data-c="${esc(c.id)}"><span class="rail ${c.st}"></span><span><div class="nm">${esc(c.church || c.id)}</div>
+        <div class="sub">${tags}${c.last ? 'Opened ' + esc(ago(c.last)) : 'Made, not used yet'}</div></span>
+        <span class="fig"><b>${c.songs || 0}</b><span>songs</span></span></button>`; }).join('') || '<div class="empty">No churches yet. Make one with “1 NEW CHURCH” on the computer.</div>'}</div>
+    <p class="note">Green: opened this week · amber: not this week · grey: not used yet · red: suspended. Renewal codes are made on the computer (“2 RENEW A CHURCH”).</p>` };
+}
+function openChurch(id) {
+  const c = ((C && C.list) || []).find(x => x.id === id); if (!c) return;
+  const d = $('#dlg'), susp = /suspend/i.test(c.status);
+  d.innerHTML = `<div class="dh"><h2>${esc(c.church || c.id)}</h2><button class="ib" style="border-color:var(--line);color:var(--navy)" id="x" aria-label="Close">✕</button></div><div class="db">
+    <div class="kv"><div><b>${esc(c.status)}</b><span>status</span></div><div><b>${esc(c.until ? dateOnly(c.until) : '—')}</b><span>paid until</span></div>
+    <div><b>${esc(ago(c.last))}</b><span>last opened</span></div><div><b>${esc(c.version || '—')}</b><span>version</span></div>
+    <div><b>${c.songs} / ${c.playlists}</b><span>songs / playlists</span></div><div><b>${c.withApp} / ${c.members}</b><span>team members with the app</span></div></div>
+    <p class="sub">Licence ID ${esc(c.id)}${c.state ? ' · ' + esc(c.state) : ''}${c.computers ? '<br>Computers: ' + esc(c.computers) : ''}${c.hasCode ? '<br>A renewal code is waiting for this church.' : ''}</p>
+    <h3>Message to the church</h3><textarea id="msg" maxlength="300" placeholder="Shown on the church's toolkit">${esc(c.message)}</textarea>
+    <div class="btns"><button class="btn" id="save">Save message</button>
+    <button class="btn ${susp ? '' : 'red'}" id="sus">${susp ? 'Set Active again' : 'Suspend this church'}</button></div>
+    <p class="sub" id="out" role="status"></p></div>`;
+  d.showModal(); $('#x').onclick = () => d.close();
+  const set = async (body, done) => {
+    $('#out').textContent = 'Saving…';
+    try { const r = await post(CHURCH, { action: 'ownerSet', key: KEY, id: c.id, ...body }); if (r.error) throw new Error(r.error);
+      Object.assign(c, body); st.set('C', C); $('#out').textContent = done; render(); } catch (e) { $('#out').textContent = 'Not saved: ' + e.message; }
+  };
+  $('#save').onclick = () => set({ message: $('#msg').value.trim() }, 'Message saved. The church sees it the next time its toolkit is online.');
+  $('#sus').onclick = () => {
+    if (!susp && !confirm('Suspend ' + (c.church || 'this church') + '? Its toolkit and team app stop until you set it Active again.')) return;
+    set({ status: susp ? 'Active' : 'Suspended' }, susp ? 'Set Active.' : 'Suspended. It takes effect the next time the toolkit checks in.').then(() => openChurch(id));
+  };
+}
+
+/* ---------- screens ---------- */
+function gate(msg) {
+  $('#tabs').hidden = true;
+  $('#app').innerHTML = `<div class="gate"><h1>PREPFIX Owner</h1><p>Your schools and churches in one place. Type your owner key once; it stays on this phone only.</p>
+    ${msg ? `<div class="err">${esc(msg)}</div>` : ''}<form id="kf"><label for="k">Owner key</label><input id="k" type="password" autocomplete="current-password" required>
+    <button class="btn" style="width:100%">Open</button></form><p class="sub">The same private key you saved as OWNER_KEY in Cloudflare and in the church Google Sheet.</p></div>`;
+  $('#kf').onsubmit = e => { e.preventDefault(); KEY = $('#k').value.trim(); if (!KEY) return; st.set('key', KEY); refresh(); };
+}
+function render() {
+  if (!KEY) return gate();
+  $('#tabs').hidden = false;
+  $('#tabS').setAttribute('aria-selected', TAB === 'S'); $('#tabC').setAttribute('aria-selected', TAB === 'C');
+  const v = TAB === 'S' ? viewSchools() : viewChurches(), at = TAB === 'S' ? S && S.at : C && C.at;
+  const hadFocus = document.activeElement && document.activeElement.classList.contains('find');
+  $('#app').innerHTML = `<header><div class="hrow"><h1>${TAB === 'S' ? 'Schools' : 'Churches'}<small>${busy ? 'Updating…' : at ? 'Updated ' + esc(ago(at)) : 'Not loaded yet'}</small></h1>
+    <button class="ib" id="rf" aria-label="Refresh">↻</button><button class="ib" id="cfg" aria-label="Settings">⚙</button></div>${v.head}</header><main>${v.body}</main>`;
+  $('#rf').onclick = refresh;
+  $('#cfg').onclick = () => { if (confirm('Forget the owner key on this phone?')) { KEY = ''; st.set('key', ''); st.set('S', null); st.set('C', null); S = C = null; gate(); } };
+  const f = $('.find'); if (f) { f.oninput = () => { q = f.value.trim().toLowerCase(); const p = f.selectionStart; render(); const g = $('.find'); g.focus(); g.setSelectionRange(p, p); }; if (hadFocus) f.focus(); }
+  if (TAB === 'S') document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => openSchool(v.rows.filter(r => !q || r.s.name.toLowerCase().includes(q))[+b.dataset.s]));
+  else document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => openChurch(b.dataset.c));
+}
+$('#tabS').onclick = () => { TAB = 'S'; st.set('tab', TAB); q = ''; render(); };
+$('#tabC').onclick = () => { TAB = 'C'; st.set('tab', TAB); q = ''; render(); };
+$('#dlg').addEventListener('click', e => { if (e.target === $('#dlg')) $('#dlg').close(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && KEY && (!S || days(S.at) > 1 / 96)) refresh(); });
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/owner/sw.js', { scope: '/owner/' }).catch(() => { });
+render(); if (KEY) refresh();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "PREPFIX Owner",
+  "short_name": "PFX Owner",
+  "description": "Cyrus Ireri's schools and churches at a glance.",
+  "id": "/owner/",
+  "start_url": "/owner/",
+  "scope": "/owner/",
+  "display": "standalone",
+  "background_color": "#12284C",
+  "theme_color": "#12284C",
+  "icons": [
+    {"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
