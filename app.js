@@ -39,8 +39,6 @@
       `@media print{#tt::after{position:absolute}}`;
     (document.head || document.documentElement).appendChild(st);
   })();
-  // v60: if the first load is slow, say what to check instead of leaving a bare "Loading…"
-  setTimeout(() => { const p = document.querySelector('#app .splash p'); if (p && !document.querySelector('.splash-hint')) p.insertAdjacentHTML('afterend', '<p class="splash-hint">Still loading? Check your internet connection. Your timetables will appear as soon as it is back.</p>'); }, 9000);
   const DATA_CACHE = 'ireri-data-v2';
 
   const $ = (s, r = document) => r.querySelector(s);
@@ -750,31 +748,12 @@ const own = isOwner();
     const rail = document.createElement('nav'); rail.id = 'rail'; rail.setAttribute('aria-label', 'Go to');
     document.body.append(tab, rail);
   }
-  // Bottom navigation: Home, My timetable, Teachers, Classes, More (opens the full menu). Replaces the floating MENU tab.
-  function ensureBnav() {
-    if (POSTER || !state.data) return;
-    let nav = $('#bnav');
-    if (!nav) { nav = document.createElement('nav'); nav.id = 'bnav'; nav.setAttribute('aria-label', 'Main'); document.body.append(nav); }
-    const r = route(), me = meTeacher(), item = r.name === 'view' ? IDX.byId[r.id] : null;
-    const on = {
-      home: r.name === 'home',
-      me: !!(me && r.name === 'view' && r.id === me.id),
-      teachers: (r.name === 'list' && r.kind === 'teachers') || !!(item && item.kind === 'teachers' && !(me && r.id === me.id)),
-      classes: (r.name === 'list' && r.kind === 'classes') || !!(item && item.kind === 'classes')
-    };
-    const b = (k, ic, label, attr) => `<button type="button" class="bn ${on[k] ? 'on' : ''}" ${attr} ${on[k] ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></button>`;
-    nav.innerHTML = b('home', 'home', 'Home', 'data-act="home"')
-      + b('me', 'star', 'My timetable', me ? `data-go="view/${esc(me.id)}"` : 'data-act="pickMe"')
-      + b('teachers', 'teacher', 'Teachers', 'data-go="list/teachers"')
-      + b('classes', 'classes', 'Classes', 'data-go="list/classes"')
-      + `<button type="button" class="bn" data-act="rail" aria-label="More: open the full menu">${icon('more')}<span>More</span></button>`;
-  }
   function toggleRail() {
     const rail = $('#rail'); if (!rail) return;
     if (rail.classList.contains('open')) return closeRail();
     const here = route().name;
-    rail.innerHTML = railItems().map(([k, ic, label, href]) => `<button type="button" class="ri ${here === k || (k === 'home' && here === 'home') ? 'on' : ''}${['home', 'me', 'teachers', 'classes'].includes(k) ? ' dup' : ''}" ${k === 'home' ? 'data-act="home"' : href.startsWith('@') ? `data-act="${href.slice(1)}"` : href ? `data-go="${href}"` : 'data-act="pickMe"'}>${icon(ic)}<span>${label}</span></button>`).join('');
-    rail.scrollTop = 0; rail.classList.add('open'); document.body.classList.add('rail-open'); const t = $('#railtab'); if (t) t.setAttribute('aria-expanded', 'true');
+    rail.innerHTML = railItems().map(([k, ic, label, href]) => `<button type="button" class="ri ${here === k || (k === 'home' && here === 'home') ? 'on' : ''}" ${k === 'home' ? 'data-act="home"' : href.startsWith('@') ? `data-act="${href.slice(1)}"` : href ? `data-go="${href}"` : 'data-act="pickMe"'}>${icon(ic)}<span>${label}</span></button>`).join('');
+    rail.classList.add('open'); document.body.classList.add('rail-open'); const t = $('#railtab'); if (t) t.setAttribute('aria-expanded', 'true');
   }
   function closeRail() { const r = $('#rail'); if (r) r.classList.remove('open'); document.body.classList.remove('rail-open'); const t = $('#railtab'); if (t) t.setAttribute('aria-expanded', 'false'); }
   document.addEventListener('click', e => { if (document.body.classList.contains('rail-open') && !e.target.closest('#rail,#railtab')) closeRail(); }, true);
@@ -789,7 +768,6 @@ const own = isOwner();
   function render() {
     if (POSTER) return renderPoster();
     ensureRail();
-    ensureBnav();
     document.documentElement.classList.toggle('pv-dup', !!CFG.preview && ['home', 'pages'].includes(route().name));   // preview: the top tab row repeats the page's own tabs there
     document.body.classList.toggle('desk', isDesk());
     document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name));
@@ -829,8 +807,8 @@ const own = isOwner();
         <div class="titles"><h1>As printed · A4</h1><p class="sub">${esc(sch.name || '')}${state.data.ttName ? ' · ' + esc(state.data.ttName) : ''} — exactly what the printer gets</p></div></div>
         <nav class="pgtabs">${kinds.map(([k, l, n]) => `<a href="#pages/${k}" class="${k === kind ? 'on' : ''}">${esc(l)} <small>${n}</small></a>`).join('')}
           ${kind === 'classes' && IDX.grades.length > 1 ? `<span class="pgjump">Go to:${IDX.grades.map(g => `<button type="button" data-pgjump="${B.classes.findIndex(c => gradeOf(c.name) === g)}">${esc(g)}</button>`).join('')}</span>` : ''}
-          <a href="#analysis" class="pgrep">${icon('chart')} Analysis &amp; reports</a>
-          <button type="button" class="pgbw ${bw ? 'on' : ''}" data-act="pgbw">${bw ? '<i class="cdot c-bw"></i> Black &amp; white' : '<i class="cdot c-col"></i> Colour'}</button>
+          <a href="#analysis" class="pgrep">📊 Analysis & reports</a>
+          <button type="button" class="pgbw ${bw ? 'on' : ''}" data-act="pgbw">${bw ? '⚫ Black & white' : '🎨 Colour'}</button>
           <button type="button" class="pgprint" data-act="allSheet">${icon('print')} Print / save…</button></nav>
         <div class="pgpick"><input type="search" class="pgq" id="pgq" autocomplete="off" placeholder="Choose ${kind === 'teachers' ? 'a teacher' : kind === 'classes' ? 'a class' : kind === 'rooms' ? 'a lab or field' : 'a day'}…  (${T.length})">
           <div class="pgchips" id="pgchips">${T.map((x, i) => `<button type="button" class="pgc${i === 0 ? ' on' : ''}${kind === 'teachers' ? ' code' : ''}" data-pgjump="${i}" data-pgi="${i}" data-pgs="${esc(x.lab.toLowerCase())}" title="${esc(x.lab)}">${esc(kind === 'master' ? x.lab.replace('Master — ', '') : kind === 'teachers' ? (B.teachers[i].code || x.lab) : x.lab)}</button>`).join('')}</div></div>
@@ -1166,12 +1144,12 @@ const own = isOwner();
       </header>
       <main class="home">
         ${ttSwitcher()}
-        ${instBlock('small')}
+        ${instBlock()}
         <div id="banners"></div>
         ${nowCard()}
         <nav class="tiles">${tiles.map(([k, ic, t, s, href]) => `
-          <button class="tile t-${k}${k === 'rooms' && !B.rooms.length ? ' off' : ''}" ${k === 'rooms' && !B.rooms.length ? 'disabled aria-disabled="true"' : k === 'printall' ? 'data-act="allSheet"' : href ? `data-go="${href}"` : 'data-act="pickMe"'}>
-            <span class="tic">${icon(ic)}</span><strong>${esc(t)}</strong><small>${esc(k === 'rooms' && !B.rooms.length ? 'None added yet' : s)}</small></button>`).join('')}
+          <button class="tile t-${k}" ${k === 'printall' ? 'data-act="allSheet"' : href ? `data-go="${href}"` : 'data-act="pickMe"'}>
+            <span class="tic">${icon(ic)}</span><strong>${esc(t)}</strong><small>${esc(s)}</small></button>`).join('')}
         </nav>
         <footer class="foot">${esc(BRAND_LINE)}</footer>
       </main>`;
@@ -1277,20 +1255,18 @@ const own = isOwner();
   }
   function renderBanners() {
     const box = $('#banners'); if (!box || !state.data) return;
-    // v60: ONE slim strip. Each notice is a single line with its own small button, so the tiles stay near the top.
-    const rows = [];
-    const row = (cls, text, btns) => `<div class="brow ${cls}"><span class="bdot" aria-hidden="true"></span><span class="btxt">${text}</span><span class="bbtns">${btns}</span></div>`;
-    if (state.appNew) rows.push(row('new', '<strong>Update ready</strong> · your timetables stay as they are', '<button class="btn small" data-act="appUpdate">Update</button>'));
+    const out = [];
+    if (state.appNew) out.push(`<div class="banner new"><div><strong>⬆ PREPFIX has been improved</strong><span>Tap Update to get the newest version — your timetables stay as they are.</span></div><div class="banner-actions"><button class="btn small" data-act="appUpdate">Update</button></div></div>`);
     const fresh = (state.tts && state.tts.length ? state.tts : [{ id: state.data.tt, version: state.data.version, name: state.data.ttName, updated: B.published, note: state.data.school?.note }]).filter(isNewTT);
     if (fresh.length) {
-      const items = fresh.map(t => `${esc(t.name || 'Timetable')} · ${esc(fmtDate(t.updated))}${t.note ? ' — ' + esc(t.note) : ''}`).join(' | ');
-      rows.push(row('new', `<strong>${fresh.length > 1 ? 'New timetables' : 'New timetable'}</strong> · ${items}`, '<button class="txt-btn" data-act="seen">Got it</button>'));
+      const items = fresh.map(t => `<b>${esc(t.name || 'Timetable')}</b> · ${esc(fmtDate(t.updated))}${t.note ? ' — ' + esc(t.note) : ''}`).join('<br>');
+      out.push(`<div class="banner new"><div><strong>🆕 ${fresh.length > 1 ? 'New timetables published' : 'New timetable published'}</strong><span>${items}</span></div><button class="txt-btn" data-act="seen">Got it</button></div>`);
     }
     if (!isStandalone() && !store.get('hideInstallTip')) {
-      rows.push(row('tip', '<strong>Install app</strong> · one tap, works offline',
-        `<button class="btn small" data-act="${state.installEvt ? 'install' : 'getapp'}">${state.installEvt ? 'Install' : 'Get app'}</button><button class="txt-btn" data-act="hideInstall" aria-label="Hide this tip">Later</button>`));
+      if (state.installEvt) out.push(`<div class="banner tip"><div>${icon('install')}<span><strong>Install this app</strong> for one-tap access, even offline.</span></div><div class="banner-actions"><button class="btn small" data-act="install">Install</button><button class="txt-btn" data-act="getapp">Other devices</button><button class="txt-btn" data-act="hideInstall">Later</button></div></div>`);
+      else out.push(`<div class="banner tip"><div>${icon('install')}<span><strong>Get the app</strong> on your Android, iPhone or computer — one tap, works offline.</span></div><div class="banner-actions"><button class="btn small" data-act="getapp">Get the app</button><button class="txt-btn" data-act="hideInstall">Later</button></div></div>`);
     }
-    box.innerHTML = rows.length ? `<div class="bstrip" role="region" aria-label="Notices">${rows.join('')}</div>` : '';
+    box.innerHTML = out.join('');
   }
 
   // ------------------------------------------------------------------ LISTS with filters
@@ -1512,16 +1488,8 @@ const own = isOwner();
       if (wrap.scrollHeight > wrap.clientHeight + 2 || wrap.scrollWidth > wrap.clientWidth + 2) scrollMode();
       return;
     }
-    const rows0 = $$('tbody tr', tb); rows0.forEach(r => { r.style.height = ''; });
     const z = Math.min(1, (wrap.clientWidth - 2) / tb.scrollWidth);
     if (z < 1) tb.style.zoom = Math.max(isLandscape() ? 0.55 : 0.62, z);
-    // v60: the table is shorter than its box -> share the spare height between the rows (capped), so the grid uses the screen
-    const zz = parseFloat(tb.style.zoom) || 1, hh = wrap.clientHeight - 2, th = tb.getBoundingClientRect().height;
-    if (rows0.length && hh > 0 && th < hh - 4) {
-      const extra = Math.min(56, (hh - th) / zz / rows0.length);
-      const hs = rows0.map(r => r.getBoundingClientRect().height / zz);
-      rows0.forEach((r, i) => { r.style.height = (hs[i] + extra) + 'px'; });
-    }
   }
 
   // ------------------------------------------------------------------ MASTER — day by day
@@ -2054,9 +2022,9 @@ const own = isOwner();
     openSheet(`<div class="grab"></div><h3>Save this timetable</h3>
       <p class="muted small">${esc(saveName().base)}</p>
       <h4 class="svh">Save as</h4>
-      <div class="seg wide-seg sv"><button class="${fmt === 'image' ? 'on' : ''}" data-savefmt="image">${icon('save')} Picture (PNG)</button><button class="${fmt === 'pdf' ? 'on' : ''}" data-savefmt="pdf">${icon('save')} PDF</button><button class="${fmt === 'print' ? 'on' : ''}" data-savefmt="print">${icon('print')} Print…</button></div>
+      <div class="seg wide-seg sv"><button class="${fmt === 'image' ? 'on' : ''}" data-savefmt="image">🖼 Picture (PNG)</button><button class="${fmt === 'pdf' ? 'on' : ''}" data-savefmt="pdf">📄 PDF</button><button class="${fmt === 'print' ? 'on' : ''}" data-savefmt="print">🖨 Print…</button></div>
       <h4 class="svh">Colour</h4>
-      <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-savecol="colour"><i class="cdot c-col"></i> Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-savecol="bw"><i class="cdot c-bw"></i> Black &amp; white</button></div>
+      <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-savecol="colour">🎨 Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-savecol="bw">⚫ Black & white</button></div>
       <p class="muted small">${fmt === 'print' ? esc(printHint()) + ' ' : ''}A4 size, sharp HD quality, ready to print.</p>
       <button class="btn wide" data-act="doSave">${icon(fmt === 'print' ? 'print' : 'save')} ${fmt === 'print' ? 'Print…' : 'Save'}</button>
       <button class="btn ghost wide" data-act="allSheet">${icon('print')} Print / save ALL timetables</button>
@@ -2362,14 +2330,14 @@ const own = isOwner();
     const n = { teachers: B.teachers.length, classes: B.classes.length, rooms: (B.rooms || []).length, master: IDX.D.length };
     const lab = { teachers: 'Teachers', classes: 'Classes', rooms: 'Labs & Fields', master: 'Master (one page per day)' };
     const total = Object.keys(n).reduce((a, k) => a + (sel[k] ? n[k] : 0), 0);
-    openSheet(`<div class="grab"></div><h3>${icon('print')} Print / save ALL timetables</h3>
+    openSheet(`<div class="grab"></div><h3>🖨 Print / save ALL timetables</h3>
       <p class="muted small">${esc(state.data?.school?.name || '')} · ${esc(state.data?.ttName || '')}</p>
       <h4 class="svh">Which timetables</h4>
       <div class="allpick">${Object.keys(n).filter(k => n[k]).map(k => `<button class="ap ${sel[k] ? 'on' : ''}" data-allsel="${k}"><i>${sel[k] ? '✓' : ''}</i><b>${lab[k]}</b><small>${n[k]} page${n[k] === 1 ? '' : 's'}</small></button>`).join('')}</div>
       <h4 class="svh">Colour</h4>
-      <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-allcol="colour"><i class="cdot c-col"></i> Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-allcol="bw"><i class="cdot c-bw"></i> Black & white</button></div>
+      <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-allcol="colour">🎨 Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-allcol="bw">⚫ Black & white</button></div>
       <h4 class="svh">Get them as</h4>
-      <div class="seg wide-seg sv"><button class="${out === 'pdf' ? 'on' : ''}" data-allout="pdf">${icon('save')} One PDF file</button><button class="${out === 'print' ? 'on' : ''}" data-allout="print">${icon('print')} Print…</button></div>
+      <div class="seg wide-seg sv"><button class="${out === 'pdf' ? 'on' : ''}" data-allout="pdf">📄 One PDF file</button><button class="${out === 'print' ? 'on' : ''}" data-allout="print">🖨 Print…</button></div>
       <p class="muted small">${out === 'print' ? esc(printHint()) + ' ' : ''}${total} A4 pages, each with its name at the top, your school and the PREPFIX logo.</p>
       <button class="btn wide" data-act="doAll" ${total ? '' : 'disabled'}>${icon('print')} ${out === 'print' ? 'Print' : 'Make'} ${total} page${total === 1 ? '' : 's'}${out === 'print' ? '…' : ''}</button>
       <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
@@ -2384,7 +2352,7 @@ const own = isOwner();
     if (!T.length) return;
     try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { }
     const logo = await loadLogo(), pages = [], urls = [];
-    const box = document.createElement('div'); box.className = 'alarm-bg'; box.innerHTML = `<div class="alarm"><div class="abell">${icon('print')}</div><h3>Preparing your pages…</h3><p class="awhen" id="allprog">0 of ${T.length}</p></div>`;
+    const box = document.createElement('div'); box.className = 'alarm-bg'; box.innerHTML = `<div class="alarm"><div class="abell">🖨</div><h3>Preparing your pages…</h3><p class="awhen" id="allprog">0 of ${T.length}</p></div>`;
     document.body.appendChild(box);
     try {
       for (let i = 0; i < T.length; i++) {
@@ -2687,7 +2655,7 @@ const own = isOwner();
     if (CFG.desktop) document.documentElement.classList.add('is-desktop');
     strip.innerHTML = `${CFG.desktop ? '<b>PREPFIX TIMETABLE TOOLKIT</b><span>Desktop · on this computer</span>' : '<b>PREVIEW</b><span>Not published yet</span>'}
       <button type="button" class="pvnav" data-act="pvback">← Back</button><button type="button" class="pvnav" data-act="pvhome">⌂ Home</button>
-      <a href="#pages/teachers" class="pvpg">As printed</a><a href="#list/teachers">Teachers</a><a href="#list/classes">Classes</a><a href="#master">Master</a><a href="#analysis">Analysis</a>
+      <a href="#pages/teachers" class="pvpg">📄 As printed</a><a href="#list/teachers">Teachers</a><a href="#list/classes">Classes</a><a href="#master">Master</a><a href="#analysis">📊 Analysis</a>
       <button type="button" id="pvfs"></button><button type="button" id="pvclose">✕ Close preview</button>`;
     document.body.prepend(strip);
     const fsOn = () => !!document.fullscreenElement || (innerHeight >= screen.height - 2 && innerWidth >= screen.width - 2);
