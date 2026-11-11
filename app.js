@@ -773,8 +773,8 @@ const own = isOwner();
     const rail = $('#rail'); if (!rail) return;
     if (rail.classList.contains('open')) return closeRail();
     const here = route().name;
-    rail.innerHTML = railItems().map(([k, ic, label, href]) => `<button type="button" class="ri ${here === k || (k === 'home' && here === 'home') ? 'on' : ''}" ${k === 'home' ? 'data-act="home"' : href.startsWith('@') ? `data-act="${href.slice(1)}"` : href ? `data-go="${href}"` : 'data-act="pickMe"'}>${icon(ic)}<span>${label}</span></button>`).join('');
-    rail.classList.add('open'); document.body.classList.add('rail-open'); const t = $('#railtab'); if (t) t.setAttribute('aria-expanded', 'true');
+    rail.innerHTML = railItems().map(([k, ic, label, href]) => `<button type="button" class="ri ${here === k || (k === 'home' && here === 'home') ? 'on' : ''}${['home', 'me', 'teachers', 'classes'].includes(k) ? ' dup' : ''}" ${k === 'home' ? 'data-act="home"' : href.startsWith('@') ? `data-act="${href.slice(1)}"` : href ? `data-go="${href}"` : 'data-act="pickMe"'}>${icon(ic)}<span>${label}</span></button>`).join('');
+    rail.scrollTop = 0; rail.classList.add('open'); document.body.classList.add('rail-open'); const t = $('#railtab'); if (t) t.setAttribute('aria-expanded', 'true');
   }
   function closeRail() { const r = $('#rail'); if (r) r.classList.remove('open'); document.body.classList.remove('rail-open'); const t = $('#railtab'); if (t) t.setAttribute('aria-expanded', 'false'); }
   document.addEventListener('click', e => { if (document.body.classList.contains('rail-open') && !e.target.closest('#rail,#railtab')) closeRail(); }, true);
@@ -829,8 +829,8 @@ const own = isOwner();
         <div class="titles"><h1>As printed · A4</h1><p class="sub">${esc(sch.name || '')}${state.data.ttName ? ' · ' + esc(state.data.ttName) : ''} — exactly what the printer gets</p></div></div>
         <nav class="pgtabs">${kinds.map(([k, l, n]) => `<a href="#pages/${k}" class="${k === kind ? 'on' : ''}">${esc(l)} <small>${n}</small></a>`).join('')}
           ${kind === 'classes' && IDX.grades.length > 1 ? `<span class="pgjump">Go to:${IDX.grades.map(g => `<button type="button" data-pgjump="${B.classes.findIndex(c => gradeOf(c.name) === g)}">${esc(g)}</button>`).join('')}</span>` : ''}
-          <a href="#analysis" class="pgrep">📊 Analysis & reports</a>
-          <button type="button" class="pgbw ${bw ? 'on' : ''}" data-act="pgbw">${bw ? '⚫ Black & white' : '🎨 Colour'}</button>
+          <a href="#analysis" class="pgrep">${icon('chart')} Analysis &amp; reports</a>
+          <button type="button" class="pgbw ${bw ? 'on' : ''}" data-act="pgbw">${bw ? '<i class="cdot c-bw"></i> Black &amp; white' : '<i class="cdot c-col"></i> Colour'}</button>
           <button type="button" class="pgprint" data-act="allSheet">${icon('print')} Print / save…</button></nav>
         <div class="pgpick"><input type="search" class="pgq" id="pgq" autocomplete="off" placeholder="Choose ${kind === 'teachers' ? 'a teacher' : kind === 'classes' ? 'a class' : kind === 'rooms' ? 'a lab or field' : 'a day'}…  (${T.length})">
           <div class="pgchips" id="pgchips">${T.map((x, i) => `<button type="button" class="pgc${i === 0 ? ' on' : ''}${kind === 'teachers' ? ' code' : ''}" data-pgjump="${i}" data-pgi="${i}" data-pgs="${esc(x.lab.toLowerCase())}" title="${esc(x.lab)}">${esc(kind === 'master' ? x.lab.replace('Master — ', '') : kind === 'teachers' ? (B.teachers[i].code || x.lab) : x.lab)}</button>`).join('')}</div></div>
@@ -1516,10 +1516,11 @@ const own = isOwner();
     const z = Math.min(1, (wrap.clientWidth - 2) / tb.scrollWidth);
     if (z < 1) tb.style.zoom = Math.max(isLandscape() ? 0.55 : 0.62, z);
     // v60: the table is shorter than its box -> share the spare height between the rows (capped), so the grid uses the screen
-    const zz = parseFloat(tb.style.zoom) || 1, hh = wrap.clientHeight - 2, th = tb.offsetHeight * zz;
+    const zz = parseFloat(tb.style.zoom) || 1, hh = wrap.clientHeight - 2, th = tb.getBoundingClientRect().height;
     if (rows0.length && hh > 0 && th < hh - 4) {
-      const extra = Math.min(48, (hh - th) / zz / rows0.length);
-      rows0.forEach(r => { r.style.height = (r.offsetHeight + extra) + 'px'; });
+      const extra = Math.min(56, (hh - th) / zz / rows0.length);
+      const hs = rows0.map(r => r.getBoundingClientRect().height / zz);
+      rows0.forEach((r, i) => { r.style.height = (hs[i] + extra) + 'px'; });
     }
   }
 
@@ -2053,9 +2054,9 @@ const own = isOwner();
     openSheet(`<div class="grab"></div><h3>Save this timetable</h3>
       <p class="muted small">${esc(saveName().base)}</p>
       <h4 class="svh">Save as</h4>
-      <div class="seg wide-seg sv"><button class="${fmt === 'image' ? 'on' : ''}" data-savefmt="image">🖼 Picture (PNG)</button><button class="${fmt === 'pdf' ? 'on' : ''}" data-savefmt="pdf">📄 PDF</button><button class="${fmt === 'print' ? 'on' : ''}" data-savefmt="print">🖨 Print…</button></div>
+      <div class="seg wide-seg sv"><button class="${fmt === 'image' ? 'on' : ''}" data-savefmt="image">${icon('save')} Picture (PNG)</button><button class="${fmt === 'pdf' ? 'on' : ''}" data-savefmt="pdf">${icon('save')} PDF</button><button class="${fmt === 'print' ? 'on' : ''}" data-savefmt="print">${icon('print')} Print…</button></div>
       <h4 class="svh">Colour</h4>
-      <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-savecol="colour">🎨 Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-savecol="bw">⚫ Black & white</button></div>
+      <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-savecol="colour"><i class="cdot c-col"></i> Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-savecol="bw"><i class="cdot c-bw"></i> Black &amp; white</button></div>
       <p class="muted small">${fmt === 'print' ? esc(printHint()) + ' ' : ''}A4 size, sharp HD quality, ready to print.</p>
       <button class="btn wide" data-act="doSave">${icon(fmt === 'print' ? 'print' : 'save')} ${fmt === 'print' ? 'Print…' : 'Save'}</button>
       <button class="btn ghost wide" data-act="allSheet">${icon('print')} Print / save ALL timetables</button>
@@ -2383,7 +2384,7 @@ const own = isOwner();
     if (!T.length) return;
     try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { }
     const logo = await loadLogo(), pages = [], urls = [];
-    const box = document.createElement('div'); box.className = 'alarm-bg'; box.innerHTML = `<div class="alarm"><div class="abell">🖨</div><h3>Preparing your pages…</h3><p class="awhen" id="allprog">0 of ${T.length}</p></div>`;
+    const box = document.createElement('div'); box.className = 'alarm-bg'; box.innerHTML = `<div class="alarm"><div class="abell">${icon('print')}</div><h3>Preparing your pages…</h3><p class="awhen" id="allprog">0 of ${T.length}</p></div>`;
     document.body.appendChild(box);
     try {
       for (let i = 0; i < T.length; i++) {
@@ -2686,7 +2687,7 @@ const own = isOwner();
     if (CFG.desktop) document.documentElement.classList.add('is-desktop');
     strip.innerHTML = `${CFG.desktop ? '<b>PREPFIX TIMETABLE TOOLKIT</b><span>Desktop · on this computer</span>' : '<b>PREVIEW</b><span>Not published yet</span>'}
       <button type="button" class="pvnav" data-act="pvback">← Back</button><button type="button" class="pvnav" data-act="pvhome">⌂ Home</button>
-      <a href="#pages/teachers" class="pvpg">📄 As printed</a><a href="#list/teachers">Teachers</a><a href="#list/classes">Classes</a><a href="#master">Master</a><a href="#analysis">📊 Analysis</a>
+      <a href="#pages/teachers" class="pvpg">As printed</a><a href="#list/teachers">Teachers</a><a href="#list/classes">Classes</a><a href="#master">Master</a><a href="#analysis">Analysis</a>
       <button type="button" id="pvfs"></button><button type="button" id="pvclose">✕ Close preview</button>`;
     document.body.prepend(strip);
     const fsOn = () => !!document.fullscreenElement || (innerHeight >= screen.height - 2 && innerWidth >= screen.width - 2);
