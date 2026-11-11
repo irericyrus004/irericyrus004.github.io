@@ -1314,3 +1314,26 @@ body.frame main.tt > .inst .origin{display:none}
 .cdot.c-bw{background:#111;border:2px solid #fff;box-shadow:0 0 0 1px #888}
 .seg.sv button{display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .sheet h3 .ic{width:20px;height:20px;vertical-align:-3px;fill:currentColor}
+
+/* ===== v60 (4): fixes from the first real-phone test ===== */
+/* long combined lessons (CHEM/BC/BS/MUSIC/GEO...) can wrap, so one lesson can no longer make the whole table 3000px wide */
+table.wk td.l b,table.wk td.l small{overflow-wrap:anywhere;min-width:0}
+/* zoom buttons sit above the Previous / Next bar instead of on top of its label */
+.zoomctl{bottom:calc(var(--brandh) + var(--safe-b) + 84px)}
+body.fullv .zoomctl{bottom:10px}
+/* the bottom bar already has Home / My timetable / Teachers / Classes, so the side menu keeps only the rest and fits on screen */
+body:not(.fullv):not(.force-land) #rail .ri.dup{display:none}
+#rail .ri{padding:9px 2px;min-height:48px;justify-content:center}
+/* header card above a timetable: the page title already shows the class / teacher, so drop the duplicate pill */
+body.frame main.tt > .inst .owner{display:none}
+body.frame main.tt > .inst{gap:0 10px}
+/* landscape phones: a slimmer bottom bar so the timetable keeps its height */
+@media (orientation:landscape) and (max-height:520px){
+  body{--navh:40px}
+  #bnav .bn{flex-direction:row;gap:6px;font-size:11px}
+  #bnav .bn .ic{width:18px;height:18px}
+  .zoomctl{bottom:calc(var(--brandh) + var(--safe-b) + 8px)}
+}
+/* the side menu runs down to the credit bar while it is open (the bottom bar is hidden then) */
+body.rail-open #rail{bottom:calc(var(--bar-h) + var(--safe-b))}
+body.fullv.rail-open #rail,body.force-land.rail-open #rail{bottom:calc(var(--brandh) + var(--safe-b))}
