@@ -1,7 +1,7 @@
 {
-  "name": "PREPFIX Timetable Toolkit",
-  "short_name": "PREPFIX",
-  "description": "PREPFIX — Prepare. Perfect. Present. Teachers, classes, labs and master timetables, always the latest version.",
+  "name": "Timetable Toolkit",
+  "short_name": "Timetable Toolkit",
+  "description": "Timetable Toolkit — Prepare. Perfect. Present. Teachers, classes, labs and master timetables, always the latest version.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -46,7 +46,7 @@
       "sizes": "540x1169",
       "type": "image/jpeg",
       "form_factor": "narrow",
-      "label": "PREPFIX dashboard"
+      "label": "Timetable Toolkit dashboard"
     },
     {
       "src": "/brand/screen-wide.jpg",

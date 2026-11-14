@@ -3,7 +3,7 @@
    taps "Update" in the app. Keep the SHELL name below unchanged, so a new sw.js never swaps the app files by itself. */
 const SHELL = 'ireri-shell-v45';
 const SHELL_FILES = ['/app.css', '/app.js', '/config.js', '/qrcode.js',
-  '/icons/icon-192.png', '/icons/icon-512.png', '/brand/prepfix-logo-600.png', '/brand/prepfix-mark.png'];
+  '/icons/icon-192.png', '/icons/icon-512.png', '/brand/prepfix-logo-600.png', '/brand/prepfix-mark.png', '/brand/prepfix-badge-520.png'];
 const APP_FILE = /\/(app\.js|app\.css|qrcode\.js|config\.js)$/;
 
 self.addEventListener('install', event => {
@@ -96,7 +96,7 @@ self.addEventListener('push', event => {
     const fmt = mm => { const h = Math.floor(mm / 60); return `${h > 12 ? h - 12 : h}:${String(mm % 60).padStart(2, '0')}`; };
     const mins = L ? L.start - m : (plan && plan.min) || 10;
     const title = L ? `⏰ Lesson in ${mins} minutes — ${L.label} at ${fmt(L.start)}` : '⏰ Your next lesson starts soon';
-    const body = L ? [L.title, L.body].filter(Boolean).join(' · ') : 'Open PREPFIX Timetables to see it.';
+    const body = L ? [L.title, L.body].filter(Boolean).join(' · ') : 'Open Timetable Toolkit to see it.';
     await self.registration.showNotification(title, {
       body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: L ? `lesson-${L.wd}-${L.start}` : 'lesson-next',
       renotify: true, requireInteraction: true, vibrate: [400, 150, 400, 150, 800], data: { url: (plan && plan.url) || '/' },

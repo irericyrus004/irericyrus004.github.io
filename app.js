@@ -4,7 +4,7 @@
 
   const CFG = self.IRERI_CONFIG || {};
   // Built in. The same on every school's app and not taken from any setting.
-  const LOCKED_BRAND = 'DESIGNED BY CYRUS IRERI';   // (older copies said: CREATED BY CYRUS IRERI)
+  const LOCKED_BRAND = 'DEVELOPED BY CYRUS IRERI';   // (older copies said: DESIGNED BY CYRUS IRERI / CREATED BY CYRUS IRERI - kept here so older school copies still recognise this app)
   const LOCKED_CONTACT = '0720872582';
   const BRAND_LINE = LOCKED_BRAND + ' ' + LOCKED_CONTACT;
   // Watermark over every timetable on screen and on every saved image. Built in, cannot be switched off.
@@ -27,7 +27,7 @@
   })();
   (function addBrandBar() {                      // frozen footer, always visible
     const add = () => { if (document.getElementById('brandbar')) return; const f = document.createElement('div'); f.id = 'brandbar';
-      f.innerHTML = `<span>${LOCKED_BRAND}</span><button type="button" data-act="contact" aria-label="Contact Cyrus Ireri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1l-2.3 2.2Z"/></svg>${LOCKED_CONTACT}</button>`; document.body.appendChild(f); };
+      f.innerHTML = `<span class="devby">${LOCKED_BRAND}</span><button type="button" data-act="contact" aria-label="Contact Cyrus Ireri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1l-2.3 2.2Z"/></svg>${LOCKED_CONTACT}</button>`; document.body.appendChild(f); };
     if (document.body) add(); else document.addEventListener('DOMContentLoaded', add);
   })();
   (function addWatermarkStyle() {
@@ -111,8 +111,8 @@ const own = isOwner();
     el.innerHTML = `<div class="splash"><div class="splash-logo"></div><h2>School timetables</h2><p>Loading schools…</p></div>`;
     const j = await fetchSchools();
     const n = j && j.schools ? j.schools.length : 0;
-    el.innerHTML = `<header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div><div class="titles"><h1>PREPFIX Timetables</h1><p class="sub">${n} school${n === 1 ? '' : 's'} using this app</p></div></div></header>
-      <main class="page wide"><p class="hint-box">Schools using PREPFIX Timetables. To open your school's timetables, use the link or QR code from your school.</p>
+    el.innerHTML = `<header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div><div class="titles"><h1>Timetable Toolkit</h1><p class="sub">${n} school${n === 1 ? '' : 's'} using this app</p></div></div></header>
+      <main class="page wide"><p class="hint-box">Schools using Timetable Toolkit. To open your school's timetables, use the link or QR code from your school.</p>
       <div class="searchbox">${icon('search')}<input id="sq" type="search" autocomplete="off" placeholder="Search for your school…"></div>
       <div id="slist">${schoolsListHTML(j, null, '')}</div>
       <footer class="foot">${esc(BRAND_LINE)}</footer></main>`;
@@ -785,7 +785,7 @@ const own = isOwner();
     const bad = (B.teachers.concat(B.classes)).some(it => (it.grid || []).some(r => r.some(c => c && typeof c === 'object' && c.bad)));
     document.title = (sch.name || 'School') + ' · As printed';
     app.innerHTML = `
-      <header class="top pghead"><div class="brandrow"><button class="iconbtn" data-act="home" aria-label="Back">${icon('back')}</button>
+      <header class="top pghead"><div class="brandrow"><button class="iconbtn" data-act="home" aria-label="Back">${icon('back')}</button><div class="logo" aria-hidden="true"></div>
         <div class="titles"><h1>As printed · A4</h1><p class="sub">${esc(sch.name || '')}${state.data.ttName ? ' · ' + esc(state.data.ttName) : ''} — exactly what the printer gets</p></div></div>
         <nav class="pgtabs">${kinds.map(([k, l, n]) => `<a href="#pages/${k}" class="${k === kind ? 'on' : ''}">${esc(l)} <small>${n}</small></a>`).join('')}
           ${kind === 'classes' && IDX.grades.length > 1 ? `<span class="pgjump">Go to:${IDX.grades.map(g => `<button type="button" data-pgjump="${B.classes.findIndex(c => gradeOf(c.name) === g)}">${esc(g)}</button>`).join('')}</span>` : ''}
@@ -1029,9 +1029,9 @@ const own = isOwner();
           'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escI('Lesson in ' + REMIND_MIN + ' minutes: ' + L.lines[0])}`, `TRIGGER:-PT${REMIND_MIN}M`, 'END:VALARM', 'END:VEVENT'].filter(Boolean).join('\r\n'));
       });
     });
-    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PREPFIX//Timetables//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:PREPFIX · ${escI(teacherLabel(me))}`, ...ev, 'END:VCALENDAR'].join('\r\n');
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PREPFIX//Timetables//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:Timetable Toolkit · ${escI(teacherLabel(me))}`, ...ev, 'END:VCALENDAR'].join('\r\n');
     const blob = new Blob([ics], { type: 'text/calendar' }), a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = `PREPFIX reminders - ${teacherLabel(me).replace(/[\\/:*?"<>|]+/g, ' ').replace(/[.\s]+$/, '')}.ics`;
+    a.href = URL.createObjectURL(blob); a.download = `Timetable Toolkit reminders - ${teacherLabel(me).replace(/[\\/:*?"<>|]+/g, ' ').replace(/[.\s]+$/, '')}.ics`;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     toast(`Calendar file saved — open it to add ${ev.length} weekly lessons with a ${REMIND_MIN}-minute alarm`, 5000);
   }
@@ -1091,7 +1091,7 @@ const own = isOwner();
     const L = instLines();
     if (!L.length) return '';
     const og = B && B.origin && B.origin.text ? `<p class="origin o-${esc(B.origin.path || 'A')}">${esc(B.origin.text)}</p>` : '';
-    return `<div class="inst ${extra}${owner ? ' has-owner' : ''}"><img class="inst-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX Timetable Toolkit"><b>${esc(L[0])}</b>${L.slice(1).map(x => `<span>${esc(x)}</span>`).join('')}${owner ? `<div class="owner"><i>${esc(owner.tag)}</i><strong>${esc(owner.name)}</strong></div>` : ''}${og}</div>`;
+    return `<div class="inst ${extra}${owner ? ' has-owner' : ''}"><img class="inst-logo" src="/brand/prepfix-logo-600.png" alt="Timetable Toolkit"><b>${esc(L[0])}</b>${L.slice(1).map(x => `<span>${esc(x)}</span>`).join('')}${owner ? `<div class="owner"><i>${esc(owner.tag)}</i><strong>${esc(owner.name)}</strong></div>` : ''}${og}</div>`;
   }
   function ttSwitcher() {
     const list = state.tts || [];
@@ -1135,7 +1135,7 @@ const own = isOwner();
   }
   async function applyAppUpdate() {
     const box = document.createElement('div'); box.className = 'alarm-bg';
-    box.innerHTML = `<div class="alarm"><div class="abell">⬆</div><h3>Updating PREPFIX…</h3><p class="awhen">A moment, please</p></div>`;
+    box.innerHTML = `<div class="alarm"><div class="abell">⬆</div><h3>Updating Timetable Toolkit…</h3><p class="awhen">A moment, please</p></div>`;
     document.body.appendChild(box);
     try {
       const files = ['/app.js', '/app.css', '/config.js', '/sw.js', '/qrcode.js', location.pathname];
@@ -1163,12 +1163,12 @@ const own = isOwner();
     if (!state.online) { toast('No internet — try again when you are online'); return; }
     toast('Checking for updates…', 1500);
     if (await updateReady()) {
-      openSheet(`<div class="grab"></div><h3>⬆ PREPFIX has been improved</h3><p>A newer version of the app is ready with the latest improvements. Nothing changes until you tap <b>Update now</b>.</p>
+      openSheet(`<div class="grab"></div><h3>⬆ Timetable Toolkit has been improved</h3><p>A newer version of the app is ready with the latest improvements. Nothing changes until you tap <b>Update now</b>.</p>
         <button class="btn wide" data-act="appUpdate">Update now</button><button class="btn ghost wide" data-act="closeSheet">Later</button>`);
       return;
     }
     await sync('manual');
-    if (state.online) toast('✓ You have the newest PREPFIX and the latest timetables');
+    if (state.online) toast('✓ You have the newest Timetable Toolkit and the latest timetables');
   }
   async function autoCheckApp() {                       // quietly, at most every 30 minutes
     const last = +(store.get('appChk') || 0); if (Date.now() - last < 30 * 60000 || !state.online) return;
@@ -1179,7 +1179,7 @@ const own = isOwner();
   function renderBanners() {
     const box = $('#banners'); if (!box || !state.data) return;
     const out = [];
-    if (state.appNew) out.push(`<div class="banner new"><div><strong>⬆ PREPFIX has been improved</strong><span>Tap Update to get the newest version — your timetables stay as they are.</span></div><div class="banner-actions"><button class="btn small" data-act="appUpdate">Update</button></div></div>`);
+    if (state.appNew) out.push(`<div class="banner new"><div><strong>⬆ Timetable Toolkit has been improved</strong><span>Tap Update to get the newest version — your timetables stay as they are.</span></div><div class="banner-actions"><button class="btn small" data-act="appUpdate">Update</button></div></div>`);
     const fresh = (state.tts && state.tts.length ? state.tts : [{ id: state.data.tt, version: state.data.version, name: state.data.ttName, updated: B.published, note: state.data.school?.note }]).filter(isNewTT);
     if (fresh.length) {
       const items = fresh.map(t => `<b>${esc(t.name || 'Timetable')}</b> · ${esc(fmtDate(t.updated))}${t.note ? ' — ' + esc(t.note) : ''}`).join('<br>');
@@ -2155,7 +2155,7 @@ const own = isOwner();
     ctx.fillStyle = '#fff'; ctx.font = '800 14px Poppins, Arial'; ctx.textAlign = 'center';
     ctx.fillText(`${LOCKED_BRAND} ${LOCKED_CONTACT}  ·  ${WATERMARK}`, W / 2, fy + 20);
     ctx.textAlign = 'right'; ctx.font = '600 10.5px Poppins, Arial'; ctx.fillStyle = '#9AA8C2';
-    ctx.fillText(`PREPFIX · ${new Date().toLocaleString('en-GB')}`, W - pad - 8, fy + 20); ctx.textAlign = 'left';
+    ctx.fillText(`Timetable Toolkit · ${new Date().toLocaleString('en-GB')}`, W - pad - 8, fy + 20); ctx.textAlign = 'left';
     return cv;
   }
   // Minimal PDF writer: one A4 landscape page per picture
@@ -2177,7 +2177,7 @@ const own = isOwner();
       obj(C, () => add(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`));
     });
     const INFO = 3 + N * 3;
-    obj(INFO, () => add(`<< /Title ${pdfStr(titleText)} /Author (DESIGNED BY CYRUS IRERI 0720872582) /Creator (PREPFIX Timetables) /Producer (PREPFIX) >>`));
+    obj(INFO, () => add(`<< /Title ${pdfStr(titleText)} /Author (DEVELOPED BY CYRUS IRERI 0720872582) /Creator (Timetable Toolkit) /Producer (Timetable Toolkit) >>`));
     const xref = len, total = INFO + 1;
     let x = `xref\n0 ${total}\n0000000000 65535 f \n`;
     for (let n = 1; n < total; n++) x += String(offs[n]).padStart(10, '0') + ' 00000 n \n';
@@ -2287,7 +2287,7 @@ const own = isOwner();
   function closeSheet() { $$('.sheet-bg').forEach(n => n.remove()); }
   function openMenu() {
     openSheet(`<div class="grab"></div>
-      <button class="mrow" data-act="refresh">${icon('refresh')}<span>Check for updates<small>New timetables and PREPFIX improvements · ${state.lastSync ? 'Last checked ' + ago(state.lastSync) : ''}</small></span></button>
+      <button class="mrow" data-act="refresh">${icon('refresh')}<span>Check for updates<small>New timetables and Timetable Toolkit improvements · ${state.lastSync ? 'Last checked ' + ago(state.lastSync) : ''}</small></span></button>
       <button class="mrow" data-act="share">${icon('share')}<span>Share with colleagues<small>QR code, WhatsApp or copy link</small></span></button>
       ${!isStandalone() ? `<button class="mrow" data-act="getapp">${icon('install')}<span>Get the app<small>Android · iPhone · Computer</small></span></button>` : ''}
       <button class="mrow" data-go="schools">${icon('classes')}<span>Schools using this app<small>See the other schools on Timetables</small></span></button>
@@ -2305,9 +2305,9 @@ const own = isOwner();
   async function qrSvg(text) { try { await loadQR(); const qr = self.qrcode(0, 'M'); qr.addData(text); qr.make(); return qr.createSvgTag(6, 2); } catch { return ''; } }
   async function openShare() {
     const link = linkFor(), name = state.data?.school?.name || 'our school';
-    const msg = `PREPFIX · ${name} timetables — open on your phone, it updates automatically: ${link}`;
+    const msg = `Timetable Toolkit · ${name} timetables — open on your phone, it updates automatically: ${link}`;
     openSheet(`<div class="grab"></div><h3>Share with colleagues</h3><div class="qr" id="qrBox"><span class="muted">Loading QR code…</span></div>
-      <p class="linktext"><a href="${esc(link)}" target="_blank" rel="noopener">PREPFIX · ${esc(name)}</a></p>
+      <p class="linktext"><a href="${esc(link)}" target="_blank" rel="noopener">Timetable Toolkit · ${esc(name)}</a></p>
       <div class="sharebtns"><a class="btn" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">WhatsApp</a>
       <button class="btn ghost" data-act="copy">Copy link</button>${navigator.share ? '<button class="btn ghost" data-act="nativeShare">More…</button>' : ''}</div>
       <a class="txt-btn center" href="${esc(link)}?poster=1" target="_blank" rel="noopener">${icon('print')} Printable poster for the staffroom</a>
@@ -2341,14 +2341,14 @@ const own = isOwner();
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   function openAbout() {
-    openSheet(`<div class="grab"></div><img class="about-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX Timetable Toolkit — Prepare. Perfect. Present."><h3>PREPFIX Timetable Toolkit</h3><p>${esc(state.data?.school?.name || '')} timetables. This app shows the latest version published by the school and updates itself when you open it, and keeps a copy for offline use.</p>
+    openSheet(`<div class="grab"></div><img class="about-logo" src="/brand/prepfix-logo-600.png" alt="Timetable Toolkit — Prepare. Perfect. Present."><h3>Timetable Toolkit</h3><p>${esc(state.data?.school?.name || '')} timetables. This app shows the latest version published by the school and updates itself when you open it, and keeps a copy for offline use.</p>
       <p class="muted">${esc(state.data?.school?.institution || '')}<br>${esc(LOCKED_BRAND)}<br>${esc(LOCKED_CONTACT)}<br>App version ${esc(CFG.build || '')}</p>
       <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
   }
   async function renderPoster() {
     const link = linkFor(), name = state.data?.school?.name || '';
     document.body.classList.add('poster-mode');
-    app.innerHTML = `<div class="poster"><img class="plogo" src="/brand/prepfix-logo-600.png" alt="PREPFIX Timetable Toolkit — Prepare. Perfect. Present."><div class="ptop"><div class="logo big"></div><div><h1>${esc(name || 'School')} Timetables</h1><p>On your phone · Always up to date · Works offline</p></div></div>
+    app.innerHTML = `<div class="poster"><img class="plogo" src="/brand/prepfix-logo-600.png" alt="Timetable Toolkit — Prepare. Perfect. Present."><div class="ptop"><div class="logo big"></div><div><h1>${esc(name || 'School')} Timetables</h1><p>On your phone · Always up to date · Works offline</p></div></div>
       <div class="pmain"><div class="pqr" id="pqr"></div><ol>
         <li><b>Scan</b> this QR code with your phone camera.</li>
         <li><b>Get the app</b> — Android (Chrome): tap <b>Install</b>. iPhone (Safari): Share ⬆ → <b>Add to Home Screen</b>. Computer (Chrome/Edge): click <b>Install</b> in the address bar.</li>
@@ -2518,7 +2518,7 @@ const own = isOwner();
   });
   setInterval(() => { if (document.visibilityState === 'visible' && state.data && route().name === 'home') { const c = $('.now-card'); if (c) c.outerHTML = nowCard(); } }, 60000);
   setInterval(checkReminders, 15000);
-  try { if (sessionStorage.getItem('prepfix:updated')) { sessionStorage.removeItem('prepfix:updated'); setTimeout(() => toast('✓ PREPFIX updated to the newest version', 3500), 2200); } } catch { }
+  try { if (sessionStorage.getItem('prepfix:updated')) { sessionStorage.removeItem('prepfix:updated'); setTimeout(() => toast('✓ Timetable Toolkit updated to the newest version', 3500), 2200); } } catch { }
   if (!CFG.preview) {
     setTimeout(() => autoCheckApp(), 4000);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') autoCheckApp(); });
@@ -2535,7 +2535,7 @@ const own = isOwner();
     const strip = document.createElement('div');
     strip.id = 'pvstrip';
     if (CFG.desktop) document.documentElement.classList.add('is-desktop');
-    strip.innerHTML = `${CFG.desktop ? '<b>PREPFIX TIMETABLE TOOLKIT</b><span>Desktop · on this computer</span>' : '<b>PREVIEW</b><span>Not published yet</span>'}
+    strip.innerHTML = `${CFG.desktop ? '<b>TIMETABLE TOOLKIT</b><span>Desktop · on this computer</span>' : '<b>PREVIEW</b><span>Not published yet</span>'}
       <button type="button" class="pvnav" data-act="pvback">← Back</button><button type="button" class="pvnav" data-act="pvhome">⌂ Home</button>
       <a href="#pages/teachers" class="pvpg">📄 As printed</a><a href="#list/teachers">Teachers</a><a href="#list/classes">Classes</a><a href="#master">Master</a>
       <button type="button" id="pvfs"></button><button type="button" id="pvclose">✕ Close preview</button>`;

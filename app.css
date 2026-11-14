@@ -473,7 +473,7 @@ table.mx td small{font-size:10.5px;color:#4A4A4A}
 
 .list li.mine .row{background:#FFF7DD;border-color:var(--gold);box-shadow:inset 4px 0 0 var(--gold)}
 .now-me .nx{display:block;margin-top:4px}.now-me .nx i{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--gold);color:var(--navy);font-style:normal;font-size:11px;font-weight:700;margin-right:6px}.now-me .nx + .nx{border-top:1px dashed rgba(255,255,255,.25);padding-top:4px}
-/* Frozen footer: DESIGNED BY CYRUS IRERI 0720872582 on every screen */
+/* Frozen footer: DEVELOPED BY CYRUS IRERI (glowing) on every screen */
 :root{--brandh:28px}
 #brandbar{position:fixed;left:0;right:0;bottom:0;z-index:45;height:calc(var(--brandh) + var(--safe-b));padding-bottom:var(--safe-b);display:flex;align-items:center;justify-content:center;gap:10px;background:var(--navy);color:#fff;font:600 11.5px/1 Poppins,"Segoe UI",Arial,sans-serif;letter-spacing:.08em;border-top:2px solid var(--gold);pointer-events:none;white-space:nowrap}
 #brandbar b{color:var(--gold-2);font-weight:700;letter-spacing:.04em}
@@ -1223,3 +1223,22 @@ body:has(.pages.h){overflow:hidden}
 .joinbox input{font:600 20px/1.2 Poppins,"Segoe UI",Arial,sans-serif;padding:12px 14px;border:2px solid var(--navy,#12284C);border-radius:12px;text-align:center;letter-spacing:.04em}
 .joinbox .btn{font-size:16px;padding:12px}
 .joinmsg{min-height:1.4em;font-weight:700;color:#B3261E}
+
+/* ===== Timetable Toolkit emblem (top-left of every header) and the glowing credit footer ===== */
+.logo,.splash-logo{
+  width:48px;height:48px;border-radius:50%!important;border:0!important;box-shadow:none!important;
+  background:url('/brand/prepfix-mark.png') center/contain no-repeat!important;flex:none;
+  filter:drop-shadow(0 0 4px rgba(25,181,245,.65)) drop-shadow(0 0 9px rgba(60,220,120,.4));
+  animation:emblemGlow 2.8s ease-in-out infinite}
+.logo.big{width:78px;height:78px;border-radius:50%!important}
+.splash-logo{width:84px;height:84px}
+.pghead .brandrow .logo{width:40px;height:40px}
+@keyframes emblemGlow{
+  0%,100%{filter:drop-shadow(0 0 3px rgba(25,181,245,.55)) drop-shadow(0 0 6px rgba(60,220,120,.35))}
+  50%{filter:drop-shadow(0 0 7px rgba(25,181,245,1)) drop-shadow(0 0 15px rgba(60,220,120,.75)) drop-shadow(0 0 24px rgba(25,181,245,.45))}}
+#brandbar .devby{color:#fff;font-weight:700;letter-spacing:.1em;animation:devGlow 2.8s ease-in-out infinite;
+  text-shadow:0 0 4px rgba(255,205,70,.7),0 0 10px rgba(255,190,40,.45)}
+@keyframes devGlow{
+  0%,100%{text-shadow:0 0 3px rgba(255,205,70,.55),0 0 8px rgba(255,190,40,.35)}
+  50%{text-shadow:0 0 5px #FFE08A,0 0 12px #FFC83D,0 0 22px rgba(255,170,0,.85),0 0 34px rgba(255,170,0,.5)}}
+@media (prefers-reduced-motion:reduce){.logo,.splash-logo,#brandbar .devby{animation:none}}
