@@ -72,9 +72,9 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;paddin
 .now-set .ic{color:var(--gold)}
 
 /* dashboard tiles */
-.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-@media (min-width:620px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
-.tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);text-align:left;min-height:108px;min-width:0}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media (min-width:620px){.tiles{grid-template-columns:repeat(4,1fr)}}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);text-align:left;min-height:108px}
 .tile:active{transform:scale(.98)}
 .tic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;margin-bottom:6px;color:#fff;background:var(--navy)}
 .tile strong{font-size:15px;font-weight:600;color:var(--navy)}
@@ -699,7 +699,7 @@ body.fillv .gridwrap.scroll2 table.wk td.l{min-width:110px}
 body.fillv .mbar{flex:none}
 /* Desktop: use the whole wide screen */
 body.desk .home,body.desk .page{max-width:1500px}
-body.desk .tiles{grid-template-columns:repeat(6,minmax(0,1fr))}
+body.desk .tiles{grid-template-columns:repeat(6,1fr)}
 body.desk .page.wide{max-width:1500px}
 body.desk .dayview{max-width:900px;margin:0 auto}
 /* Schools list: information only */
@@ -1183,7 +1183,6 @@ body:has(.pages){background:#4B5160}
 .pgtabs a,.pgtabs button{font:700 14px/1 Poppins,Arial,sans-serif;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.35);color:#fff;background:transparent;text-decoration:none;cursor:pointer}
 .pgtabs a small{opacity:.75;font-weight:600}
 .pgtabs a.on{background:#fff;color:#12284C}
-.pgtabs .pgrep{background:rgba(255,255,255,.12)}
 .pgtabs .pgbw{margin-left:auto}
 .pgtabs .pgprint{background:#C9A227;border-color:#C9A227;color:#12284C;display:inline-flex;gap:6px;align-items:center}
 .pgtabs .pgprint svg{width:16px;height:16px}
@@ -1224,32 +1223,3 @@ body:has(.pages.h){overflow:hidden}
 .joinbox input{font:600 20px/1.2 Poppins,"Segoe UI",Arial,sans-serif;padding:12px 14px;border:2px solid var(--navy,#12284C);border-radius:12px;text-align:center;letter-spacing:.04em}
 .joinbox .btn{font-size:16px;padding:12px}
 .joinmsg{min-height:1.4em;font-weight:700;color:#B3261E}
-
-/* PREVIEW: on Home and "As printed" the page has its own tabs, so the top strip's Teachers / Classes / Master links are hidden there (no duplicated tabs) */
-html.pv-dup #pvstrip a{display:none}
-
-/* AS PRINTED: choose who to see (a list of every teacher / class / lab / day) instead of only scrolling */
-.pgpick{display:flex;gap:10px;align-items:flex-start;padding:0 16px 12px}
-.pgq{flex:0 0 210px;font:600 14px Poppins,Arial,sans-serif;padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.45);background:#fff;color:#12284C}
-.pgchips{flex:1;display:flex;flex-wrap:wrap;gap:6px;max-height:64px;overflow-y:auto;scrollbar-width:thin}
-.pgc{font:700 13px/1 Poppins,Arial,sans-serif;padding:8px 11px;border-radius:9px;border:1px solid rgba(255,255,255,.35);color:#fff;background:rgba(255,255,255,.08);cursor:pointer;white-space:nowrap}
-.pgc:hover{background:rgba(255,255,255,.25)}
-.pgc.code{padding:6px 8px;font-size:12px;min-width:34px;text-align:center}
-.pgc.on{background:#C9A227;border-color:#C9A227;color:#12284C}
-@media (max-width:640px){.pgpick{flex-direction:column}.pgq{flex:none;width:100%;box-sizing:border-box}}
-
-/* double-click a page in "As printed" -> full screen */
-.pages.h .pgsheet{cursor:zoom-in}
-#pgfull{position:fixed;inset:0;z-index:99999;background:#0b0d12;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 70px 6px;box-sizing:border-box}
-#pgfull .pgf-box{flex:1 1 auto;min-height:0;width:100%;display:grid;place-items:center}
-#pgfull .pgf-box img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.6);cursor:zoom-out}
-#pgfull .pgf-wait{color:#cbd5e1;font:600 16px system-ui,sans-serif}
-#pgfull .pgf-cap{color:#cbd5e1;font:600 13px system-ui,sans-serif;padding:6px 0 2px;text-align:center}
-#pgfull .pgf-x{position:absolute;top:10px;right:14px;z-index:2;border:0;border-radius:8px;background:rgba(255,255,255,.14);color:#fff;font-size:20px;line-height:1;padding:8px 12px;cursor:pointer}
-#pgfull .pgf-n{position:absolute;top:50%;transform:translateY(-50%);border:0;border-radius:50%;width:48px;height:48px;background:rgba(255,255,255,.14);color:#fff;font-size:32px;line-height:1;cursor:pointer}
-#pgfull .pgf-n.l{left:10px}#pgfull .pgf-n.r{right:10px}
-#pgfull .pgf-x:hover,#pgfull .pgf-n:hover{background:rgba(255,255,255,.28)}
-
-/* v125: stop the home screen drifting sideways (tile text can no longer widen the grid) */
-html{overflow-x:hidden;max-width:100%}
-.tile strong{max-width:100%;overflow-wrap:anywhere}

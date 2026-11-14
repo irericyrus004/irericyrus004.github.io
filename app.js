@@ -205,7 +205,7 @@ const own = isOwner();
   function teacherLabel(t) {
     if (!t) return '';
     if (t.name) return t.name;
-    return /^\d+$/.test(t.code) ? `TEACHER ${t.code}` : t.code;
+    return /^\d+$/.test(t.code) ? `Teacher ${t.code}` : t.code;
   }
   const tLabel = t => t ? (t.name ? `${t.code} · ${t.name}` : teacherLabel(t)) : '';
   function teachersText(codes, max = Infinity) {          // every teacher by NAME (code only when FET has no name)
@@ -217,7 +217,7 @@ const own = isOwner();
   // Class timetables show only the teacher CODE (short, prints neatly); tapping a lesson shows the full name. Master and Labs & Fields show names.
   function teacherCodes(codes) { return codes ? String(codes).split(',').map(x => x.trim()).filter(Boolean).join(', ') : ''; }
   function teacherList(codes) {
-    return String(codes || '').split(',').map(x => x.trim()).filter(Boolean).map(code => { const t = IDX.tByCode[code]; return { code, name: t ? teacherLabel(t) : (/^\d+$/.test(code) ? `TEACHER ${code}` : code) }; });
+    return String(codes || '').split(',').map(x => x.trim()).filter(Boolean).map(code => { const t = IDX.tByCode[code]; return { code, name: t ? teacherLabel(t) : (/^\d+$/.test(code) ? `Teacher ${code}` : code) }; });
   }
   function classesText(c) {                         // every class by its name - never "All 11s"
     if (!c) return '';
@@ -283,20 +283,8 @@ const own = isOwner();
   // FET's own subject colours (as exported), else a steady colour per subject
   const fetColour = subj => { const C = (B && B.colours) || {}, k = String(subj || '').trim().toUpperCase();
     return C[k] || C[k.split(/\s*[,+]\s*/)[0]] || C[k.replace(/\s*\d+$/, '')] || null; };
-  // One colour for each CLASS + SUBJECT pair (a double lesson and a single lesson of the same subject are the SAME pair, so the same colour).
-  // A BLOCKED lesson (one subject taught to many classes at the same time) gets ONE colour for the whole block,
-  // the same in teachers', classes', master and labs timetables - not a different colour per class.
-  const subjKey = s => String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
-  const clsList = c => String(c || '').split(',').map(x => x.trim()).filter(Boolean);
-  const colKey = (kind, c, own) => {
-    const subj = subjKey(c.s);
-    if (kind === 'classes' || kind === 'master') {
-      const cls = subjKey(own);
-      return (IDX.blockPairs && IDX.blockPairs.has(`${cls}|${subj}`)) ? `*BLOCK*|${subj}` : `${cls}|${subj}`;
-    }
-    const list = clsList(c.c);
-    return list.length > 1 ? `*BLOCK*|${subj}` : `${subjKey(c.c)}|${subj}`;
-  };
+  // One colour for each CLASS + SUBJECT pair, so a teacher's 11 I CHEM and 4 B CHEM look different
+  const colKey = (kind, c, own) => `${(kind === 'classes' || kind === 'master') ? own : (c.c || '')}|${c.s || ''}`.toUpperCase().replace(/\s+/g, ' ');
   function hslHex(h, s, l) { s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
     const f = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, '0'); return `#${f(0)}${f(8)}${f(4)}`; }
   // The text colour (navy-black or white) that reads best on a lesson colour. Dark mode uses it so text never collides with the box.
@@ -307,10 +295,6 @@ const own = isOwner();
   }
   function buildColours() {
     const keys = new Set();
-    // which (class, subject) pairs belong to a blocked lesson? (read from the teachers' timetables, which name every class of a block)
-    const bp = new Set();
-    B.teachers.forEach(t => t.grid.forEach(r => r.forEach(c => { if (isLesson(c)) { const list = clsList(c.c); if (list.length > 1) list.forEach(x => bp.add(`${subjKey(x)}|${subjKey(c.s)}`)); } })));
-    IDX.blockPairs = bp;
     B.teachers.forEach(t => t.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey('teachers', c)); })));
     ['classes', 'master', 'rooms'].forEach(k => (B[k] || []).forEach(it => it.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey(k, c, it.name)); }))));
     const L = [74, 60, 84, 67, 52], S = [78, 70, 85, 62, 72], map = {};
@@ -768,7 +752,6 @@ const own = isOwner();
   function render() {
     if (POSTER) return renderPoster();
     ensureRail();
-    document.documentElement.classList.toggle('pv-dup', !!CFG.preview && ['home', 'pages'].includes(route().name));   // preview: the top tab row repeats the page's own tabs there
     document.body.classList.toggle('desk', isDesk());
     document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name));
     document.body.classList.toggle('frame', !fillOn() && ['view', 'master'].includes(route().name));
@@ -791,7 +774,6 @@ const own = isOwner();
   }
   // AS PRINTED: every A4 page exactly as it will print (the same drawing as Print / Save), big on the screen
   let PAGES_OBS = null;
-  let PG_KEEP = { kind: '', i: 0, keep: false };   // the page you are on, kept when you switch colour <-> black & white
   function renderPages(kind) {
     const kinds = [['teachers', 'Teachers', B.teachers.length], ['classes', 'Classes', B.classes.length],
       ['rooms', 'Labs & Fields', (B.rooms || []).length], ['master', 'Master', IDX.D.length]].filter(k => k[2]);
@@ -807,12 +789,10 @@ const own = isOwner();
         <div class="titles"><h1>As printed · A4</h1><p class="sub">${esc(sch.name || '')}${state.data.ttName ? ' · ' + esc(state.data.ttName) : ''} — exactly what the printer gets</p></div></div>
         <nav class="pgtabs">${kinds.map(([k, l, n]) => `<a href="#pages/${k}" class="${k === kind ? 'on' : ''}">${esc(l)} <small>${n}</small></a>`).join('')}
           ${kind === 'classes' && IDX.grades.length > 1 ? `<span class="pgjump">Go to:${IDX.grades.map(g => `<button type="button" data-pgjump="${B.classes.findIndex(c => gradeOf(c.name) === g)}">${esc(g)}</button>`).join('')}</span>` : ''}
-          <a href="#analysis" class="pgrep">📊 Analysis & reports</a>
+          ${kind === 'master' ? `<span class="pgjump">Go to:${IDX.D.map((dd, d) => `<button type="button" data-pgjump="${d}">${esc(String(dd.label).slice(0, 3).toUpperCase())}</button>`).join('')}</span>` : ''}
           <button type="button" class="pgbw ${bw ? 'on' : ''}" data-act="pgbw">${bw ? '⚫ Black & white' : '🎨 Colour'}</button>
           <button type="button" class="pgprint" data-act="allSheet">${icon('print')} Print / save…</button></nav>
-        <div class="pgpick"><input type="search" class="pgq" id="pgq" autocomplete="off" placeholder="Choose ${kind === 'teachers' ? 'a teacher' : kind === 'classes' ? 'a class' : kind === 'rooms' ? 'a lab or field' : 'a day'}…  (${T.length})">
-          <div class="pgchips" id="pgchips">${T.map((x, i) => `<button type="button" class="pgc${i === 0 ? ' on' : ''}${kind === 'teachers' ? ' code' : ''}" data-pgjump="${i}" data-pgi="${i}" data-pgs="${esc(x.lab.toLowerCase())}" title="${esc(x.lab)}">${esc(kind === 'master' ? x.lab.replace('Master — ', '') : kind === 'teachers' ? (B.teachers[i].code || x.lab) : x.lab)}</button>`).join('')}</div></div>
-        ${CFG.preview && bad ? '<p class="pgkey"><span class="k1"></span> red box = breaks a rule that could not be fixed (the rule is written on it) — shown only in the preview</p>' : ''}
+        ${CFG.preview && bad ? '<p class="pgkey"><span class="k1"></span> red box = breaks a rule that could not be fixed (the rule is written on it) &nbsp; <span class="k2"></span> dashed = moved — these marks are only in the preview</p>' : CFG.preview ? '<p class="pgkey"><span class="k2"></span> dashed = moved — marks show only in the preview, never on paper</p>' : ''}
       </header>
       <button type="button" class="pgnav l" data-act="pgprev" aria-label="Previous page">‹</button>
       <button type="button" class="pgnav r" data-act="pgnext" aria-label="Next page">›</button>
@@ -832,63 +812,10 @@ const own = isOwner();
     const main = document.querySelector('.pages');
     const fit = () => { const top = main.getBoundingClientRect().top; main.style.height = Math.max(240, innerHeight - top - 30) + 'px'; };
     fit(); addEventListener('resize', fit, { once: true });
-    const count = () => { const n = Math.round(main.scrollLeft / Math.max(1, main.clientWidth)); PG_KEEP.kind = kind; PG_KEEP.i = n; const c = document.getElementById('pgcount'); if (c) c.textContent = `${n + 1} / ${T.length}`;
-      document.querySelectorAll('#pgchips .pgc').forEach(b => b.classList.toggle('on', +b.dataset.pgi === n)); };
-    const pq = document.getElementById('pgq');
-    if (pq) pq.addEventListener('input', () => { const q = pq.value.trim().toLowerCase();
-      document.querySelectorAll('#pgchips .pgc').forEach(b => { b.style.display = !q || (b.dataset.pgs || b.textContent).toLowerCase().includes(q) ? '' : 'none'; }); fit(); });
+    const count = () => { const c = document.getElementById('pgcount'); if (c) c.textContent = `${Math.round(main.scrollLeft / Math.max(1, main.clientWidth)) + 1} / ${T.length}`; };
     main.addEventListener('scroll', () => requestAnimationFrame(count), { passive: true });
-    // Double-click a page -> that page fills the whole screen (sharp re-draw). Esc / double-click / click / ✕ closes; ← → change page.
-    const openFull = (idx) => {
-      idx = Math.max(0, Math.min(T.length - 1, idx));
-      let box = document.getElementById('pgfull');
-      if (!box) {
-        box = document.createElement('div'); box.id = 'pgfull';
-        box.innerHTML = '<button type="button" class="pgf-x" aria-label="Close">✕</button><button type="button" class="pgf-n l" aria-label="Previous">‹</button><button type="button" class="pgf-n r" aria-label="Next">›</button><div class="pgf-box"><span class="pgf-wait">Loading…</span></div><div class="pgf-cap"></div>';
-        document.body.appendChild(box);
-        const close = () => {
-          document.removeEventListener('keydown', box._key, true); box.remove();
-          try { if (document.fullscreenElement) document.exitFullscreen(); } catch { }
-        };
-        box._close = close;
-        box.querySelector('.pgf-x').addEventListener('click', e => { e.stopPropagation(); close(); });
-        box.querySelector('.pgf-n.l').addEventListener('click', e => { e.stopPropagation(); openFull(box._i - 1); });
-        box.querySelector('.pgf-n.r').addEventListener('click', e => { e.stopPropagation(); openFull(box._i + 1); });
-        box.addEventListener('dblclick', close);
-        box.addEventListener('click', e => { if (!e.target.closest('img,button')) close(); });
-        box._key = e => {
-          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
-          else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); openFull(box._i + 1); }
-          else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); openFull(box._i - 1); }
-        };
-        document.addEventListener('keydown', box._key, true);
-        document.addEventListener('fullscreenchange', function f() { if (!document.fullscreenElement) { document.removeEventListener('fullscreenchange', f); if (document.getElementById('pgfull') === box) box._close(); } });
-        try { const r = box.requestFullscreen && box.requestFullscreen(); if (r && r.catch) r.catch(() => { }); } catch { }
-      }
-      box._i = idx;
-      const holder = box.querySelector('.pgf-box'); holder.innerHTML = '<span class="pgf-wait">Loading…</span>';
-      box.querySelector('.pgf-cap').textContent = `${T[idx].lab}  ·  ${idx + 1} / ${T.length}`;
-      setTimeout(async () => {
-        try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { }
-        const logo = await loadLogo();
-        const cv = drawTimetablePage(bw, T[idx].t, logo, 2.4, !!CFG.preview);
-        if (box._i !== idx || !document.getElementById('pgfull')) { cv.width = cv.height = 1; return; }
-        const im = new Image(); im.alt = T[idx].lab; im.src = cv.toDataURL('image/jpeg', 0.92); cv.width = cv.height = 1;
-        holder.innerHTML = ''; holder.appendChild(im);
-      }, 30);
-      const m = document.querySelector('.pages.h'); if (m) m.scrollTo({ left: idx * m.clientWidth });   // the page behind follows
-    };
-    main.addEventListener('dblclick', e => { const f = e.target.closest('.pg'); if (f) { e.preventDefault(); openFull(+f.dataset.pg); } });
     PAGES_OBS = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { PAGES_OBS.unobserve(e.target); drawOne(e.target); } }), { root: main, rootMargin: '0px 120%' }) : null;
     document.querySelectorAll('.pages .pg').forEach((f, i) => { if (PAGES_OBS) PAGES_OBS.observe(f); else if (i < 3) drawOne(f); });
-    // coming back from the colour switch: stay on the same teacher / class / day (a new visit starts at the first page)
-    const keepI = (PG_KEEP.keep && PG_KEEP.kind === kind) ? Math.min(PG_KEEP.i, T.length - 1) : 0;
-    PG_KEEP.keep = false; PG_KEEP.kind = kind; PG_KEEP.i = keepI;
-    if (keepI > 0) {
-      main.style.scrollBehavior = 'auto'; main.scrollLeft = keepI * main.clientWidth;
-      const f = document.querySelector(`.pages .pg[data-pg="${keepI}"]`); if (f) drawOne(f);
-      count(); requestAnimationFrame(() => { main.scrollLeft = keepI * main.clientWidth; count(); main.style.scrollBehavior = ''; });
-    }
   }
   function pageStep(dir) {                       // one A4 page at a time, left and right
     const m = document.querySelector('.pages.h'); if (!m) return false;
@@ -902,19 +829,15 @@ const own = isOwner();
     const tiles = [['pages', 'print', 'As printed (A4)', 'Every page exactly as it prints — big', 'pages/teachers'],
       ['teachers', 'teacher', 'Teachers', `${B.teachers.length} timetables`, 'list/teachers'],
       ['classes', 'classes', 'Classes', `${B.classes.length} timetables`, 'list/classes'],
-      ...((B.rooms || []).length ? [['rooms', 'lab', 'Labs & Fields', `${B.rooms.length} timetables`, 'list/rooms']] : []),
       ['master', 'grid', 'Master', 'Every class, day by day', 'master'],
-      ['printall', 'print', 'Print all timetables', 'Teachers, classes, labs, master · colour or black & white', ''],
-      ['analysis', 'chart', 'Staff analysis', 'Subjects, classes, teaching load · print any view', 'analysis'],
-      ['report', 'print', 'Print staff report', 'A4 table: every teacher, lessons per day', '@printReport'],
-      ['csv', 'save', 'Staff analysis (Excel)', 'Download all teachers, subjects, classes', '@csv']];
+      ['printall', 'print', 'Print all timetables', 'Teachers, classes, master · colour or black & white', '']];
     app.innerHTML = `
       <header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div>
         <div class="titles"><h1>${esc(sch.name || 'School')}</h1><p class="sub">Preview · not published yet</p></div></div></header>
       <main class="home pvhome">
         ${instBlock()}
         <nav class="tiles pvtiles">${tiles.map(([k, ic, t, sub, href]) => `
-          <button class="tile t-${k}" ${k === 'printall' ? 'data-act="allSheet"' : href.startsWith('@') ? `data-act="${href.slice(1)}"` : `data-go="${href}"`}>
+          <button class="tile t-${k}" ${k === 'printall' ? 'data-act="allSheet"' : `data-go="${href}"`}>
             <span class="tic">${icon(ic)}</span><strong>${esc(t)}</strong><small>${esc(sub)}</small></button>`).join('')}
         </nav>
         <footer class="foot">${esc(BRAND_LINE)}</footer>
@@ -1872,7 +1795,7 @@ const own = isOwner();
     const filt = tab && ((A.subj && A.subj !== 'all') || q) ? `Filter: ${[(A.subj && A.subj !== 'all') ? A.subj : '', q ? '“' + A.q + '”' : ''].filter(Boolean).join(' · ')}` : 'All teachers';
     const dayHead = IDX.D.map(d => `<th class="n">${esc(String(d.label).slice(0, 3))}</th>`).join('');
     const body = rows.map(({ t, a }) => `<tr>
-      <td class="n">${esc(t.code)}</td><td><b>${esc(t.name || ('TEACHER ' + t.code))}</b></td>
+      <td class="n">${esc(t.code)}</td><td><b>${esc(t.name || ('Teacher ' + t.code))}</b></td>
       <td>${a.subjects.map(S => `${esc(S.name)} (${S.periods})`).join(', ') || '—'}</td>
       <td>${a.classes.map(C => esc(C.name)).join(', ') || '—'}</td>
       ${a.perDay.map(v => `<td class="n">${v || ''}</td>`).join('')}
@@ -2000,33 +1923,28 @@ const own = isOwner();
   }
 
   // ------------------------------------------------------------------ SAVE as picture
-  function wrapText(ctx, text, maxW, hard = false) {
-    // break at spaces; a word still too wide (e.g. T.FILM/F.ART/GEO) may also break after a "/" or a ","
+  function wrapText(ctx, text, maxW) {
+    // break at spaces; a word still too wide (e.g. T.FILM/F.ART/GEO) may also break after a "/"
     const toks = [];
     String(text).split(/\s+/).filter(Boolean).forEach(w => {
-      if (ctx.measureText(w).width <= maxW || !/[\/]/.test(w)) { toks.push([w, ' ']); return; }
+      if (ctx.measureText(w).width <= maxW || !w.includes('/')) { toks.push([w, ' ']); return; }
       const parts = w.split(/(?<=\/)/); parts.forEach((x, i) => toks.push([x, i === 0 ? ' ' : '']));
     });
     const lines = []; let cur = '';
     for (const [w, glue] of toks) { const t = cur ? cur + glue + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; }
-    if (cur) lines.push(cur);
-    if (!hard) return lines;
-    const out = [];                                   // last resort: cut a word that is still wider than the box, letter by letter
-    lines.forEach(ln => { if (ctx.measureText(ln).width <= maxW) { out.push(ln); return; }
-      let part = ''; for (const ch of ln) { if (part && ctx.measureText(part + ch).width > maxW) { out.push(part); part = ch; } else part += ch; } if (part) out.push(part); });
-    return out;
+    if (cur) lines.push(cur); return lines;
   }
   // ------------------------------------------------------------------ SAVE: picture (PNG) or PDF · coloured or black & white · fills an A4 page
   function openSaveSheet() {
-    const fmt = store.get('saveFmt', outDefault() === 'print' ? 'print' : 'image'), col = store.get('saveCol', 'colour');
+    const fmt = store.get('saveFmt', 'image'), col = store.get('saveCol', 'colour');
     openSheet(`<div class="grab"></div><h3>Save this timetable</h3>
       <p class="muted small">${esc(saveName().base)}</p>
       <h4 class="svh">Save as</h4>
-      <div class="seg wide-seg sv"><button class="${fmt === 'image' ? 'on' : ''}" data-savefmt="image">🖼 Picture (PNG)</button><button class="${fmt === 'pdf' ? 'on' : ''}" data-savefmt="pdf">📄 PDF</button><button class="${fmt === 'print' ? 'on' : ''}" data-savefmt="print">🖨 Print…</button></div>
+      <div class="seg wide-seg sv"><button class="${fmt === 'image' ? 'on' : ''}" data-savefmt="image">🖼 Picture (PNG)</button><button class="${fmt === 'pdf' ? 'on' : ''}" data-savefmt="pdf">📄 PDF</button><button class="${fmt === 'print' ? 'on' : ''}" data-savefmt="print">🖨 Print now</button></div>
       <h4 class="svh">Colour</h4>
       <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-savecol="colour">🎨 Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-savecol="bw">⚫ Black & white</button></div>
-      <p class="muted small">${fmt === 'print' ? esc(printHint()) + ' ' : ''}A4 size, sharp HD quality, ready to print.</p>
-      <button class="btn wide" data-act="doSave">${icon(fmt === 'print' ? 'print' : 'save')} ${fmt === 'print' ? 'Print…' : 'Save'}</button>
+      <p class="muted small">A4 size, sharp HD quality, ready to print.</p>
+      <button class="btn wide" data-act="doSave">${icon(fmt === 'print' ? 'print' : 'save')} ${fmt === 'print' ? 'Print' : 'Save'}</button>
       <button class="btn ghost wide" data-act="allSheet">${icon('print')} Print / save ALL timetables</button>
       <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
   }
@@ -2076,47 +1994,29 @@ const own = isOwner();
       const colW = (W - pad * 2 - headW - nB * brkW) / nL;
       const colWs = P.map(p => p.brk ? brkW : colW);
       let S = 1;                                       // text size multiplier: as big as still fits on the page
-      // line spacing (x font size) and the gaps between the subject, the classes line and the teacher box - one set of numbers for measuring AND drawing
-      const GA = 1.3, GB = 1.42, GT = 1.5;
-      const setLS = (c2, px) => { try { if ('letterSpacing' in c2) c2.letterSpacing = px + 'px'; } catch { } };
       const cellText = (row, j) => {
         let span = 1; while ((row.item.grid[row.d] || [])[j + span] === '^') span++;
         let cw = 0; for (let k = j; k < j + span; k++) cw += colWs[k];
         const c = cellAt(row.item, row.d, j), L = cellLines(kind, c, row.item.name);
-        if (!L) return { cw, L, a: [], b: [], t: [], k: 1, h: 0 };
-        const ls = 0.45 * S; setLS(mctx, ls);          // a little air between letters
+        if (!L) return { cw, L, a: [], b: [], t: [], k: 1 };
         // the subject gets smaller in its own box until it fits (at most 3 lines, nothing past the border)
-        let k = 1, a, hard = false;
+        let k = 1, a;
         for (; ; k *= 0.9) {
-          mctx.font = `800 ${15 * S * k}px Poppins, Arial`; a = wrapText(mctx, L[0], cw - 18);
-          if ((a.length <= 3 && a.every(x => mctx.measureText(x).width <= cw - 14)) || k < 0.5) break;
+          mctx.font = `800 ${15 * S * k}px Poppins, Arial`; a = wrapText(mctx, L[0], cw - 14);
+          if ((a.length <= 3 && a.every(x => mctx.measureText(x).width <= cw - 10)) || k < 0.5) break;
         }
-        if (!a.every(x => mctx.measureText(x).width <= cw - 14)) { hard = true; a = wrapText(mctx, L[0], cw - 18, true); }
-        // classes line and teacher line shrink too, rather than touch the border or the line above
-        let kb = Math.min(1, Math.max(k, 0.62)), b = [], t = [];
-        for (; ; kb *= 0.92) {
-          mctx.font = `600 ${12.5 * S * kb}px Poppins, Arial`; b = L[1] ? wrapText(mctx, L[1], cw - 18) : [];
-          mctx.font = `700 ${12 * S * kb}px Poppins, Arial`; t = L[2] ? wrapText(mctx, L[2], cw - 30) : [];
-          const okB = b.every(x => (mctx.font = `600 ${12.5 * S * kb}px Poppins, Arial`, mctx.measureText(x).width <= cw - 14));
-          const okT = t.every(x => (mctx.font = `700 ${12 * S * kb}px Poppins, Arial`, mctx.measureText(x).width <= cw - 26));
-          if ((okB && okT) || kb < 0.55) break;
-        }
-        mctx.font = `600 ${12.5 * S * kb}px Poppins, Arial`; if (!b.every(x => mctx.measureText(x).width <= cw - 14)) b = wrapText(mctx, L[1], cw - 18, true);
-        mctx.font = `700 ${12 * S * kb}px Poppins, Arial`; if (!t.every(x => mctx.measureText(x).width <= cw - 26)) t = wrapText(mctx, L[2], cw - 30, true);
-        setLS(mctx, 0);
-        const sA = 15 * S * k, sB = 12.5 * S * kb, sT = 12 * S * kb;
-        const hA = a.length * sA * GA, hB = b.length * sB * GB, hT = t.length ? t.length * sT * GT + 8 * S : 0;
-        const g1 = a.length && b.length ? 4 * S : 0, g2 = t.length ? 8 * S : 0;
-        return { cw, L, a, b, t, k, kb, sA, sB, sT, hA, hB, hT, g1, g2, ls, h: hA + g1 + hB + g2 + hT };
+        a = a.slice(0, 3);
+        mctx.font = `600 ${12.5 * S}px Poppins, Arial`; const b = L[1] ? wrapText(mctx, L[1], cw - 14) : [];
+        mctx.font = `700 ${12 * S}px Poppins, Arial`; const t = L[2] ? wrapText(mctx, L[2], cw - 22) : [];
+        return { cw, L, a, b, t, k };
       };
-      let minK = 1;                                    // the smallest the subject had to shrink to fit its box
-      const calcNeed = () => { minK = 1; return rows.map(row => { let h = 56; for (let j = 0; j < P.length; j++) { if (P[j].brk || isCont(row.item, row.d, j)) continue;
-        const t = cellText(row, j); minK = Math.min(minK, t.k); h = Math.max(h, t.h + 26); } return h; }); };
+      const calcNeed = () => rows.map(row => { let h = 56; for (let j = 0; j < P.length; j++) { if (P[j].brk || isCont(row.item, row.d, j)) continue;
+        const t = cellText(row, j); h = Math.max(h, t.a.length * 18 * S * t.k + t.b.length * 15 * S + (t.t.length ? t.t.length * 14 * S + 10 * S : 0) + 22); } return h; });
       const bodyAvail = H - top - 52 - foot;
-      // master = the full A4 page; every teacher and class timetable = 3/4 of the page (the last quarter stays free for notes)
-      const capBody = kind === 'master' ? bodyAvail : Math.max(120, H * 0.75 - top - 52);
       let need, sum;
-      for (const cand of [1.75, 1.6, 1.45, 1.32, 1.2, 1.1, 1]) { S = cand; need = calcNeed(); sum = need.reduce((a, b) => a + b, 0); if (sum <= capBody * 1.001 && (minK >= 0.62 || cand <= 1.45)) break; }
+      for (const cand of [1.75, 1.6, 1.45, 1.32, 1.2, 1.1, 1]) { S = cand; need = calcNeed(); sum = need.reduce((a, b) => a + b, 0); if (sum <= bodyAvail * 1.001) break; }
+      // only the master fills the A4 page; teachers', classes' and labs' timetables use 3/4 of it
+      const capBody = kind === 'master' ? bodyAvail : Math.min(bodyAvail, H * 0.75 - top - 52);
       if (sum > capBody * 1.001 && f > 0.42) { f = Math.max(0.42, f * Math.sqrt(capBody / sum) * 0.98); continue; }
       const extra = Math.max(0, capBody - sum), RH = need.map(h => h + extra / rows.length);
       lay = { W, H, pad, top, foot, headW, brkW, colWs, cellText, RH, S }; break;
@@ -2170,9 +2070,8 @@ const own = isOwner();
     rows.forEach((row, ri) => {
       const y = y0 + 52 + Y[ri], rowH = RH[ri];
       ctx.fillStyle = bw ? '#fff' : NAVY; ctx.fillRect(pad, y, headW, rowH); ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(pad, y, headW, rowH);
-      let HK = 1; ctx.fillStyle = bw ? INK : '#fff'; ctx.textAlign = 'center';
-      let hl; for (; ; HK *= 0.92) { ctx.font = `800 ${16 * HK}px Poppins, Arial`; hl = wrapText(ctx, row.head, headW - 10).slice(0, 3);
-        if (HK < 0.8 || (hl.length <= 3 && hl.every(l => ctx.measureText(l).width <= headW - 8))) break; } hl.forEach((ln, k) => ctx.fillText(ln, pad + headW / 2, y + rowH / 2 - (hl.length - 1) * 9 * HK + k * 18 * HK + 5 * HK));
+      const HK = Math.min(S, 1.35); ctx.fillStyle = bw ? INK : '#fff'; ctx.font = `800 ${16 * HK}px Poppins, Arial`; ctx.textAlign = 'center';
+      const hl = wrapText(ctx, row.head, headW - 10).slice(0, 3); hl.forEach((ln, k) => ctx.fillText(ln, pad + headW / 2, y + rowH / 2 - (hl.length - 1) * 9 * HK + k * 18 * HK + 5 * HK));
       ctx.textAlign = 'left';
       for (let j = 0; j < P.length; j++) {
         const [cx, w] = colX[j];
@@ -2203,26 +2102,19 @@ const own = isOwner();
           tl.forEach((l, i) => ctx.fillText(l, cx + 10, y + 15 + i * 12, tw - 8));
         }
         if (L) {
-          ctx.save(); ctx.beginPath(); ctx.rect(cx + 1, y + 1, cw - 2, rowH - 2); ctx.clip();   // nothing can ever run into the next box
-          try { if ('letterSpacing' in ctx) ctx.letterSpacing = T.ls + 'px'; } catch { }
-          let top2 = y + (rowH - T.h) / 2; ctx.textAlign = 'center';
-          const base = (lineTop, lineH, size) => lineTop + lineH / 2 + size * 0.35;         // baseline that centres a line inside its own line box
-          ctx.fillStyle = fc ? fc[1] : INK; ctx.font = `800 ${T.sA}px Poppins, Arial`;
-          T.a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, base(top2, T.sA * 1.3, T.sA)); top2 += T.sA * 1.3; });
-          top2 += T.g1;
-          ctx.font = `600 ${T.sB}px Poppins, Arial`;
-          T.b.forEach(ln => { ctx.fillText(ln, cx + cw / 2, base(top2, T.sB * 1.42, T.sB)); top2 += T.sB * 1.42; });
+          const blockH = T.a.length * 18 * S * T.k + T.b.length * 15 * S + (T.t.length ? T.t.length * 14 * S + 10 * S : 0);
+          let ty = y + (rowH - blockH) / 2 + 14 * S; ctx.textAlign = 'center';
+          ctx.fillStyle = fc ? fc[1] : INK; ctx.font = `800 ${15 * S * T.k}px Poppins, Arial`; T.a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 18 * S * T.k; });
+          ctx.font = `600 ${12.5 * S}px Poppins, Arial`; T.b.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 15 * S; });
           if (T.t.length) {                                    // teacher names in their own box and colour
-            top2 += T.g2; ctx.font = `700 ${T.sT}px Poppins, Arial`;
-            const bwid = Math.min(cw - 10, Math.max(...T.t.map(l => ctx.measureText(l).width)) + 20), bh = T.hT;
-            const bx = cx + (cw - bwid) / 2;
+            ctx.font = `700 ${12 * S}px Poppins, Arial`;
+            const bwid = Math.min(cw - 10, Math.max(...T.t.map(l => ctx.measureText(l).width)) + 14), bh = T.t.length * 14 * S + 6 * S;
+            const bx = cx + (cw - bwid) / 2, by = ty - 11 * S;
             ctx.fillStyle = '#ffffff'; ctx.strokeStyle = bw ? '#000' : '#0B3D91'; ctx.lineWidth = 1.2;
-            ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, top2, bwid, bh, 6); else ctx.rect(bx, top2, bwid, bh); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = bw ? '#000' : '#0B3D91'; let ty2 = top2 + 4 * S;
-            T.t.forEach(ln => { ctx.fillText(ln, cx + cw / 2, base(ty2, T.sT * 1.5, T.sT)); ty2 += T.sT * 1.5; });
+            ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, bwid, bh, 6); else ctx.rect(bx, by, bwid, bh); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = bw ? '#000' : '#0B3D91'; ty += 2 * S; T.t.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 14 * S; });
           }
-          try { if ('letterSpacing' in ctx) ctx.letterSpacing = '0px'; } catch { }
-          ctx.restore(); ctx.textAlign = 'left';
+          ctx.textAlign = 'left';
         }
       }
     });
@@ -2303,16 +2195,6 @@ const own = isOwner();
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 20000);
     toast(`Saved: ${full} ✓`, 3500);
   }
-  // Is a printer set up on this computer? (preview on the toolkit computer only; phones use their own print screen)
-  let PRINTERS = null;                                   // null = not known, 0 = none, n = how many
-  const outDefault = () => PRINTERS === 0 ? 'pdf' : 'print';
-  async function checkPrinters() {
-    if (!CFG.preview) return;
-    try { const j = await (await fetch('/__prepfix/printers', { cache: 'no-store' })).json(); PRINTERS = Number(j.count) || 0; } catch { PRINTERS = null; }
-  }
-  checkPrinters();
-  const printHint = () => PRINTERS === 0 ? 'No printer was found on this computer. Connect one, or choose the PDF file.'
-    : 'Print opens the print window: choose the printer, copies, pages and more.';
   // Print straight away (opens the phone's / computer's print screen)
   function printPictures(urls, title) {
     const fr = document.createElement('iframe'); fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
@@ -2326,7 +2208,7 @@ const own = isOwner();
   }
   // ---- ALL timetables at once: one PDF (or straight to the printer), coloured or black & white
   function openAllSheet() {
-    const sel = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }), col = store.get('saveCol', 'colour'), out = store.get('allOut', outDefault());
+    const sel = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }), col = store.get('saveCol', 'colour'), out = store.get('allOut', 'pdf');
     const n = { teachers: B.teachers.length, classes: B.classes.length, rooms: (B.rooms || []).length, master: IDX.D.length };
     const lab = { teachers: 'Teachers', classes: 'Classes', rooms: 'Labs & Fields', master: 'Master (one page per day)' };
     const total = Object.keys(n).reduce((a, k) => a + (sel[k] ? n[k] : 0), 0);
@@ -2337,13 +2219,13 @@ const own = isOwner();
       <h4 class="svh">Colour</h4>
       <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-allcol="colour">🎨 Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-allcol="bw">⚫ Black & white</button></div>
       <h4 class="svh">Get them as</h4>
-      <div class="seg wide-seg sv"><button class="${out === 'pdf' ? 'on' : ''}" data-allout="pdf">📄 One PDF file</button><button class="${out === 'print' ? 'on' : ''}" data-allout="print">🖨 Print…</button></div>
-      <p class="muted small">${out === 'print' ? esc(printHint()) + ' ' : ''}${total} A4 pages, each with its name at the top, your school and the PREPFIX logo.</p>
-      <button class="btn wide" data-act="doAll" ${total ? '' : 'disabled'}>${icon('print')} ${out === 'print' ? 'Print' : 'Make'} ${total} page${total === 1 ? '' : 's'}${out === 'print' ? '…' : ''}</button>
+      <div class="seg wide-seg sv"><button class="${out === 'pdf' ? 'on' : ''}" data-allout="pdf">📄 One PDF file</button><button class="${out === 'print' ? 'on' : ''}" data-allout="print">🖨 Print now</button></div>
+      <p class="muted small">${total} A4 pages, each with its name at the top, your school and the PREPFIX logo.</p>
+      <button class="btn wide" data-act="doAll" ${total ? '' : 'disabled'}>${icon('print')} Make ${total} page${total === 1 ? '' : 's'}</button>
       <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
   }
   async function makeAll() {
-    const sel = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }), bw = store.get('saveCol', 'colour') === 'bw', out = store.get('allOut', outDefault());
+    const sel = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }), bw = store.get('saveCol', 'colour') === 'bw', out = store.get('allOut', 'pdf');
     const T = [];
     if (sel.teachers) B.teachers.forEach(t => T.push({ id: t.id }));
     if (sel.classes) B.classes.forEach(c => T.push({ id: c.id }));
@@ -2370,7 +2252,7 @@ const own = isOwner();
     deliverFile(pdfFromPages(pages, name), name + '.pdf', name);
   }
   async function saveImage() {
-    const fmt = store.get('saveFmt', outDefault() === 'print' ? 'print' : 'image'), bw = store.get('saveCol', 'colour') === 'bw';
+    const fmt = store.get('saveFmt', 'image'), bw = store.get('saveCol', 'colour') === 'bw';
     try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { }
     const cv = drawTimetablePage(bw, currentTarget(), await loadLogo());
     const name = saveName().base + (bw ? ' (B&W)' : ''), full = name + (fmt === 'pdf' ? '.pdf' : '.png');
@@ -2532,7 +2414,7 @@ const own = isOwner();
       case 'next': stepItem(1); break;
       case 'save': openSaveSheet(); break;
       case 'allSheet': closeRail(); openAllSheet(); break;
-      case 'pgbw': store.set('pgBW', !store.get('pgBW', false)); PG_KEEP.keep = true; render(); break;
+      case 'pgbw': store.set('pgBW', !store.get('pgBW', false)); render(); break;
       case 'pgprev': pageStep(-1); break;
       case 'pgnext': pageStep(1); break;
       case 'pvhome': goHome(); break;
@@ -2655,7 +2537,7 @@ const own = isOwner();
     if (CFG.desktop) document.documentElement.classList.add('is-desktop');
     strip.innerHTML = `${CFG.desktop ? '<b>PREPFIX TIMETABLE TOOLKIT</b><span>Desktop · on this computer</span>' : '<b>PREVIEW</b><span>Not published yet</span>'}
       <button type="button" class="pvnav" data-act="pvback">← Back</button><button type="button" class="pvnav" data-act="pvhome">⌂ Home</button>
-      <a href="#pages/teachers" class="pvpg">📄 As printed</a><a href="#list/teachers">Teachers</a><a href="#list/classes">Classes</a><a href="#master">Master</a><a href="#analysis">📊 Analysis</a>
+      <a href="#pages/teachers" class="pvpg">📄 As printed</a><a href="#list/teachers">Teachers</a><a href="#list/classes">Classes</a><a href="#master">Master</a>
       <button type="button" id="pvfs"></button><button type="button" id="pvclose">✕ Close preview</button>`;
     document.body.prepend(strip);
     const fsOn = () => !!document.fullscreenElement || (innerHeight >= screen.height - 2 && innerWidth >= screen.width - 2);
