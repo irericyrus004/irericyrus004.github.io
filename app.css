@@ -1250,3 +1250,9 @@ html.pgfull .pgexit{display:block;position:fixed;top:10px;right:12px;z-index:60;
 html.pgfull body:has(.pages){background:#2E333D}
 html.pgfull .pages.h .pgsheet{aspect-ratio:var(--crop,1600/1131)}
 html.pgfull .pages.h .pgsheet img{object-fit:cover;object-position:top}
+
+/* The footer "DEVELOPED BY CYRUS IRERI 0720872582" stays at the bottom of the phone screen, also in the
+   sideways (wide) timetable view: only the timetable turns, the footer never moves. */
+body.force-land #brandbar{left:0;right:0;top:auto;bottom:0;width:auto!important;height:calc(var(--brandh) + var(--safe-b));padding:0 0 var(--safe-b);transform:none}
+body.force-land #app,body.fullv.force-land #app{width:calc(100vh - var(--brandh) - var(--safe-b))!important;width:calc(100dvh - var(--brandh) - var(--safe-b))!important;padding-bottom:0}
+body.force-land .vtools{bottom:0}

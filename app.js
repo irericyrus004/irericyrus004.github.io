@@ -694,6 +694,8 @@ const own = isOwner();
       const j = await r.json(); const me = (j.schools || []).find(x => x.code === CODE);
       if (!me) return '';
       if (me.suspended) return 'suspended';
+      if (me.until) { const t = new Date(), d = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+        if (d > String(me.until).slice(0, 10)) return "This school's PREPFIX subscription has ended. Please contact the school office or Cyrus Ireri, 0720872582."; }
       if (me.mobile === false) return PC_ONLY_MSG;
       return ''; } catch { return ''; }
   }

@@ -73,6 +73,8 @@ textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px
 .gate p{color:var(--mute)}
 .gate input{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;margin:6px 0 12px}
 .pills{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.mini{border:1px solid var(--line);background:#fff;color:var(--navy);border-radius:8px;padding:2px 8px;font-size:12px;font-weight:600;margin-left:6px;cursor:pointer}
+.pw{border:0;border-radius:16px;padding:18px;max-width:360px;width:calc(100% - 40px)}.pw input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:6px}.pw h3{margin:0 0 8px}
 .pill{background:#EEF1F6;border-radius:6px;padding:2px 7px;font-size:12px}
 @media (prefers-reduced-motion:no-preference){dialog[open]{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
 </style>
@@ -100,6 +102,25 @@ const ago = iso => { if (!iso) return 'never'; const t = Date.parse(iso); if (!t
 const days = iso => { const t = Date.parse(iso); return t ? (Date.now() - t) / 864e5 : 1e9; };
 const dateOnly = iso => { const t = Date.parse(iso); return t ? new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : (iso || '—'); };
 
+const hex = async t => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)))].map(b => b.toString(16).padStart(2, '0')).join('');
+const today = (o = 0) => { const d = new Date(Date.now() + o * 864e5); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const plusYear = d => { const y = +d.slice(0, 4) + 1, md = d.slice(5) === '02-29' ? '02-28' : d.slice(5); return y + '-' + md; };
+const paidUntil = s => String(s.until || '').slice(0, 10) || (/^\d{4}-\d\d-\d\d/.test(String(s.registered || '')) ? plusYear(String(s.registered).slice(0, 10)) : '');
+const daysLeft = u => u ? Math.round((Date.parse(u + 'T00:00:00') - Date.parse(today() + 'T00:00:00')) / 864e5) : null;
+async function resetCode(code) { const k = (await hex('prepfix-school|' + KEY + '|' + code)).slice(0, 32); return (await hex(k + '|reset|' + today())).slice(0, 6).toUpperCase(); }
+// vital actions ask for the owner key again (a phone left open cannot suspend a school)
+function sure(what) {
+  return new Promise(res => {
+    const w = document.createElement('dialog'); w.className = 'pw';
+    w.innerHTML = `<form method="dialog"><h3>${esc(what)}</h3><label for="pw1" class="sub">Type your owner key to confirm</label>
+      <input id="pw1" type="password" autocomplete="current-password" required><p class="sub" id="pwe" role="alert"></p>
+      <div class="btns"><button class="btn red" value="ok">Confirm</button><button class="btn ghost" value="no" formnovalidate>Cancel</button></div></form>`;
+    document.body.appendChild(w); w.showModal();
+    w.querySelector('form').onsubmit = e => { const v = e.submitter && e.submitter.value;
+      if (v === 'ok' && w.querySelector('#pw1').value.trim() !== KEY) { e.preventDefault(); w.querySelector('#pwe').textContent = 'That is not your owner key.'; return; } };
+    w.onclose = () => { const ok = w.returnValue === 'ok'; w.remove(); res(ok); };
+  });
+}
 async function post(url, body) {
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
   return r.json();
@@ -164,11 +185,13 @@ function viewSchools() {
     body: `${errS ? `<div class="err">${esc(errS)}</div>` : ''}
     <input class="find" type="search" placeholder="Find a school" value="${esc(q)}" aria-label="Find a school">
     <div class="list">${rows.map((r, i) => { const u = r.u || {};
-      const tags = (r.s.suspended ? '<span class="tag t-bad">Suspended</span>' : '') + (r.s.mobile === false ? '<span class="tag t-off">PC only</span>' : '');
+      const dl = daysLeft(paidUntil(r.s));
+      const tags = (r.s.suspended ? '<span class="tag t-bad">Suspended</span>' : '') + (r.s.mobile === false ? '<span class="tag t-off">PC only</span>' : '') +
+        (dl == null ? '' : dl < 0 ? '<span class="tag t-bad">Not paid</span>' : dl <= 30 ? `<span class="tag t-warn">Renew in ${dl} d</span>` : '');
       return `<button class="row" data-s="${i}"><span class="rail ${r.state}"></span><span><div class="nm">${esc(r.s.name)}</div>
         <div class="sub">${tags}${u.last ? 'Last opened ' + esc(ago(u.last)) : 'No phone has opened it yet'}</div></span>
         <span class="fig"><b>${u.active7 || 0}</b><span>active / ${u.devices || 0}</span></span></button>`; }).join('') || '<div class="empty">No schools yet. Register one in PREPFIX on the computer.</div>'}</div>
-    <p class="note">Green: used this week · amber: not used this week · red: suspended · grey: PC only. Suspend, restore or delete a school in PREPFIX on the computer (Schools tab).</p>` , rows };
+    <p class="note">Green: used this week · amber: not used this week · red: suspended · grey: PC only. Tap a school to see its days left, renew it, suspend or restore it, copy its link, get its password reset code or let a teacher use a new phone. Register or delete schools in PREPFIX on the computer.</p>` , rows };
 }
 async function openSchool(r) {
   const u = r.u || {}, s = r.s, d = $('#dlg');
@@ -179,8 +202,39 @@ async function openSchool(r) {
     ${(u.top || []).length ? `<h3>Most used (30 days)</h3><div class="pills">${u.top.map(x => `<span class="pill">${esc(x)}</span>`).join('')}</div>` : ''}
     <h3>Timetables published</h3><div class="pills">${(s.timetables || []).map(x => `<span class="pill">${esc(x)}</span>`).join('') || '<span class="sub">None yet</span>'}</div>
     <p class="sub">${s.updated ? 'Last published ' + esc(dateOnly(s.updated)) + '. ' : ''}${s.teachers ? esc(s.teachers) + ' teachers, ' + esc(s.classes) + ' classes. ' : ''}${s.registered ? 'Registered ' + esc(dateOnly(s.registered)) + '.' : ''}</p>
+    <h3>Subscription</h3><p class="sub" id="sub">${(() => { const u = paidUntil(s), dl = daysLeft(u); return !u ? 'Not known yet.' : dl < 0 ? '<b style="color:var(--bad)">Ended on ' + esc(dateOnly(u)) + '.</b> Teachers\' phones show that the subscription has ended; the school cannot publish.' : 'Paid until <b>' + esc(dateOnly(u)) + '</b> · <b>' + dl + '</b> day' + (dl === 1 ? '' : 's') + ' left.'; })()}</p>
+    <div class="btns" style="margin-top:4px"><button class="btn ghost" id="ren">🔄 Renew 1 year (paid)</button></div>
+    <h3>School link</h3><div class="btns" style="margin-top:4px"><button class="btn ghost" id="lnk">Copy link for teachers</button></div>
+    <h3>Password reset code</h3><p class="sub" id="rc">When the school forgets its PREPFIX password, give it this code. It works today and tomorrow.</p>
+    <div class="btns" style="margin-top:4px"><button class="btn ghost" id="rcb">Show today's code</button></div>
+    <h3>Service</h3><p class="sub" id="svc">${s.suspended ? 'This school is SUSPENDED: phones show a message and the school cannot publish.' : 'Switched on: teachers see the timetables and the school can publish.'}</p>
+    <div class="btns" style="margin-top:4px"><button class="btn ${s.suspended ? '' : 'red'}" id="sus">${s.suspended ? '▶ Restore this school' : '⏸ Suspend this school'}</button></div>
+    <p class="sub" id="out" role="status"></p>
     <h3>Teachers on the list</h3><div id="ppl" class="sub">Loading…</div></div>`;
   d.showModal(); $('#x').onclick = () => d.close();
+  const link = (s.site || location.origin).replace(/\/$/, '') + '/s/' + s.code + '/';
+  $('#lnk').onclick = async () => { try { if (navigator.share) await navigator.share({ title: s.name, url: link }); else { await navigator.clipboard.writeText(link); $('#lnk').textContent = '✓ Copied'; } } catch (e) {} };
+  $('#rcb').onclick = async () => { $('#rc').innerHTML = 'Reset code for today: <b style="font-size:20px;letter-spacing:2px;color:var(--navy)">' + esc(await resetCode(s.code)) + '</b><br>The school types it after “Forgot?” on its PREPFIX, then chooses a new password.'; $('#rcb').hidden = true; };
+  $('#ren').onclick = async () => {
+    if (!await sure('Renew ' + s.name + ' for one more year?')) return;
+    $('#ren').disabled = true; $('#sub').textContent = 'Renewing… (about 30 seconds)';
+    try { const r2 = await post(CHURCH, { action: 'ttOwner', op: 'renew', key: KEY, school: s.code });
+      if (r2.error) throw new Error(r2.error === 'key' ? 'the owner key was not accepted' : r2.error);
+      s.until = r2.until; if (S) st.set('S', S); render();
+      $('#sub').innerHTML = '✓ Renewed. Paid until <b>' + esc(dateOnly(r2.until)) + '</b> · ' + daysLeft(r2.until) + ' days left.'; $('#ren').outerHTML = '';
+    } catch (e) { $('#sub').textContent = 'Not renewed: ' + e.message; $('#ren').disabled = false; }
+  };
+  $('#sus').onclick = async () => {
+    const on = !s.suspended;
+    if (!await sure((on ? 'Suspend ' : 'Restore ') + s.name + '?')) return;
+    $('#sus').disabled = true; $('#out').textContent = (on ? 'Suspending' : 'Restoring') + '… (about 30 seconds)';
+    try { const r2 = await post(CHURCH, { action: 'ttOwner', op: on ? 'suspend' : 'restore', key: KEY, school: s.code });
+      if (r2.error) throw new Error(r2.error === 'key' ? 'the owner key was not accepted' : r2.error);
+      s.suspended = on || undefined; if (S) st.set('S', S); render();
+      $('#out').textContent = on ? '⏸ Suspended. Teachers\' phones show that the service is suspended; publishing is blocked.' :
+        '▶ Restored. Teachers see the timetables again' + (r2.pc ? ' after you open PREPFIX on the laptop once.' : '.');
+      $('#svc').textContent = on ? 'This school is SUSPENDED.' : 'Switched on.'; $('#sus').outerHTML = ''; } catch (e) { $('#out').textContent = 'Not done: ' + e.message; $('#sus').disabled = false; }
+  };
   if (!WORKER || !s.code) { $('#ppl').textContent = 'Not available.'; return; }
   try {
     const r2 = await post(WORKER + '/roster-status', { key: KEY, school: s.code });
@@ -188,7 +242,13 @@ async function openSchool(r) {
     const p = (r2.people || []).sort((a, b) => (b.joined - a.joined) || (b.last || '').localeCompare(a.last || '') || String(a.name).localeCompare(b.name));
     const n = p.filter(x => x.joined).length;
     $('#ppl').outerHTML = !r2.locked ? '<p class="sub">This school is not locked to a teachers list, so anyone with the link can open it.</p>' :
-      `<p class="sub">${n} of ${p.length} teachers have signed in.</p><div class="ppl">${p.map(x => `<div><span>${x.joined ? '✓ ' : ''}${esc(x.name || '—')}</span><em>${x.joined ? esc((x.plat || 'phone') + ' · ' + ago(x.last)) : 'not yet'}</em></div>`).join('')}</div>`;
+      `<p class="sub">${n} of ${p.length} teachers have signed in. Tap “New phone” when a teacher changed phones: they can then sign in again.</p><div class="ppl">${p.map((x, i) => `<div><span>${x.joined ? '✓ ' : ''}${esc(x.name || '—')}</span><em>${x.joined ? esc((x.plat || 'phone') + ' · ' + ago(x.last)) + (x.ph ? ` <button class="mini" data-f="${i}">New phone</button>` : '') : 'not yet'}</em></div>`).join('')}</div>`;
+    document.querySelectorAll('[data-f]').forEach(b => b.onclick = async () => {
+      const x = p[+b.dataset.f]; if (!confirm('Let ' + (x.name || 'this teacher') + ' sign in again on a new phone? The old phone stops opening the timetables.')) return;
+      b.disabled = true; b.textContent = '…';
+      try { const r3 = await post(WORKER + '/roster', { key: KEY, school: s.code, only_free: true, free: [x.ph] }); if (!r3.ok) throw new Error(r3.error || 'no answer');
+        b.outerHTML = '<b style="color:var(--ok)">✓ can sign in again</b>'; } catch (e) { b.disabled = false; b.textContent = 'New phone'; alert('Not done: ' + e.message); }
+    });
   } catch (e) { $('#ppl').textContent = 'The list could not be loaded: ' + e.message; }
 }
 
@@ -214,7 +274,8 @@ function viewChurches() {
       return `<button class="row" data-c="${esc(c.id)}"><span class="rail ${c.st}"></span><span><div class="nm">${esc(c.church || c.id)}</div>
         <div class="sub">${tags}${c.last ? 'Opened ' + esc(ago(c.last)) : 'Made, not used yet'}</div></span>
         <span class="fig"><b>${c.songs || 0}</b><span>songs</span></span></button>`; }).join('') || '<div class="empty">No churches yet. Make one with “1 NEW CHURCH” on the computer.</div>'}</div>
-    <p class="note">Green: opened this week · amber: not this week · grey: not used yet · red: suspended. Renewal codes are made on the computer (“2 RENEW A CHURCH”).</p>` };
+    <div class="btns" style="margin:10px 0 0"><button class="btn ghost" id="mall">✉ Message to all churches</button></div>
+    <p class="note">Green: opened this week · amber: not this week · grey: not used yet · red: suspended. Tap a church to message it or suspend it. Renewal codes are made on the computer (“2 RENEW A CHURCH”).</p>` };
 }
 function openChurch(id) {
   const c = ((C && C.list) || []).find(x => x.id === id); if (!c) return;
@@ -241,6 +302,20 @@ function openChurch(id) {
   };
 }
 
+function messageAll() {
+  const all = ((C && C.list) || []).filter(c => !/remov/i.test(c.status)), d = $('#dlg');
+  d.innerHTML = `<div class="dh"><h2>Message to all churches</h2><button class="ib" style="border-color:var(--line);color:var(--navy)" id="x" aria-label="Close">✕</button></div><div class="db">
+    <p class="sub">Shown on the toolkit of all ${all.length} churches the next time each one is online. Leave it empty and save to remove the message.</p>
+    <textarea id="msg" maxlength="300" placeholder="e.g. New songs were added. Press Check for updates."></textarea>
+    <div class="btns"><button class="btn" id="save">Send to all</button></div><p class="sub" id="out" role="status"></p></div>`;
+  d.showModal(); $('#x').onclick = () => d.close();
+  $('#save').onclick = async () => {
+    const msg = $('#msg').value.trim(); if (!all.length) return; $('#save').disabled = true; let n = 0, bad = 0;
+    for (const c of all) { $('#out').textContent = 'Sending… ' + (n + bad + 1) + ' of ' + all.length;
+      try { const r = await post(CHURCH, { action: 'ownerSet', key: KEY, id: c.id, message: msg }); if (r.error) throw 0; c.message = msg; n++; } catch (e) { bad++; } }
+    st.set('C', C); $('#out').textContent = '✓ Sent to ' + n + ' church' + (n === 1 ? '' : 'es') + (bad ? ' · ' + bad + ' failed - try again' : '.'); $('#save').disabled = false;
+  };
+}
 /* ---------- Echoes of Worship: how many people use it ---------- */
 function viewEchoes() {
   const t = (E && E.totals) || {}, daily = ((E && E.daily) || []).slice(-14), mx = Math.max(1, ...daily.map(d => d.phones));
@@ -281,7 +356,7 @@ function render() {
   $('#cfg').onclick = () => { if (confirm('Forget the owner key on this phone?')) { KEY = ''; st.set('key', ''); st.set('S', null); st.set('C', null); st.set('E', null); S = C = E = null; gate(); } };
   const f = $('.find'); if (f) { f.oninput = () => { q = f.value.trim().toLowerCase(); const p = f.selectionStart; render(); const g = $('.find'); g.focus(); g.setSelectionRange(p, p); }; if (hadFocus) f.focus(); }
   if (TAB === 'S') document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => openSchool(v.rows.filter(r => !q || r.s.name.toLowerCase().includes(q))[+b.dataset.s]));
-  else if (TAB === 'C') document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => openChurch(b.dataset.c));
+  else if (TAB === 'C') { document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => openChurch(b.dataset.c)); const m = $('#mall'); if (m) m.onclick = messageAll; }
 }
 $('#tabS').onclick = () => { TAB = 'S'; st.set('tab', TAB); q = ''; render(); };
 $('#tabC').onclick = () => { TAB = 'C'; st.set('tab', TAB); q = ''; render(); };
