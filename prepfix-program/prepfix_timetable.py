@@ -94,7 +94,22 @@ class App:
         if not self.owner_login():                   # Cyrus's PREPFIX and every school's copy open with a password
             root.destroy()
             return
+        sp = getattr(root, "_splash", None)
+        if sp is not None and sp.ok and getattr(sp, "w", None) is not None:
+            try:
+                sp.w.deiconify()                         # signed in: the opening screen again while PREPFIX loads
+            except tk.TclError:
+                pass
 
+        self.sub_bar = None
+        if self.pub.is_school:                   # always in sight: how long the subscription still runs
+            self.sub_bar = tk.Label(root, text="", anchor="w", font=("Segoe UI Semibold", 10), padx=14, pady=5)
+            self.sub_bar.pack(fill="x", side="top")
+            try:
+                u, dl, _, susp = self.pub.my_subscription(online=False)
+                self.show_sub(u, dl)
+            except Exception:
+                pass
         nb = ttk.Notebook(root)
         nb.pack(fill="both", expand=True, padx=12, pady=(10, 0))
         self.nb = nb
@@ -153,10 +168,10 @@ class App:
         nb.select(self.tab_imp if (self.pub.ready or self.pub.is_school) else self.tab_set)
         if self.pub.is_school:                       # the school's PREPFIX updates itself from Cyrus Ireri's website
             threading.Thread(target=self._self_update, daemon=True).start()
-            try:                                         # ended (as far as this computer knows): closed at once
-                u, dl, _ = self.pub.my_subscription(online=False)
-                if dl is not None and dl < 0:
-                    self.lock_expired(u)
+            try:                                         # suspended / ended (as this computer last knew): closed at once
+                u, dl, _, susp = self.pub.my_subscription(online=False)
+                if susp or (dl is not None and dl < 0):
+                    self.lock_closed(u, susp)
             except Exception:
                 pass
             threading.Thread(target=self._sub_check, daemon=True).start()
@@ -794,94 +809,167 @@ class App:
         sch = self.pub.school(code)
         u = core.sub_until(sch)
         dl = core.days_left(u)
-        if not messagebox.askyesno("Renew subscription", f"{sch['name']} has paid for one more year?\n\nNow: "
-                                   + ("ended on " + core.nice_day(u) if dl is not None and dl < 0 else
-                                      f"paid until {core.nice_day(u)} ({dl} days left)") +
-                                   "\n\nThe new year is added after that day (or from today if it has ended)."):
+        today = datetime.now().strftime("%Y-%m-%d")
+        d = tk.Toplevel(self.root)
+        d.title("Renew subscription")
+        d.configure(bg=U.CREAM)
+        d.resizable(False, False)
+        now_txt = ("ended on " + core.nice_day(u)) if dl is not None and dl < 0 else \
+            f"paid until {core.nice_day(u)} ({dl} days left)"
+        tk.Label(d, text=f"{sch['name']}\nNow: {now_txt}", bg=U.CREAM, font=("Segoe UI Semibold", 11),
+                 justify="left").pack(anchor="w", padx=18, pady=(16, 10))
+        how = tk.StringVar(value="end")
+        new_end = core.plus_years(u or today)
+        for val, txt in (("end", f"One more year from the day it was due to end ({core.nice_day(u)})  →  paid until "
+                                 f"{core.nice_day(new_end)}"),
+                         ("today", f"One more year from today  →  paid until {core.nice_day(core.plus_years(today))}"),
+                         ("date", "Set the last paid day myself:")):
+            tk.Radiobutton(d, text=txt, variable=how, value=val, bg=U.CREAM, anchor="w", justify="left",
+                           font=("Segoe UI", 10)).pack(anchor="w", padx=18)
+        ent = ttk.Entry(d, width=14)
+        ent.insert(0, new_end)
+        ent.pack(anchor="w", padx=44, pady=(2, 6))
+        tk.Label(d, text="(year-month-day, e.g. 2027-11-16)", bg=U.CREAM, fg="#667085").pack(anchor="w", padx=44)
+        res = {}
+        bar = tk.Frame(d, bg=U.CREAM)
+        bar.pack(fill="x", padx=18, pady=(10, 14))
+
+        def ok():
+            res["how"], res["date"] = how.get(), ent.get().strip()
+            d.destroy()
+        ttk.Button(bar, text="Renew", style="Accent.TButton", command=ok).pack(side="right")
+        ttk.Button(bar, text="Cancel", command=d.destroy).pack(side="right", padx=8)
+        d.grab_set()
+        self.front(d)
+        self.root.wait_window(d)
+        if not res:
             return
         if not self.need_pw("Renew a school's subscription."):
             return
 
         def go():
-            until = self.pub.renew_school(code)
+            until = self.pub.renew_school(code, start="today" if res["how"] == "today" else "end",
+                                          until=res["date"] if res["how"] == "date" else "")
             self.run.ui(lambda: (self.fill_schools_local(), messagebox.showinfo(
                 "Renewed", f"{sch['name']} is now paid until {core.nice_day(until)}.")))
         self.run.run(go)
 
     def _sub_check(self):
         """School copies: how long this school's subscription still runs (a reminder in the last 30 days).
-        When it has ended, PREPFIX closes down (nothing works) until Cyrus Ireri renews it."""
+        Suspended by Cyrus Ireri, or the subscription has ended: PREPFIX closes down (nothing works - not even the
+        preview) until it is restored or renewed."""
+        self.run.ui(lambda: self.root.after(20 * 60 * 1000, lambda: threading.Thread(
+            target=self._sub_check, daemon=True).start()))          # checked again every 20 minutes
         try:
-            u, dl, online = self.pub.my_subscription(online=True)
+            u, dl, online, susp = self.pub.my_subscription(online=True)
         except Exception:
             return
-        if dl is None:
+        if susp or (dl is not None and dl < 0):
+            self.run.ui(lambda: self.lock_closed(u, susp))
             return
-        if dl < 0:
-            self.run.ui(lambda: self.lock_expired(u))
+        self.run.ui(self.unlock_closed)
+        self.run.ui(lambda: self.show_sub(u, dl))
+        if dl is None or getattr(self, "_sub_told", False):
             return
-        self.run.ui(self.unlock_expired)
+        self._sub_told = True
         msg = f"Subscription: paid until {core.nice_day(u)} — {dl} day{'s' if dl != 1 else ''} left."
         self.run.log("📅 " + msg)
         if dl <= 30:
             msg += f"\n\nTo renew for another year, contact Cyrus Ireri, {core.LOCKED_CONTACT}."
             self.run.ui(lambda: messagebox.showwarning("PREPFIX subscription", msg))
 
-    def lock_expired(self, until):
-        """Subscription over: a closed screen covers the whole window. Only “Check again” and “Close” work."""
-        if getattr(self, "_expired_box", None):
+    def show_sub(self, until, dl):
+        """The strip at the top of a school's PREPFIX: paid until … — N days left (amber in the last 30 days,
+        red in the last 7)."""
+        b = getattr(self, "sub_bar", None)
+        if b is None or dl is None:
             return
+        if dl < 0:
+            t, bg, fg = f"⛔  Subscription ended on {core.nice_day(until)}.", "#FDE7E4", "#B5463A"
+        else:
+            t = f"📅  Subscription: paid until {core.nice_day(until)} — {dl} day{'s' if dl != 1 else ''} left."
+            bg, fg = (("#FDE7E4", "#B5463A") if dl <= 7 else ("#FFF3D6", "#8A5A12") if dl <= 30 else ("#E7F5EC", "#1E7F5C"))
+        if dl <= 30:
+            t += f"   To renew for another year, contact Cyrus Ireri, {core.LOCKED_CONTACT}."
+        b.configure(text=t, bg=bg, fg=fg)
+
+    def lock_closed(self, until, suspended=False):
+        """Suspended / subscription over: a closed screen covers the whole window and the preview stops.
+        Only “Check again” and “Close” work."""
+        name = self.pub.bound_school["name"]
+        if suspended:
+            head, text = "PREPFIX is suspended", f"{name}'s PREPFIX service has been suspended by Cyrus Ireri."
+        else:
+            head, text = "PREPFIX subscription has ended", f"{name}'s subscription ended on {core.nice_day(until)}."
+        PS.CLOSED["msg"] = text + f" Contact Cyrus Ireri, {core.LOCKED_CONTACT}."
+        try:
+            PS.close_window()                              # an open preview closes too
+        except Exception:
+            pass
+        sp = getattr(getattr(self.root, "_splash", None), "w", None)
+        for w in self.root.winfo_children():               # other PREPFIX windows (Preview, rules, phones…) close
+            if isinstance(w, tk.Toplevel) and w is not sp:
+                try:
+                    w.destroy()
+                except tk.TclError:
+                    pass
+        old = getattr(self, "_closed_box", None)
+        if old:
+            old.destroy()
         bg = "#1D2A44"
         box = tk.Frame(self.root, bg=bg)
         box.place(relx=0, rely=0, relwidth=1, relheight=1)
         inner = tk.Frame(box, bg=bg)
         inner.place(relx=0.5, rely=0.45, anchor="center")
         tk.Label(inner, text="⛔", bg=bg, fg="#F2C14E", font=("Segoe UI", 40)).pack()
-        tk.Label(inner, text="PREPFIX subscription has ended", bg=bg, fg="white",
-                 font=("Segoe UI", 20, "bold")).pack(pady=(4, 8))
-        tk.Label(inner, text=f"{self.pub.bound_school['name']}'s subscription ended on {core.nice_day(until)}.\n"
-                             "PREPFIX and the teachers' phones stay closed until it is renewed.\n"
-                             "Your timetables and teachers' list are kept safely.\n\n"
-                             f"To renew, contact Cyrus Ireri, {core.LOCKED_CONTACT}.", bg=bg, fg="#D7DEEA",
+        tk.Label(inner, text=head, bg=bg, fg="white", font=("Segoe UI", 20, "bold")).pack(pady=(4, 8))
+        tk.Label(inner, text=text + "\nPREPFIX, the preview and the teachers' phones stay closed until it is "
+                 + ("switched back on" if suspended else "renewed") + ".\n"
+                 "Your timetables and teachers' list are kept safely.\n\n"
+                 f"Contact Cyrus Ireri, {core.LOCKED_CONTACT}.", bg=bg, fg="#D7DEEA",
                  font=("Segoe UI", 12), justify="center").pack()
-        self._expired_msg = tk.Label(inner, text="", bg=bg, fg="#F2C14E", font=("Segoe UI", 11))
-        self._expired_msg.pack(pady=(10, 0))
+        self._closed_msg = tk.Label(inner, text="", bg=bg, fg="#F2C14E", font=("Segoe UI", 11))
+        self._closed_msg.pack(pady=(10, 0))
         btns = tk.Frame(inner, bg=bg)
         btns.pack(pady=14)
-        ttk.Button(btns, text="↻  Check again (after renewing)", style="Accent.TButton",
-                   command=self._recheck_expired).pack(side="left", padx=6)
+        ttk.Button(btns, text="↻  Check again", style="Accent.TButton",
+                   command=self._recheck_closed).pack(side="left", padx=6)
         ttk.Button(btns, text="Close PREPFIX", command=self.root.destroy).pack(side="left", padx=6)
         box.lift()
-        self._expired_box = box
-        for seq in ("<Key>", "<Button>"):
-            self.root.bind_all(seq, self._swallow_when_expired, add="+")
+        self._closed_box = box
+        if not getattr(self, "_closed_bound", False):
+            self._closed_bound = True
+            for seq in ("<Key>", "<Button>"):
+                self.root.bind_all(seq, self._swallow_when_closed, add="+")
 
-    def _swallow_when_expired(self, e):
-        box = getattr(self, "_expired_box", None)
+    def _swallow_when_closed(self, e):
+        box = getattr(self, "_closed_box", None)
         if box and not str(e.widget).startswith(str(box)):
             return "break"
 
-    def unlock_expired(self):
-        box = getattr(self, "_expired_box", None)
+    def unlock_closed(self):
+        PS.CLOSED["msg"] = ""
+        box = getattr(self, "_closed_box", None)
         if box:
             box.destroy()
-            self._expired_box = None
-            self.run.log("✔ Subscription renewed — PREPFIX is open again.")
+            self._closed_box = None
+            self.run.log("✔ PREPFIX is open again.")
 
-    def _recheck_expired(self):
-        self._expired_msg.configure(text="Checking…")
+    def _recheck_closed(self):
+        self._closed_msg.configure(text="Checking…")
 
         def go():
             try:
-                u, dl, online = self.pub.my_subscription(online=True)
+                u, dl, online, susp = self.pub.my_subscription(online=True)
             except Exception:
-                u, dl, online = None, None, False
+                u, dl, online, susp = None, None, False, True
             if not online:
-                self.run.ui(lambda: self._expired_msg.configure(text="No internet - connect and try again."))
-            elif dl is not None and dl >= 0:
-                self.run.ui(self.unlock_expired)
+                self.run.ui(lambda: self._closed_msg.configure(text="No internet - connect and try again."))
+            elif not susp and dl is not None and dl >= 0:
+                self.run.ui(self.unlock_closed)
             else:
-                self.run.ui(lambda: self._expired_msg.configure(text="Not renewed yet."))
+                self.run.ui(lambda: self._closed_msg.configure(
+                    text="Still suspended." if susp else "Not renewed yet."))
         threading.Thread(target=go, daemon=True).start()
 
     def delete_school(self):
@@ -2064,6 +2152,9 @@ class App:
 
     def browser_preview(self, final=False, start="teachers"):
         """The teachers' app on this computer (http://127.0.0.1), full screen, with the timetable as it is now."""
+        if PS.CLOSED["msg"]:
+            messagebox.showerror("Preview", PS.CLOSED["msg"])
+            return
         sch = self.current_school()
         if self.data is None or not sch:
             messagebox.showinfo("Preview", "Add the FET folder and choose the school first.")
@@ -2091,8 +2182,16 @@ class App:
             self.update_pub_state()
 
     # ---- TOOLKIT PASSWORD: Cyrus's PREPFIX opens only with it; delete / suspend / restore / send ask for it again ----
-    def _pw_box(self, title, lines, fields=1, forgot=False):
-        """A small password window. Returns the typed password(s), "FORGOT", or None (cancel)."""
+    def _pw_box(self, title, lines, fields=1, forgot=False, err=""):
+        """A small password window. Returns the typed password(s), "FORGOT", or None (cancel).
+        A mistake is shown in red inside the window itself (a separate message could open behind the opening
+        screen and PREPFIX would look stuck)."""
+        sp = getattr(self.root, "_splash", None)
+        if sp is not None and getattr(sp, "w", None) is not None:
+            try:
+                sp.w.withdraw()                       # the opening screen steps aside while the password is asked
+            except tk.TclError:
+                pass
         d = tk.Toplevel(self.root)
         d.title(title)
         d.configure(bg=U.CREAM)
@@ -2100,6 +2199,9 @@ class App:
         res = {"v": None}
         tk.Label(d, text=lines, bg=U.CREAM, font=("Segoe UI", 11), justify="left", wraplength=380).pack(
             anchor="w", padx=18, pady=(16, 8))
+        if err:
+            tk.Label(d, text="✖ " + err, bg=U.CREAM, fg="#B5463A", font=("Segoe UI", 11, "bold"), justify="left",
+                     wraplength=380).pack(anchor="w", padx=18, pady=(0, 8))
         es = []
         for i in range(fields):
             if fields > 1:
@@ -2135,18 +2237,20 @@ class App:
         return res["v"]
 
     def _new_tk_password(self, why):
+        err = ""
         while True:
             v = self._pw_box("PREPFIX — password", why + "\n\nChoose a password (at least 4 characters). You will "
-                             "type it to open PREPFIX and before deleting, suspending, restoring or sending to phones.", 2)
+                             "type it to open PREPFIX and before deleting, suspending, restoring or sending to phones.", 2,
+                             err=err)
             if v is None:
                 return False
             if v[0] != v[1]:
-                messagebox.showerror("Password", "The two passwords are not the same. Try again.")
+                err = "The two passwords are not the same. Try again."
                 continue
             try:
                 self.pub.set_tk_password(v[0])
             except core.PublishError as e:
-                messagebox.showerror("Password", str(e))
+                err = str(e)
                 continue
             try:
                 self.pub.autosave()
@@ -2157,8 +2261,9 @@ class App:
     def owner_login(self):
         if not self.pub.has_tk_password():
             return self._new_tk_password("Protect your PREPFIX with a password.")
+        err = ""
         for tries in range(5):
-            v = self._pw_box("PREPFIX — sign in", "Type your PREPFIX password.", forgot=True)
+            v = self._pw_box("PREPFIX — sign in", "Type your PREPFIX password.", forgot=True, err=err)
             if v is None:
                 return False
             if v == "FORGOT":
@@ -2174,12 +2279,12 @@ class App:
                     continue
                 if ok:
                     return self._new_tk_password("Accepted.")
-                messagebox.showerror("Forgot password", "That code is not right." if self.pub.is_school
-                                     else "That is not your owner key.")
+                err = "That code is not right." if self.pub.is_school else "That is not your owner key."
                 continue
             if self.pub.check_tk_password(v):
                 return True
-            messagebox.showerror("PREPFIX", "Wrong password." + (" PREPFIX will close." if tries == 4 else ""))
+            left = 4 - tries
+            err = f"Wrong password. {left} more tr{'ies' if left != 1 else 'y'}." if left else ""
         return False
 
     def need_pw(self, what):
@@ -2571,10 +2676,16 @@ def main():
     U.dpi_aware()
     root = tk.Tk()
     sp = U.Splash(root)                     # full-screen opening: logo, TIMETABLE TOOLKIT, slogan - in motion
+    root._splash = sp                       # (steps aside while the password is asked)
     App(root)
-    sp.keep_alive()
-    sp.close(300)
-    root.mainloop()
+    try:
+        if not root.winfo_exists():
+            return
+        sp.keep_alive()
+        sp.close(300)
+        root.mainloop()
+    except tk.TclError:                     # closed before it opened (wrong password, cancelled)
+        pass
 
 
 if __name__ == "__main__":

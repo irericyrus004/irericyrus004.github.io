@@ -113,6 +113,15 @@ def moved_cells(before: dict, after: dict) -> list:
     return out
 
 
+CLOSED = {"msg": ""}          # set when the school's PREPFIX is suspended or its subscription ended: no preview at all
+
+_CLOSED_PAGE = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PREPFIX</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+background:#1D2A44;color:#fff;font:16px/1.5 "Segoe UI",Arial,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
+b{display:block;font-size:24px;margin:8px 0}p{color:#D7DEEA;max-width:560px}</style></head>
+<body><div><div style="font-size:48px">&#9940;</div><b>PREPFIX is closed</b><p>%s</p></div></body></html>"""
+
+
 class _Handler(BaseHTTPRequestHandler):
     server_version = "PREPFIX-preview"
 
@@ -121,6 +130,16 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?", 1)[0].split("#", 1)[0].lstrip("/")
+        if CLOSED["msg"]:
+            import html as _h
+            body = (_CLOSED_PAGE % _h.escape(CLOSED["msg"])).encode("utf-8")
+            self.send_response(403)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         files = self.server.files
         if path == "" or path.endswith("/"):
             path += "index.html"

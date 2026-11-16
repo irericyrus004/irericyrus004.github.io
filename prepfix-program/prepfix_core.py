@@ -968,9 +968,10 @@ class Publisher:
             self.autosave()
         return [(n, on) for n, on, _ in done]
 
-    def renew_school(self, code: str, years: int = 1) -> str:
-        """Owner only: the school paid - its subscription runs one more year (from the day it would end, or from
-        today if it has already ended). Returns the new last day (YYYY-MM-DD)."""
+    def renew_school(self, code: str, years: int = 1, start: str = "end", until: str = "") -> str:
+        """Owner only: the school paid - its subscription runs one more year. start="end": counted from the day it
+        was due to end (paid early or late, the school keeps its own date); start="today": from today. until: a
+        last day chosen by hand (YYYY-MM-DD). Returns the new last day (YYYY-MM-DD)."""
         if self.is_school:
             raise PublishError("Only Cyrus Ireri can renew a school.")
         mine = list(self.s.get("schools", []))
@@ -978,8 +979,14 @@ class Publisher:
         if not sch:
             raise PublishError("That school is not in the list.")
         today = datetime.now().strftime("%Y-%m-%d")
-        base = max(sub_until(sch) or today, today)
-        sch["until"] = plus_years(base, max(1, int(years)))
+        if until:
+            try:
+                sch["until"] = datetime.strptime(str(until).strip()[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
+            except ValueError:
+                raise PublishError("Type the date like 2027-11-16 (year-month-day).")
+        else:
+            base = today if start == "today" else (sub_until(sch) or today)
+            sch["until"] = plus_years(base, max(1, int(years)))
         sch["until_changed"] = now_iso()
         self.s.set("schools", mine)
         if self.ready:
@@ -990,13 +997,15 @@ class Publisher:
         return sch["until"]
 
     def my_subscription(self, online=True):
-        """School copies: (last paid day, days left, checked online). Online: from Cyrus Ireri's list of schools (and
+        """School copies: (last paid day, days left, checked online, suspended). Online: from Cyrus Ireri's list of schools (and
         remembered); offline: the last day remembered, or one year after registration. Turning the computer's clock
         back does not help: the latest day seen is kept."""
         me = self.owner_entry() if online else None
         if me:
             u = sub_until(me)
             self.s.set("sub_until", u)
+            if bool(me.get("suspended")) != bool(self.s.get("sub_susp")):
+                self.s.set("sub_susp", bool(me.get("suspended")))
         else:
             u = self.s.get("sub_until") or sub_until(self.bound_school or {})
         today = max(datetime.now().strftime("%Y-%m-%d"), str(self.s.get("sub_seen") or ""))
@@ -1006,7 +1015,7 @@ class Publisher:
             dl = (datetime.strptime(u, "%Y-%m-%d") - datetime.strptime(today, "%Y-%m-%d")).days
         except (TypeError, ValueError):
             dl = None
-        return u, dl, bool(me)
+        return u, dl, bool(me), bool(self.s.get("sub_susp"))
 
     def set_suspended(self, code: str, on: bool, reason: str = "") -> str:
         """Owner only: switch a school's timetable service off (suspend) or back on (restore). Nothing is deleted:
