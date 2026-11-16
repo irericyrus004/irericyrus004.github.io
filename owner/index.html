@@ -203,7 +203,13 @@ async function openSchool(r) {
     <h3>Timetables published</h3><div class="pills">${(s.timetables || []).map(x => `<span class="pill">${esc(x)}</span>`).join('') || '<span class="sub">None yet</span>'}</div>
     <p class="sub">${s.updated ? 'Last published ' + esc(dateOnly(s.updated)) + '. ' : ''}${s.teachers ? esc(s.teachers) + ' teachers, ' + esc(s.classes) + ' classes. ' : ''}${s.registered ? 'Registered ' + esc(dateOnly(s.registered)) + '.' : ''}</p>
     <h3>Subscription</h3><p class="sub" id="sub">${(() => { const u = paidUntil(s), dl = daysLeft(u); return !u ? 'Not known yet.' : dl < 0 ? '<b style="color:var(--bad)">Ended on ' + esc(dateOnly(u)) + '.</b> Teachers\' phones show that the subscription has ended; the school cannot publish.' : 'Paid until <b>' + esc(dateOnly(u)) + '</b> · <b>' + dl + '</b> day' + (dl === 1 ? '' : 's') + ' left.'; })()}</p>
-    <div class="btns" style="margin-top:4px"><button class="btn ghost" id="ren">🔄 Renew 1 year (paid)</button></div>
+    <label class="sub" for="renHow" style="display:block;margin-top:6px">When the school pays, count the new year:</label>
+    <select id="renHow" style="width:100%;margin-top:4px;padding:9px;border:1px solid var(--line);border-radius:10px;font:inherit">
+      <option value="end">from the day it was due to end → paid until ${esc(dateOnly(plusYear(paidUntil(s) || today())))}</option>
+      <option value="today">from today → paid until ${esc(dateOnly(plusYear(today())))}</option>
+      <option value="date">set the last paid day myself…</option></select>
+    <input id="renDate" type="date" hidden value="${esc(plusYear(paidUntil(s) || today()))}" style="margin-top:6px;padding:9px;border:1px solid var(--line);border-radius:10px;font:inherit">
+    <div class="btns" style="margin-top:6px"><button class="btn ghost" id="ren">🔄 Renew (paid)</button></div>
     <h3>School link</h3><div class="btns" style="margin-top:4px"><button class="btn ghost" id="lnk">Copy link for teachers</button></div>
     <h3>Password reset code</h3><p class="sub" id="rc">When the school forgets its PREPFIX password, give it this code. It works today and tomorrow.</p>
     <div class="btns" style="margin-top:4px"><button class="btn ghost" id="rcb">Show today's code</button></div>
@@ -215,10 +221,13 @@ async function openSchool(r) {
   const link = (s.site || location.origin).replace(/\/$/, '') + '/s/' + s.code + '/';
   $('#lnk').onclick = async () => { try { if (navigator.share) await navigator.share({ title: s.name, url: link }); else { await navigator.clipboard.writeText(link); $('#lnk').textContent = '✓ Copied'; } } catch (e) {} };
   $('#rcb').onclick = async () => { $('#rc').innerHTML = 'Reset code for today: <b style="font-size:20px;letter-spacing:2px;color:var(--navy)">' + esc(await resetCode(s.code)) + '</b><br>The school types it after “Forgot?” on its PREPFIX, then chooses a new password.'; $('#rcb').hidden = true; };
+  $('#renHow').onchange = () => { $('#renDate').hidden = $('#renHow').value !== 'date'; };
   $('#ren').onclick = async () => {
-    if (!await sure('Renew ' + s.name + ' for one more year?')) return;
+    const how = $('#renHow').value, dt = $('#renDate').value;
+    if (how === 'date' && !/^\d{4}-\d\d-\d\d$/.test(dt)) { $('#sub').textContent = 'Choose the last paid day first.'; return; }
+    if (!await sure('Renew ' + s.name + (how === 'date' ? ' — paid until ' + dateOnly(dt) : how === 'today' ? ' for one year from today' : ' for one year from its end date') + '?')) return;
     $('#ren').disabled = true; $('#sub').textContent = 'Renewing… (about 30 seconds)';
-    try { const r2 = await post(CHURCH, { action: 'ttOwner', op: 'renew', key: KEY, school: s.code });
+    try { const r2 = await post(CHURCH, { action: 'ttOwner', op: 'renew', key: KEY, school: s.code, start: how === 'today' ? 'today' : 'end', until: how === 'date' ? dt : '' });
       if (r2.error) throw new Error(r2.error === 'key' ? 'the owner key was not accepted' : r2.error);
       s.until = r2.until; if (S) st.set('S', S); render();
       $('#sub').innerHTML = '✓ Renewed. Paid until <b>' + esc(dateOnly(r2.until)) + '</b> · ' + daysLeft(r2.until) + ' days left.'; $('#ren').outerHTML = '';
@@ -295,9 +304,10 @@ function openChurch(id) {
     try { const r = await post(CHURCH, { action: 'ownerSet', key: KEY, id: c.id, ...body }); if (r.error) throw new Error(r.error);
       Object.assign(c, body); st.set('C', C); $('#out').textContent = done; render(); } catch (e) { $('#out').textContent = 'Not saved: ' + e.message; }
   };
-  $('#save').onclick = () => set({ message: $('#msg').value.trim() }, 'Message saved. The church sees it the next time its toolkit is online.');
-  $('#sus').onclick = () => {
-    if (!susp && !confirm('Suspend ' + (c.church || 'this church') + '? Its toolkit and team app stop until you set it Active again.')) return;
+  $('#save').onclick = async () => { if (!await sure('Send this message to ' + (c.church || 'the church') + '?')) return;
+    set({ message: $('#msg').value.trim() }, 'Message saved. The church sees it the next time its toolkit is online.'); };
+  $('#sus').onclick = async () => {
+    if (!await sure((susp ? 'Set ' : 'Suspend ') + (c.church || 'this church') + (susp ? ' Active again?' : '? Its toolkit and team app stop until you set it Active again.'))) return;
     set({ status: susp ? 'Active' : 'Suspended' }, susp ? 'Set Active.' : 'Suspended. It takes effect the next time the toolkit checks in.').then(() => openChurch(id));
   };
 }
@@ -310,7 +320,9 @@ function messageAll() {
     <div class="btns"><button class="btn" id="save">Send to all</button></div><p class="sub" id="out" role="status"></p></div>`;
   d.showModal(); $('#x').onclick = () => d.close();
   $('#save').onclick = async () => {
-    const msg = $('#msg').value.trim(); if (!all.length) return; $('#save').disabled = true; let n = 0, bad = 0;
+    const msg = $('#msg').value.trim(); if (!all.length) return;
+    if (!await sure('Send this message to all ' + all.length + ' churches?')) return;
+    $('#save').disabled = true; let n = 0, bad = 0;
     for (const c of all) { $('#out').textContent = 'Sending… ' + (n + bad + 1) + ' of ' + all.length;
       try { const r = await post(CHURCH, { action: 'ownerSet', key: KEY, id: c.id, message: msg }); if (r.error) throw 0; c.message = msg; n++; } catch (e) { bad++; } }
     st.set('C', C); $('#out').textContent = '✓ Sent to ' + n + ' church' + (n === 1 ? '' : 'es') + (bad ? ' · ' + bad + ' failed - try again' : '.'); $('#save').disabled = false;

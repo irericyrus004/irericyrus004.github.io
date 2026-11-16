@@ -641,7 +641,8 @@ const own = isOwner();
       <input id="joinpin2" type="password" inputmode="numeric" maxlength="4" placeholder="Type the PIN again" aria-label="Type the PIN again" autocomplete="new-password">
       <button class="btn" type="submit">Open the timetables</button></form>
       <p class="joinmsg" id="joinmsg">${esc(state.joinMsg || '')}</p>
-      <p class="muted small">One phone per number. Changing phones? Sign out on the old phone first (menu ☰ → Sign out).</p></div>`;
+      <p class="muted small">One phone per number. Changing phones? Sign out on the old phone first (menu ☰ → Sign out).</p>
+      <p class="muted small">🔒 Privacy: your number is kept only scrambled, and your name only to show the school which teachers have signed in. They are used for this timetable app alone and never shared or sold.</p></div>`;
     $('#joinf').addEventListener('submit', async ev => {
       ev.preventDefault();
       const msg = $('#joinmsg'), n = normPhone($('#joinph').value);
@@ -695,7 +696,13 @@ const own = isOwner();
       if (!me) return '';
       if (me.suspended) return 'suspended';
       if (me.until) { const t = new Date(), d = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
-        if (d > String(me.until).slice(0, 10)) return "This school's PREPFIX subscription has ended. Please contact the school office or Cyrus Ireri, 0720872582."; }
+        if (d > String(me.until).slice(0, 10)) return "This school's PREPFIX subscription has ended. Please contact the school office or Cyrus Ireri, 0720872582.";
+        const left = Math.round((Date.parse(String(me.until).slice(0, 10) + 'T00:00:00') - Date.parse(d + 'T00:00:00')) / 864e5);
+        if (left <= 14 && localStorage.getItem(`ireri:${CODE}:subtold`) !== d) {   // in good time: once a day, the last 14 days
+          try { localStorage.setItem(`ireri:${CODE}:subtold`, d); } catch { }
+          setTimeout(() => toast(left === 0 ? "This school's PREPFIX subscription ends TODAY. Please remind the school office." :
+            `This school's PREPFIX subscription ends in ${left} day${left === 1 ? '' : 's'}. Please remind the school office.`, 9000), 2500);
+        } }
       if (me.mobile === false) return PC_ONLY_MSG;
       return ''; } catch { return ''; }
   }
