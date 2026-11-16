@@ -82,6 +82,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px
 <div class="tabs" id="tabs" role="tablist" hidden>
   <button role="tab" id="tabS" aria-selected="true">Schools</button>
   <button role="tab" id="tabC" aria-selected="false">Churches</button>
+  <button role="tab" id="tabE" aria-selected="false">Echoes</button>
 </div>
 <dialog id="dlg"></dialog>
 <script>
@@ -93,7 +94,7 @@ const $ = s => document.querySelector(s);
 const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const st = { get(k, d) { try { const v = localStorage.getItem('pfxo-' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('pfxo-' + k, JSON.stringify(v)); } catch { } } };
-let KEY = st.get('key', ''), TAB = st.get('tab', 'S'), S = st.get('S', null), C = st.get('C', null), errS = '', errC = '', busy = false, q = '';
+let KEY = st.get('key', ''), TAB = st.get('tab', 'S'), S = st.get('S', null), C = st.get('C', null), E = st.get('E', null), errS = '', errC = '', errE = '', busy = false, q = '';
 const ago = iso => { if (!iso) return 'never'; const t = Date.parse(iso); if (!t) return String(iso).slice(0, 10); const m = (Date.now() - t) / 6e4;
   if (m < 2) return 'just now'; if (m < 60) return Math.round(m) + ' min ago'; if (m < 1440) return Math.round(m / 60) + ' h ago'; const d = Math.round(m / 1440); return d === 1 ? 'yesterday' : d + ' days ago'; };
 const days = iso => { const t = Date.parse(iso); return t ? (Date.now() - t) / 864e5 : 1e9; };
@@ -128,9 +129,18 @@ async function loadChurches() {
     C = { list: r.churches || [], at: r.now || new Date().toISOString() }; st.set('C', C);
   } catch (e) { errC = navigator.onLine ? (e.message || 'The church sheet did not answer.') : 'Offline - showing what was saved ' + (C ? ago(C.at) : '') + '.'; }
 }
+async function loadEchoes() {
+  errE = '';
+  try {
+    const r = await post(CHURCH, { action: 'ownerEcho', key: KEY });
+    if (r.error === 'key') throw new Error('The owner key is wrong for the church sheet.');
+    if (r.error) throw new Error(r.error);
+    E = { ...r, at: r.now || new Date().toISOString() }; st.set('E', E);
+  } catch (e) { errE = navigator.onLine ? (e.message || 'The sheet did not answer.') : 'Offline - showing what was saved ' + (E ? ago(E.at) : '') + '.'; }
+}
 async function refresh() {
   if (busy) return; busy = true; render();
-  await Promise.all([loadSchools(), loadChurches()]);
+  await Promise.all([loadSchools(), loadChurches(), loadEchoes()]);
   busy = false; render();
 }
 
@@ -231,10 +241,30 @@ function openChurch(id) {
   };
 }
 
+/* ---------- Echoes of Worship: how many people use it ---------- */
+function viewEchoes() {
+  const t = (E && E.totals) || {}, daily = ((E && E.daily) || []).slice(-14), mx = Math.max(1, ...daily.map(d => d.phones));
+  const dev = Object.entries((E && E.devices) || {}).sort((a, b) => b[1] - a[1]);
+  const all = (E && E.daily) || [], sum = k => all.reduce((a, d) => a + (d[k] || 0), 0);
+  return { head: `<div class="tot"><div><b>${t.phones || 0}</b><span>phones ever</span></div><div><b>${t.today || 0}</b><span>today</span></div>
+    <div><b>${t.active7 || 0}</b><span>this week</span></div><div><b>${t.installed || 0}</b><span>installed</span></div></div>
+    ${daily.length ? `<div class="spark" aria-label="Phones per day, last 14 days">${daily.map(d => `<i title="${esc(d.day)}: ${d.phones} phones, ${d.opens} opens" style="height:${Math.max(6, Math.round(100 * d.phones / mx))}%"></i>`).join('')}</div>
+    <div class="spark-l"><span>${esc(daily[0].day.slice(5))}</span><span>phones per day</span><span>${esc(daily[daily.length - 1].day.slice(5))}</span></div>` : ''}`,
+    body: `${errE ? `<div class="err">${esc(errE)}</div>` : ''}
+    <div class="list" style="padding:4px 14px 12px"><div class="kv">
+      <div><b>${t.active30 || 0}</b><span>used in 30 days</span></div><div><b>${t.new7 || 0}</b><span>new this week</span></div>
+      <div><b>${sum('opens')}</b><span>opens (30 days)</span></div><div><b>${t.phones ? Math.round(100 * (t.installed || 0) / t.phones) : 0}%</b><span>installed it</span></div></div>
+      ${dev.length ? `<h3>Devices</h3><div class="pills">${dev.map(([k, n]) => `<span class="pill">${esc(k)} · ${n}</span>`).join('')}</div>` : ''}
+      ${all.length ? `<h3>Last days</h3><div class="ppl">${all.slice(-7).reverse().map(d => `<div><span>${esc(dateOnly(d.day))}</span><em>${d.phones} phones · ${d.opens} opens${d.fresh ? ' · ' + d.fresh + ' new' : ''}</em></div>`).join('')}</div>` : ''}
+    </div>
+    ${!t.phones && !errE ? '<div class="empty">No one counted yet. Numbers start when people open the new version of Echoes of Worship.</div>' : ''}
+    <p class="note">Anonymous: each phone gets a random id; no names, numbers or songs are sent. An "open" is counted at most once every 20 minutes per phone. Full lists: tabs "Echoes phones" and "Echoes daily" in the church Google Sheet.</p>` };
+}
+
 /* ---------- screens ---------- */
 function gate(msg) {
   $('#tabs').hidden = true;
-  $('#app').innerHTML = `<div class="gate"><h1>PREPFIX Owner</h1><p>Your schools and churches in one place. Type your owner key once; it stays on this phone only.</p>
+  $('#app').innerHTML = `<div class="gate"><h1>PREPFIX Owner</h1><p>Your schools, churches and Echoes of Worship in one place. Type your owner key once; it stays on this phone only.</p>
     ${msg ? `<div class="err">${esc(msg)}</div>` : ''}<form id="kf"><label for="k">Owner key</label><input id="k" type="password" autocomplete="current-password" required>
     <button class="btn" style="width:100%">Open</button></form><p class="sub">The same private key you saved as OWNER_KEY in Cloudflare and in the church Google Sheet.</p></div>`;
   $('#kf').onsubmit = e => { e.preventDefault(); KEY = $('#k').value.trim(); if (!KEY) return; st.set('key', KEY); refresh(); };
@@ -242,19 +272,20 @@ function gate(msg) {
 function render() {
   if (!KEY) return gate();
   $('#tabs').hidden = false;
-  $('#tabS').setAttribute('aria-selected', TAB === 'S'); $('#tabC').setAttribute('aria-selected', TAB === 'C');
-  const v = TAB === 'S' ? viewSchools() : viewChurches(), at = TAB === 'S' ? S && S.at : C && C.at;
+  $('#tabS').setAttribute('aria-selected', TAB === 'S'); $('#tabC').setAttribute('aria-selected', TAB === 'C'); $('#tabE').setAttribute('aria-selected', TAB === 'E');
+  const v = TAB === 'S' ? viewSchools() : TAB === 'E' ? viewEchoes() : viewChurches(), at = TAB === 'S' ? S && S.at : TAB === 'E' ? E && E.at : C && C.at;
   const hadFocus = document.activeElement && document.activeElement.classList.contains('find');
-  $('#app').innerHTML = `<header><div class="hrow"><h1>${TAB === 'S' ? 'Schools' : 'Churches'}<small>${busy ? 'Updating…' : at ? 'Updated ' + esc(ago(at)) : 'Not loaded yet'}</small></h1>
+  $('#app').innerHTML = `<header><div class="hrow"><h1>${TAB === 'S' ? 'Schools' : TAB === 'E' ? 'Echoes of Worship' : 'Churches'}<small>${busy ? 'Updating…' : at ? 'Updated ' + esc(ago(at)) : 'Not loaded yet'}</small></h1>
     <button class="ib" id="rf" aria-label="Refresh">↻</button><button class="ib" id="cfg" aria-label="Settings">⚙</button></div>${v.head}</header><main>${v.body}</main>`;
   $('#rf').onclick = refresh;
-  $('#cfg').onclick = () => { if (confirm('Forget the owner key on this phone?')) { KEY = ''; st.set('key', ''); st.set('S', null); st.set('C', null); S = C = null; gate(); } };
+  $('#cfg').onclick = () => { if (confirm('Forget the owner key on this phone?')) { KEY = ''; st.set('key', ''); st.set('S', null); st.set('C', null); st.set('E', null); S = C = E = null; gate(); } };
   const f = $('.find'); if (f) { f.oninput = () => { q = f.value.trim().toLowerCase(); const p = f.selectionStart; render(); const g = $('.find'); g.focus(); g.setSelectionRange(p, p); }; if (hadFocus) f.focus(); }
   if (TAB === 'S') document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => openSchool(v.rows.filter(r => !q || r.s.name.toLowerCase().includes(q))[+b.dataset.s]));
-  else document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => openChurch(b.dataset.c));
+  else if (TAB === 'C') document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => openChurch(b.dataset.c));
 }
 $('#tabS').onclick = () => { TAB = 'S'; st.set('tab', TAB); q = ''; render(); };
 $('#tabC').onclick = () => { TAB = 'C'; st.set('tab', TAB); q = ''; render(); };
+$('#tabE').onclick = () => { TAB = 'E'; st.set('tab', TAB); q = ''; render(); };
 $('#dlg').addEventListener('click', e => { if (e.target === $('#dlg')) $('#dlg').close(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && KEY) refresh(); });
 setInterval(() => { if (!document.hidden && KEY && navigator.onLine && !$('#dlg').open) refresh(); }, 60000);   // live: fresh numbers every minute
