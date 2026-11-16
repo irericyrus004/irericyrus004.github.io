@@ -1,0 +1,2764 @@
+/* Ireri Timetables — teachers' phone app (FET edition) */
+(() => {
+  'use strict';
+
+  const CFG = self.IRERI_CONFIG || {};
+  // Built in. The same on every school's app and not taken from any setting.
+  const LOCKED_BRAND = 'DEVELOPED BY CYRUS IRERI';   // (older copies said: CREATED BY CYRUS IRERI)
+  const LOCKED_CONTACT = '0720872582';
+  const BRAND_LINE = LOCKED_BRAND + ' ' + LOCKED_CONTACT;
+  // Watermark over every timetable on screen and on every saved image. Built in, cannot be switched off.
+  const WATERMARK = '© Cyrus Ireri';
+  // Appearance: Light / Dark / Auto (follows the phone)
+  const THEMES = ['auto', 'light', 'dark'];
+  const getTheme = () => { try { return localStorage.getItem('ireri:theme') || 'auto'; } catch { return 'auto'; } };
+  function applyTheme() {
+    const t = getTheme(), dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('theme-dark', dark);
+    const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', dark ? '#0B1220' : '#12284C');
+  }
+  applyTheme();
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme); } catch { }
+  (function brandSplash() {                      // PREPFIX logo every time the app opens, on every device
+    const t0 = Date.now();
+    const hide = () => { const el = document.getElementById('brandsplash'); if (!el) return; el.classList.add('out'); setTimeout(() => el.remove(), 600); };
+    addEventListener('load', () => setTimeout(hide, Math.max(0, 1700 - (Date.now() - t0))));
+    setTimeout(hide, 4000);
+  })();
+  (function addBrandBar() {                      // frozen footer, always visible
+    const add = () => { if (document.getElementById('brandbar')) return; const f = document.createElement('div'); f.id = 'brandbar';
+      f.innerHTML = `<span>${LOCKED_BRAND}</span><button type="button" data-act="contact" aria-label="Contact Cyrus Ireri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1l-2.3 2.2Z"/></svg>${LOCKED_CONTACT}</button>`; document.body.appendChild(f); };
+    if (document.body) add(); else document.addEventListener('DOMContentLoaded', add);
+  })();
+  (function addWatermarkStyle() {
+    const st = document.createElement('style');
+    st.textContent = `#tt::after{content:"${WATERMARK}";position:fixed;left:0;right:0;top:50%;transform:translateY(-50%) rotate(-30deg);` +
+      `text-align:center;pointer-events:none;z-index:60;white-space:nowrap;font-family:Poppins,"Segoe UI",Arial,sans-serif;` +
+      `font-weight:600;font-size:clamp(26px,7.5vw,52px);letter-spacing:.06em;color:rgba(18,40,76,.06)}` +
+      `@media (prefers-color-scheme: dark){#tt::after{color:rgba(255,255,255,.06)}}` +
+      `@media print{#tt::after{position:absolute}}`;
+    (document.head || document.documentElement).appendChild(st);
+  })();
+  const DATA_CACHE = 'ireri-data-v2';
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const I = {
+    back: 'M15.5 4.5 8 12l7.5 7.5-1.4 1.4L5.2 12l8.9-8.9 1.4 1.4Z',
+    more: 'M12 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z',
+    bell: 'M12 22a2.5 2.5 0 0 0 2.4-2h-4.8a2.5 2.5 0 0 0 2.4 2Zm7-6V11a7 7 0 0 0-5.5-6.8V3a1.5 1.5 0 0 0-3 0v1.2A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z',
+    star: 'm12 17.3 6.2 3.7-1.6-7 5.4-4.7-7.2-.6L12 2 9.2 8.7 2 9.3l5.4 4.7-1.6 7L12 17.3Z',
+    starO: 'm12 15.4-3.8 2.3 1-4.3-3.3-2.9 4.4-.4L12 6.1l1.7 4 4.4.4-3.3 2.9 1 4.3L12 15.4ZM22 9.2l-7.2-.6L12 2 9.2 8.6 2 9.2l5.5 4.7L5.8 21 12 17.3l6.2 3.7-1.6-7.1L22 9.2Z',
+    search: 'M10 2a8 8 0 0 1 6.3 12.9l5.4 5.4-1.4 1.4-5.4-5.4A8 8 0 1 1 10 2Zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12Z',
+    refresh: 'M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.3L13 11h7V4l-2.3 2.3Z',
+    clock: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm-1 5v6l5 3 1-1.6-4-2.4V7h-2Z',
+    share: 'M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1Z',
+    install: 'M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4 3.3 3.3V3ZM4 18h16v2H4v-2Z',
+    info: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm-1 8v7h2v-7h-2Zm0-3v2h2V7h-2Z',
+    chev: 'm9 6 6 6-6 6-1.4-1.4 4.6-4.6-4.6-4.6L9 6Z',
+    prev: 'M15.4 7.4 14 6l-6 6 6 6 1.4-1.4-4.6-4.6 4.6-4.6Z',
+    next: 'M8.6 16.6 10 18l6-6-6-6-1.4 1.4 4.6 4.6-4.6 4.6Z',
+    save: 'M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 2v4h8V5H7Zm5 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z',
+    print: 'M7 3h10v4H7V3Zm-2 5h14a2 2 0 0 1 2 2v6h-4v4H7v-4H3v-6a2 2 0 0 1 2-2Zm4 7v3h6v-3H9Z',
+    teacher: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5Z',
+    classes: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM8 13c-3 0-6 1.5-6 4v2h12v-2c0-2.5-3-4-6-4Zm8 0c-.5 0-1 0-1.5.1 1 .8 1.5 1.8 1.5 2.9v3h6v-2c0-2.5-3-4-6-4Z',
+    lab: 'M9 3h6v2h-1v4.3l5.6 9.3A2 2 0 0 1 17.9 21H6.1a2 2 0 0 1-1.7-3.4L10 9.3V5H9V3Zm3 8.2L8.6 17h6.8L12 11.2Z',
+    grid: 'M3 4h18v16H3V4Zm2 2v3h4V6H5Zm6 0v3h4V6h-4Zm6 0v3h2V6h-2ZM5 11v3h4v-3H5Zm6 0v3h4v-3h-4Zm6 0v3h2v-3h-2ZM5 16v2h4v-2H5Zm6 0v2h4v-2h-4Zm6 0v2h2v-2h-2Z',
+    free: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm-1.2 13.6 6.4-6.4-1.4-1.4-5 5-2.4-2.4L7 11.8l3.8 3.8Z',
+    cover: 'M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 2c-2.7 0-6 1.3-6 3.5V19h7.5v-2.5c0-1 .4-2 1.2-2.8A9 9 0 0 0 8 13Zm8 0c-2.7 0-6 1.3-6 3.5V19h12v-2.5c0-2.2-3.3-3.5-6-3.5Z',
+    pin: 'M12 2a7 7 0 0 1 7 7c0 5.2-7 13-7 13S5 14.2 5 9a7 7 0 0 1 7-7Zm0 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z',
+    rotate: 'M16.48 2.52c3.27 1.55 5.61 4.72 5.97 8.48h1.5C23.44 4.84 18.29 0 12 0l-.66.03 3.81 3.81 1.33-1.32zm-6.25-.77c-.59-.59-1.54-.59-2.12 0L1.75 8.11c-.59.59-.59 1.54 0 2.12l12.02 12.02c.59.59 1.54.59 2.12 0l6.36-6.36c.59-.59.59-1.54 0-2.12L10.23 1.75zm4.6 19.44L2.81 9.17l6.36-6.36 12.02 12.02-6.36 6.36zm-7.31.29C4.25 19.94 1.91 16.76 1.55 13H.05C.56 19.16 5.71 24 12 24l.66-.03-3.81-3.81-1.33 1.32z',
+    chart: 'M4 20V10h4v10H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z',
+    home: 'M12 3 2 12h3v8h5v-5h4v5h5v-8h3L12 3Z',
+    wa: 'M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.3 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9 0-1.4.7-2 1-2.3.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.4 1.8 2.2 1.2 1.1 2.2 1.4 2.5 1.6.3.1.5.1.7-.1l.9-1.1c.2-.3.4-.2.7-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.3Z',
+  };
+  const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${I[n] || n}"/></svg>`;
+
+  // ------------------------------------------------------------------ schools directory (works with or without a school code)
+  // Every school's app reads Cyrus Ireri's list of ALL registered schools (also schools on their own GitHub).
+  const DIRECTORY = (self.IRERI_CONFIG && self.IRERI_CONFIG.directory) || 'https://cbcrevisionhub.co.ke/schools.json';
+  const schoolHref = x => `${x.site && x.site.startsWith('https://') ? x.site.replace(/\/$/, '') : ''}/s/${encodeURIComponent(x.code)}/`;
+  async function fetchSchools() {
+    try {
+      let r;
+      try { r = await fetch(DIRECTORY + '?v=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw 0; }
+      catch { r = await fetch('/schools.json?v=' + Date.now(), { cache: 'no-store' }); }
+      if (!r.ok) throw new Error('x');
+      const j = await r.json();
+      try { localStorage.setItem('ireri:schools', JSON.stringify(j)); } catch { }
+      return j;
+    } catch { try { return JSON.parse(localStorage.getItem('ireri:schools') || 'null'); } catch { return null; } }
+  }
+  function schoolsListHTML(j, cur, q) {
+    const list = ((j && j.schools) || []).filter(x => !q || `${x.name} ${x.institution}`.toLowerCase().includes(q.toLowerCase()));
+    if (!j) return '<p class="muted center-t">Could not load the list. Check your connection.</p>';
+    if (!list.length) return '<p class="muted center-t">No school matches.</p>';
+const own = isOwner();
+    return list.map(x => { const link = own && x.code !== cur, t = link ? 'a' : 'div', same = !x.site || x.site.replace(/\/$/, '') === location.origin;
+      return `<${t} class="school ${x.code === cur ? 'mine' : ''} ${link ? 'olink' : ''}"${link ? ` href="${esc(schoolHref(x))}"${same ? '' : ' target="_blank" rel="noopener"'}` : ''}>
+      <span class="av av-classes">${esc(String(x.name).replace(/[^A-Za-z0-9 ]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'S')}</span>
+      <span class="nm"><b>${esc(x.name)}</b>${x.code === cur ? ' <i class="me-tag">Your school</i>' : ''}${x.suspended ? ' <i class="me-tag">Suspended</i>' : ''}<small>${esc(x.institution || '')}${x.institution ? ' · ' : ''}${[Number.isFinite(x.teachers) ? x.teachers + ' teachers' : '', Number.isFinite(x.classes) ? x.classes + ' classes' : ''].filter(Boolean).join(' · ')}</small>
+      ${x.updated ? `<small>Updated ${esc(fmtDate(x.updated))}</small>` : ''}</span>
+      <span class="sstat">${Number.isFinite(x.teachers) ? `<span><b>${x.teachers}</b><small>teachers</small></span>` : ''}${Number.isFinite(x.classes) ? `<span><b>${x.classes}</b><small>classes</small></span>` : ''}</span>${link ? '<span class="sopen">Open ›</span>' : ''}</${t}>`; }).join('');
+  }
+  function wireSchoolSearch(j, cur) {
+    const inp = document.getElementById('sq'), box = document.getElementById('slist');
+    if (inp && box) inp.addEventListener('input', () => { box.innerHTML = schoolsListHTML(j, cur, inp.value.trim()); });
+  }
+  // SCHOOLS USING FET: the list Cyrus Ireri keeps in PREPFIX (fet_schools.json on the website)
+  let FET = null;
+  async function fetchFet() {
+    if (FET) return FET;
+    try { FET = await (await fetch('/fet_schools.json?v=' + Date.now(), { cache: 'no-store' })).json(); store.set('fet', FET); }
+    catch { FET = store.get('fet', null); }
+    return FET;
+  }
+  function fetCount() {
+    const j = store.get('fet', null), n = j && j.schools ? j.schools.length : 0;
+    fetchFet().then(f => { const el = document.querySelector('.t-schools small'); if (el && f && f.schools) el.textContent = `${f.schools.length} school${f.schools.length === 1 ? '' : 's'}`; });
+    return n ? `${n} school${n === 1 ? '' : 's'}` : 'See the list';
+  }
+  const fetRows = (list, q) => { const k = q.toLowerCase(), L = list.filter(n => !k || n.toLowerCase().includes(k));
+    return L.length ? `<ul class="list">${L.map(n => `<li><div class="row"><span class="av av-classes">${esc(String(n).replace(/[^A-Za-z0-9 ]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'S')}</span><span class="nm"><b>${esc(n)}</b></span></div></li>`).join('')}</ul>`
+      : '<p class="muted center-t">No school found.</p>'; };
+  async function fetPageHTML() {
+    const f = await fetchFet(), list = (f && f.schools) || [];
+    return { n: list.length, html: `<p class="hint-box">These schools have their timetables made with the FET Timetable Program, prepared by Cyrus Ireri (${esc(LOCKED_CONTACT)}).</p>
+      <div class="searchbox">${icon('search')}<input id="fq" type="search" autocomplete="off" placeholder="Search a school…"></div>
+      <div id="flist">${fetRows(list, '')}</div>`, wire: () => { const i = document.getElementById('fq'), b = document.getElementById('flist'); if (i && b) i.addEventListener('input', () => { b.innerHTML = fetRows(list, i.value.trim()); }); } };
+  }
+  async function renderRootDirectory() {
+    const el0 = document.getElementById('app');
+    el0.innerHTML = `<div class="splash"><div class="splash-logo"></div><h2>School timetables</h2><p>Loading…</p></div>`;
+    const F = await fetPageHTML();
+    el0.innerHTML = `<header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div><div class="titles"><h1>Schools using FET</h1><p class="sub">${F.n} school${F.n === 1 ? '' : 's'}</p></div></div></header>
+      <main class="page wide"><p class="hint-box">To open your school's timetables, use the link or QR code from your school.</p>${F.html}
+      <footer class="foot">${esc(BRAND_LINE)}</footer></main>`;
+    F.wire();
+  }
+  async function renderRootDirectoryOld() {
+    const el = document.getElementById('app');
+    el.innerHTML = `<div class="splash"><div class="splash-logo"></div><h2>School timetables</h2><p>Loading schools…</p></div>`;
+    const j = await fetchSchools();
+    const n = j && j.schools ? j.schools.length : 0;
+    el.innerHTML = `<header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div><div class="titles"><h1>PREPFIX Timetables</h1><p class="sub">${n} school${n === 1 ? '' : 's'} using this app</p></div></div></header>
+      <main class="page wide"><p class="hint-box">Schools using PREPFIX Timetables. To open your school's timetables, use the link or QR code from your school.</p>
+      <div class="searchbox">${icon('search')}<input id="sq" type="search" autocomplete="off" placeholder="Search for your school…"></div>
+      <div id="slist">${schoolsListHTML(j, null, '')}</div>
+      <footer class="foot">${esc(BRAND_LINE)}</footer></main>`;
+    wireSchoolSearch(j, null);
+  }
+
+  // ------------------------------------------------------------------ routing / storage
+  const pathMatch = location.pathname.match(/^\/s\/([^\/]+)\/?/);
+  if (pathMatch && !location.pathname.endsWith('/')) { location.replace(location.pathname + '/' + location.search + location.hash); return; }
+  const CODE = pathMatch ? decodeURIComponent(pathMatch[1]) : null;
+  const POSTER = new URLSearchParams(location.search).has('poster');
+  const store = {
+    get(k, d = null) { try { const v = localStorage.getItem(`ireri:${CODE}:${k}`); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(`ireri:${CODE}:${k}`, JSON.stringify(v)); } catch { } },
+    del(k) { try { localStorage.removeItem(`ireri:${CODE}:${k}`); } catch { } },
+  };
+  if (!CODE) {
+    let last = null; try { last = localStorage.getItem('ireri:last'); } catch { }
+    if (last) { location.replace(`/s/${encodeURIComponent(last)}/`); return; }
+    renderRootDirectory();
+    return;
+  }
+  try { localStorage.setItem('ireri:last', CODE); } catch { }
+
+  const state = {
+    data: null, online: navigator.onLine, syncing: false, lastSync: 0, error: null, installEvt: null,
+    layout: 'auto', day: null, slot: null, grade: 'all', query: {}, coverTeacher: null, coverSlot: null,
+    coverPick: false, navDepth: 0, force: false, meet: { ids: [], q: '', k: 1, pm: false }, an: { tab: 'teachers', sort: 'name', subj: 'all', q: '', sm: 'form', sub: 'all', gr: 'all' },
+  };
+  let B = null;           // timetable data
+  let IDX = null;         // derived indexes
+
+  // ------------------------------------------------------------------ helpers
+  const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const platformName = () => isIOS() ? 'ios' : /android/i.test(navigator.userAgent) ? 'android' : 'desktop';
+  const linkFor = () => `${location.origin}/s/${encodeURIComponent(CODE)}/`;
+  const isLandscape = () => state.force || matchMedia('(orientation: landscape)').matches || innerWidth >= 760;
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso); if (isNaN(d)) return iso;
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) + ', ' +
+      d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+  }
+  const ago = ms => { const s = Math.round((Date.now() - ms) / 1000); return s < 60 ? 'just now' : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`; };
+  const natural = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+  async function sha256hex(s) {
+    if (crypto.subtle) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join(''); }
+    let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return 'h' + (h >>> 0).toString(16) + s.length;
+  }
+  // OWNER MODE: the owner types a private password once (menu -> tap 'App version' 5 times). Then the Schools page
+  // lets this phone open any school. The password is never in the app; only its salted SHA-256 is.
+  const OWN = () => (CFG.ownerPw && CFG.ownerPw.hash) ? CFG.ownerPw : null;
+  const isOwner = () => { try { const o = OWN(); return !!(o && localStorage.getItem('ireri:owner') === o.hash); } catch { return false; } };
+  let toastTimer;
+  function toast(msg, ms = 3000) { const t = $('#toast'); t.innerHTML = esc(msg); t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); }
+
+  // ------------------------------------------------------------------ timetable logic
+  function gradeOf(name) { const m = String(name).trim().match(/^(?:form|grade|f|g)?\s*(\d{1,2})/i); return m ? m[1] : ''; }
+  function buildIndex() {
+    const P = B.periods, D = B.days;
+    const lessons = P.map((p, i) => i).filter(i => !P[i].brk);
+    const tByCode = {};
+    B.teachers.forEach(t => { tByCode[t.code] = t; });
+    const byId = {};
+    for (const k of ['teachers', 'classes', 'rooms', 'master']) (B[k] || []).forEach(x => { x.kind = k; byId[x.id] = x; });
+    const grades = [...new Set(B.classes.map(c => gradeOf(c.name)).filter(Boolean))]; // keep the school's own order: 10, 11, 4 …
+    const nm = s => String(s || '').replace(/\s+/g, ' ').trim().toUpperCase();
+    const who = {};                                       // class|day|period -> teacher codes, from the teachers' timetables
+    B.teachers.forEach(tc => (tc.grid || []).forEach((row, d) => row.forEach((c, p) => {
+      if (!c || typeof c !== 'object') return;
+      String(c.c || '').split(',').map(nm).filter(Boolean).forEach(cl => {
+        const k = `${cl}|${d}|${p}`; (who[k] = who[k] || []).includes(tc.code) || who[k].push(tc.code);
+      });
+    })));
+    for (const k of ['classes', 'master']) (B[k] || []).forEach(x => (x.grid || []).forEach((row, d) => row.forEach((c, p) => {
+      if (c && typeof c === 'object' && !c.t) { const w = who[`${nm(x.name)}|${d}|${p}`]; if (w) c.t = w.join(', '); }
+    })));
+    IDX = { P, D, lessons, tByCode, byId, grades };
+  }
+  function cellAt(item, d, j) {
+    const row = item.grid[d] || [];
+    let k = j; while (k > 0 && row[k] === '^') k--;
+    const c = row[k];
+    return c === undefined ? '' : c;
+  }
+  const isLesson = c => c && typeof c === 'object';
+  const isDoubleStart = (item, d, j) => (item.grid[d] || [])[j + 1] === '^';
+  const isCont = (item, d, j) => (item.grid[d] || [])[j] === '^';
+  function teacherLabel(t) {
+    if (!t) return '';
+    if (t.name) return t.name;
+    return /^\d+$/.test(t.code) ? `Teacher ${t.code}` : t.code;
+  }
+  const tLabel = t => t ? (t.name ? `${t.code} · ${t.name}` : teacherLabel(t)) : '';
+  function teachersText(codes, max = Infinity) {          // every teacher by NAME (code only when FET has no name)
+    if (!codes) return '';
+    const list = String(codes).split(',').map(s => s.trim()).filter(Boolean);
+    if (list.length > max) return `${list.length} teachers`;
+    return list.map(c => { const t = IDX.tByCode[c]; return t ? (t.name || (/^\d+$/.test(c) ? `Tr ${c}` : c)) : c; }).join(', ');
+  }
+  // Class timetables show only the teacher CODE (short, prints neatly); tapping a lesson shows the full name. Master and Labs & Fields show names.
+  function teacherCodes(codes) { return codes ? String(codes).split(',').map(x => x.trim()).filter(Boolean).join(', ') : ''; }
+  function teacherList(codes) {
+    return String(codes || '').split(',').map(x => x.trim()).filter(Boolean).map(code => { const t = IDX.tByCode[code]; return { code, name: t ? teacherLabel(t) : (/^\d+$/.test(code) ? `Teacher ${code}` : code) }; });
+  }
+  function classesText(c) {                         // every class by its name - never "All 11s"
+    if (!c) return '';
+    return String(c).split(',').map(s => s.trim()).filter(Boolean).join(', ');
+  }
+  // Text for a lesson cell in each kind of timetable: [main line, small line]
+  // NOTES written in PREPFIX for one class, every class, one teacher or every teacher (shown under the timetable)
+  function notesFor(item) {
+    const all = (B && Array.isArray(B.notes)) ? B.notes : [];
+    if (!item) return [];
+    return all.filter(n => n && n.text && (
+      (item.kind === 'classes' && (n.to === 'classes' || (n.to === 'class' && String(n.name) === String(item.name)))) ||
+      (item.kind === 'teachers' && (n.to === 'teachers' || (n.to === 'teacher' && String(n.name) === String(item.code))))));
+  }
+  function notesHTML(item) {
+    const L = notesFor(item);
+    return L.length ? `<section class="ttnotes"><h4><mark>NOTE:</mark></h4>${L.map(n => `<p>${esc(String(n.text).toUpperCase())}</p>`).join('')}</section>` : '';
+  }
+  function cellLines(kind, c, ownName) {
+    if (!isLesson(c)) return null;
+    const tag = c.g ? ` ${c.g}` : '';
+    if (kind === 'teachers') return [classesText(c.c) || c.s || '', [c.c ? c.s : '', tag.trim(), c.r].filter(Boolean).join(' · ')];
+    if (kind === 'classes' || kind === 'master') {
+      const all = c.c ? c.c.split(',').map(s => s.trim()).filter(Boolean) : [];
+      // Class and Master timetables: the subject and the teacher CODES (tap the lesson for the teachers' names).
+      // A lesson for several classes names every one of them (never "with ...").
+      return [(c.s || '') + tag, [c.r, all.length > 1 ? all.join(', ') : ''].filter(Boolean).join(' · '),
+        String(c.t || '').split(',').map(s => s.trim()).filter(Boolean).join(', ')];
+    }
+    return [[classesText(c.c), c.s].filter(Boolean).join(' · '), '', teachersText(c.t)];
+  }
+  const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+  function todayIndex() { const wd = new Date().getDay(); return IDX.D.findIndex(d => d.wd === wd); }
+  function nowSlot() {
+    const d = todayIndex();
+    if (d < 0) return { d: -1, j: -1, status: 'noday' };
+    const m = nowMinutes(), P = IDX.P;
+    for (let j = 0; j < P.length; j++) if (P[j].start != null && m >= P[j].start && m < P[j].end) return { d, j, status: P[j].brk ? 'break' : 'lesson' };
+    const first = P.find(p => p.start != null), last = [...P].reverse().find(p => p.end != null);
+    if (first && m < first.start) return { d, j: IDX.lessons[0], status: 'before' };
+    if (last && m >= last.end) return { d, j: -1, status: 'after' };
+    return { d, j: P.findIndex(p => p.start != null && p.start > m), status: 'between' };
+  }
+  function defaultSlot() {
+    const n = nowSlot();
+    if (n.d < 0) return { d: 0, j: IDX.lessons[0] };
+    if (n.status === 'after') return { d: n.d, j: IDX.lessons[IDX.lessons.length - 1] };
+    let j = n.j;
+    if (j < 0 || IDX.P[j].brk) j = IDX.lessons.find(x => x > (j < 0 ? -1 : j)) ?? IDX.lessons[0];
+    return { d: n.d, j };
+  }
+  const pLabel = j => { const p = IDX.P[j]; return p ? `${p.label}${p.time ? ' · ' + p.time : ''}` : ''; };
+  const dayLabel = d => IDX.D[d] ? IDX.D[d].label : '';
+  // timetables always name the days short: MON, TUE, WED, THUR, FRI (SAT, SUN)
+  const DAY_SHORT = { MO: 'MON', TU: 'TUE', WE: 'WED', TH: 'THUR', FR: 'FRI', SA: 'SAT', SU: 'SUN' };
+  const dayShort = lab => { const k = String(lab || '').trim().toUpperCase(); return DAY_SHORT[k.slice(0, 2)] || k; };
+  const freeAt = (d, j) => B.teachers.filter(t => cellAt(t, d, j) === '');
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const lessonsOnDay = (t, d) => (t.grid[d] || []).filter(c => isLesson(c) || c === '^').length;
+  function freeAfternoons(t) {
+    const pm = IDX.lessons.filter(j => IDX.P[j].pm);
+    if (!pm.length) return [];
+    return IDX.D.map((_, d) => d).filter(d => pm.every(j => { const c = cellAt(t, d, j); return c === '' || c === 'X'; }));
+  }
+  const subjHue = s => { const k = String(s || '').replace(/\s*\d+$/, '').trim().toLowerCase(); let h = 7; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+  // FET's own subject colours (as exported), else a steady colour per subject
+  const fetColour = subj => { const C = (B && B.colours) || {}, k = String(subj || '').trim().toUpperCase();
+    return C[k] || C[k.split(/\s*[,+]\s*/)[0]] || C[k.replace(/\s*\d+$/, '')] || null; };
+  // One colour for each CLASS + SUBJECT pair, so a teacher's 11 I CHEM and 4 B CHEM look different
+  // A lesson shared by several classes gets ONE colour everywhere (master, each class, each teacher), and a subject's
+  // single and double lessons in a class share the same colour ("CHEM" = "CHEM DBL").
+  const colSubj = s => String(s || '').replace(/\s*\b(DBL|DOUBLE)\b\.?\s*$/i, '').replace(/\s*\d+$/, '').trim();
+  const colClasses = s => String(s || '').split(',').map(x => x.replace(/\s+/g, ' ').trim().toUpperCase()).filter(Boolean).sort().join(',');
+  const colKey = (kind, c, own) => { const cl = colClasses(c.c), many = cl.includes(',');
+    const who = (kind === 'classes' || kind === 'master') && !many ? (colClasses(own) || cl) : cl;
+    return `${who}|${colSubj(c.s)}`.toUpperCase().replace(/\s+/g, ' '); };
+  function hslHex(h, s, l) { s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+    const f = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, '0'); return `#${f(0)}${f(8)}${f(4)}`; }
+  // The text colour (navy-black or white) that reads best on a lesson colour. Dark mode uses it so text never collides with the box.
+  function bestInk(hex) {
+    const n = parseInt(String(hex).replace('#', ''), 16), ch = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); };
+    const L = .2126 * ch((n >> 16) & 255) + .7152 * ch((n >> 8) & 255) + .0722 * ch(n & 255);
+    return (L + .05) / .0612 >= 1.05 / (L + .05) ? '#0B1B36' : '#FFFFFF';   // .0612 = (luminance of #0B1B36) + .05
+  }
+  function buildColours() {
+    const keys = new Set();
+    B.teachers.forEach(t => t.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey('teachers', c)); })));
+    ['classes', 'master', 'rooms'].forEach(k => (B[k] || []).forEach(it => it.grid.forEach(r => r.forEach(c => { if (isLesson(c)) keys.add(colKey(k, c, it.name)); }))));
+    const L = [74, 60, 84, 67, 52], S = [78, 70, 85, 62, 72], map = {};
+    [...keys].sort().forEach((k, i) => { const h = (i * 137.508) % 360, l = L[i % 5], sat = S[(i >> 1) % 5];
+      const light = l >= 66 || (h > 40 && h < 200 && l >= 60);
+      const bg = hslHex(h, sat, l);
+      map[k] = [bg, light ? '#0B1B36' : '#FFFFFF', bestInk(bg)]; });
+    IDX.colours = map;
+  }
+  const colourFor = (kind, c, own) => (isLesson(c) && IDX.colours) ? IDX.colours[colKey(kind === 'master' ? 'master' : kind, c, own)] || null : null;
+  const hlStyle = (c, kind = 'teachers', own = '') => { if (!isLesson(c)) return ''; const f = colourFor(kind, c, own);
+    return f ? ` data-fc style="--hl:${subjHue(c.s || '')};--fb:${f[0]};--ff:${f[1]};--fd:${f[2] || f[1]}"` : ''; };
+  // longest run of lessons with no class after lunch (3 or 4 in a row = a free afternoon)
+  function afternoonFree(t, d) {
+    const pm = IDX.lessons.filter(j => IDX.P[j].pm); if (!pm.length) return null;
+    let best = [], cur = [];
+    for (const j of pm) { const c = cellAt(t, d, j); if (c === '' || c === 'X') { cur.push(j); if (cur.length > best.length) best = cur.slice(); } else cur = []; }
+    if (best.length < pm.length) return null;          // free afternoon = the WHOLE afternoon, lunch to end of day
+    return { j0: best[0], j1: best[best.length - 1], n: best.length, full: best.length === pm.length };
+  }
+  const runLabel = r => r.full ? `Whole afternoon · ${IDX.P[r.j0].time.split('-')[0]}–${IDX.P[r.j1].time.split('-')[1] || ''}` : `${IDX.P[r.j0].label}–${IDX.P[r.j1].label} · ${r.n} free`;
+  function candidates(item, d, j, c) {
+    let span = 1; while ((item.grid[d] || [])[j + span] === '^') span++;
+    const slots = Array.from({ length: span }, (_, k) => j + k);
+    const subj = (c.s || '').replace(/\s*\d+$/, '').trim();
+    let cls = (c.c || '').split(',').map(x => x.trim()).filter(Boolean);
+    if (!cls.length && item.kind === 'classes') cls = [item.name];
+    const ex = new Set(); if (item.kind === 'teachers') ex.add(item.id);
+    String(c.t || '').split(',').map(x => x.trim()).filter(Boolean).forEach(cd => { const t = IDX.tByCode[cd]; if (t) ex.add(t.id); });
+    const free = B.teachers.filter(t => !ex.has(t.id) && slots.every(k => cellAt(t, d, k) === ''))
+      .map(t => ({ t, same: !!subj && teacherSubjects(t).has(subj), knows: cls.some(x => teacherClasses(t).has(x)), load: lessonsOnDay(t, d), pmfree: afternoonFree(t, d) }))
+      .sort((a, b) => (b.same - a.same) || (b.knows - a.knows) || (a.load - b.load) || natural(a.t.code, b.t.code));
+    return { span, slots, subj, cls, free };
+  }
+  function coverRows(free, d) {
+    return free.map(x => `<li><button class="row" data-go="view/${esc(x.t.id)}"><span class="av av-teachers">${esc(String(x.t.code).slice(0, 4))}</span>
+      <span class="nm"><b>${esc(teacherLabel(x.t))}</b><small>${plural(x.load, 'lesson')} on ${esc(dayLabel(d))}</small>
+      <span class="badges">${x.same ? '<i class="bd g">Same subject</i>' : ''}${x.knows ? '<i class="bd b">Teaches this class</i>' : ''}${x.pmfree ? '<i class="bd y">Free afternoon</i>' : ''}</span></span>${icon('chev', 'chev')}</button></li>`).join('') || '<li class="empty">No teacher is free at that time.</li>';
+  }
+  // Cover: teachers who teach THAT class come first; anyone else free is tucked away below
+  function coverSplit(free, d, cls) {
+    const same = free.filter(x => x.knows), other = free.filter(x => !x.knows);
+    return `<h4 class="cvh">✓ Teach ${esc(cls.join(', ') || 'this class')} and are free · ${same.length}</h4>
+      <ul class="list cvlist">${coverRows(same, d)}</ul>
+      ${other.length ? `<details class="cvmore"><summary>Other free teachers (they don't teach this class) · ${other.length}</summary><ul class="list cvlist">${coverRows(other, d)}</ul></details>` : ''}`;
+  }
+  function openCoverSheet(id, d, j) {
+    const item = IDX.byId[id]; if (!item) return;
+    const c = cellAt(item, d, j); if (!isLesson(c)) return;
+    const r = candidates(item, d, j, c);
+    const L = cellLines(item.kind === 'master' ? 'classes' : item.kind, c, item.name) || ['', ''];
+    const tl = item.kind === 'teachers' ? [] : teacherList(c.t);
+    const tbox = tl.length ? `<div class="tbox"><small>${tl.length > 1 ? 'Teachers' : 'Teacher'} in this lesson</small>${tl.map(t => `<div class="trow"><i>${esc(t.code)}</i><b>${esc(t.name)}</b></div>`).join('')}</div>` : '';
+    openSheet(`<div class="grab"></div><h3>${tl.length ? 'Lesson details' : 'Who can be there?'}</h3>
+      <div class="cvinfo"><b>${esc(dayLabel(d))} · ${esc(pLabel(j))}${r.span > 1 ? ' · double lesson' : ''}</b><span>${esc(L[0])}${L[1] ? ' — ' + esc(L[1]) : ''}</span></div>
+      ${tbox}${tl.length ? '<h4 class="cvh">Who can cover?</h4>' : ''}
+      <button class="btn wide swapbtn" data-swap="${esc(id)}|${d}|${j}">⇄ Who can I swap with? · where can it move</button>
+      ${coverSplit(r.free, d, r.cls)}
+      <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  }
+
+  // ------------------------------------------------------------------ MOVE / SWAP a lesson
+  // Shows every day + lesson where the tapped lesson could be taken instead, using the school's own rules
+  // (bundle.rules, saved by the Publisher when "Check constraints" is ticked) plus the standard checks.
+  const nU = s => String(s || '').replace(/\s+/g, ' ').trim().toUpperCase();
+  const tokS = s => String(s || '').split(/[,;]/).map(x => x.trim()).filter(Boolean);
+  function swapModel() {
+    if (IDX.swapLessons) return IDX.swapLessons;
+    const out = {}, covered = new Set(), P = IDX.P;
+    const span = (row, j) => { let n = 1; while (j + n < row.length && row[j + n] === '^') n++; return n; };
+    B.teachers.forEach(t => t.grid.forEach((row, d) => row.forEach((c, p) => {
+      if (!isLesson(c)) return;
+      const cl = tokS(c.c), key = [d, p, c.s || '', cl.join('|')].join('~');
+      const l = out[key] || (out[key] = { d, p, n: span(row, p), c: cl, s: c.s || '', t: [], r: tokS(c.r) });
+      if (!l.t.includes(t.code)) l.t.push(t.code);
+      for (let k = 0; k < l.n; k++) cl.forEach(x => covered.add(d + '~' + (p + k) + '~' + x));
+    })));
+    const list = Object.values(out);
+    (B.classes || []).forEach(cl => cl.grid.forEach((row, d) => row.forEach((c, p) => {
+      if (isLesson(c) && !covered.has(d + '~' + p + '~' + cl.name)) list.push({ d, p, n: span(row, p), c: [cl.name], s: c.s || '', t: [], r: tokS(c.r) });
+    })));
+    list.forEach((l, i) => { l.i = i; });
+    return (IDX.swapLessons = list);
+  }
+  const swSlots = (l, d = l.d, p = l.p) => Array.from({ length: l.n }, (_, k) => [d, p + k]).filter(([, q]) => q < IDX.P.length);
+  const swWhen = (d, p) => `${dayLabel(d)} · ${pLabel(p)}`;
+  const swLab = l => [l.c.join(', '), l.s].filter(Boolean).join(' ') || 'a lesson';
+  const swT = c => { const t = IDX.tByCode[c]; return t ? teacherLabel(t) : c; };
+  function swDayOk(d, toks) { if (!toks.length) return true; const lab = nU(IDX.D[d].label); return toks.some(t => lab.slice(0, 3) === nU(t).slice(0, 3)); }
+  function swPerOk(p, toks) { if (!toks.length) return true; const pr = IDX.P[p], names = [nU(pr.label), nU(pr.time || ''), String(pr.n || '')]; return toks.some(t => names.includes(nU(t))); }
+  function swSubjOk(spec, s) { spec = nU(spec); return !spec || spec === '*' || spec === 'ALL' || spec === nU(s) || String(s || '').split(/[\/,]/).map(nU).includes(spec); }
+  function swTeachers(spec) { spec = nU(spec); return (!spec || spec === '*' || spec === 'ALL') ? B.teachers.map(t => t.code) : B.teachers.filter(t => spec === nU(t.code) || spec === nU(t.name)).map(t => t.code); }
+  // All problems for a set of lessons -> Map(key -> message). Same rules as the Publisher's Constraints tab.
+  function swProblems(L) {
+    const P = IDX.P, rules = (B.rules || []).filter(r => r && r.enabled !== false), M = new Map();
+    const add = (k, m) => { if (!M.has(k)) M.set(k, m); };
+    const by = { t: {}, c: {}, r: {} };
+    const tSlots = {}, cSubj = {};
+    L.forEach(l => swSlots(l).forEach(([d, p]) => {
+      if (P[p].brk) add(`brk~${l.i}~${d}~${p}`, `${swLab(l)} would fall in a break`);
+      [['t', l.t], ['c', l.c], ['r', l.r]].forEach(([k, arr]) => arr.forEach(w => { (by[k][`${nU(w)}~${d}~${p}`] = by[k][`${nU(w)}~${d}~${p}`] || []).push([w, l, d, p]); }));
+      l.t.forEach(t => { (tSlots[nU(t)] = tSlots[nU(t)] || []).push([d, p]); });
+      l.c.forEach(c => { const k = `${c}~${nU(l.s)}~${d}`; cSubj[k] = (cSubj[k] || { c, s: l.s, d, n: 0, l: l }); cSubj[k].n++; });
+    }));
+    const nm = { t: w => swT(w), c: w => w, r: w => w }, what = { t: 'Teacher', c: 'Class', r: 'Room' };
+    Object.entries(by).forEach(([k, g]) => Object.entries(g).forEach(([key, arr]) => { if (arr.length > 1) { const [w, , d, p] = arr[0];
+      add(`clash~${k}~${key}`, `${what[k]} ${nm[k](w)} would be in two lessons at ${swWhen(d, p)}`); } }));
+    rules.forEach((r, ri) => {
+      const mx = +r.max || 0;
+      if (r.type === 'teacher_max_day' || r.type === 'teacher_max_week' || r.type === 'teacher_max_consec' || r.type === 'teacher_unavailable') {
+        const codes = new Set(swTeachers(r.teacher).map(nU));
+        Object.entries(tSlots).forEach(([tc, sl]) => {
+          if (!codes.has(tc)) return;
+          const tn = swT((B.teachers.find(t => nU(t.code) === tc) || {}).code || tc);
+          if (r.type === 'teacher_max_week' && sl.length > mx) add(`r${ri}~${tc}`, `${tn} would have ${sl.length} lessons a week (limit ${mx})`);
+          if (r.type === 'teacher_max_day') { const per = {}; sl.forEach(([d]) => { per[d] = (per[d] || 0) + 1; }); Object.entries(per).forEach(([d, n]) => { if (n > mx) add(`r${ri}~${tc}~${d}`, `${tn} would have ${n} lessons on ${dayLabel(+d)} (limit ${mx})`); }); }
+          if (r.type === 'teacher_max_consec') { [...new Set(sl.map(x => x[0]))].forEach(d => { const ps = sl.filter(x => x[0] === d).map(x => x[1]).sort((a, b) => a - b); let run = 1, best = 1; for (let i = 1; i < ps.length; i++) { run = ps[i] === ps[i - 1] + 1 ? run + 1 : 1; best = Math.max(best, run); } if (best > mx) add(`r${ri}~${tc}~${d}`, `${tn} would teach ${best} lessons in a row on ${dayLabel(d)} (limit ${mx})`); }); }
+          if (r.type === 'teacher_unavailable') { const days = tokS(Array.isArray(r.days) ? r.days.join(',') : r.days), per = tokS(Array.isArray(r.periods) ? r.periods.join(',') : r.periods);
+            sl.forEach(([d, p]) => { if (swDayOk(d, days) && swPerOk(p, per)) add(`r${ri}~${tc}~${d}~${p}`, `${tn} is not available at ${swWhen(d, p)}`); }); }
+        });
+      } else if (r.type === 'subject_max_day') {
+        Object.values(cSubj).forEach(o => { if (swSubjOk(r.subject, o.s) && o.n > mx) add(`r${ri}~${o.c}~${nU(o.s)}~${o.d}`, `${o.c} would have ${o.n} ${o.s || 'lesson'} periods on ${dayLabel(o.d)} (limit ${mx})`); });
+      } else if (r.type === 'subject_periods') {
+        const per = tokS(Array.isArray(r.periods) ? r.periods.join(',') : r.periods), never = (r.mode || 'never in') === 'never in';
+        L.forEach(l => { if (l.s && swSubjOk(r.subject, l.s)) swSlots(l).forEach(([d, p]) => { const inside = swPerOk(p, per); if (never ? inside : !inside) add(`r${ri}~${l.i}~${d}~${p}`, `${swLab(l)} is not allowed at ${swWhen(d, p)}`); }); });
+      }
+    });
+    return M;
+  }
+  // Work out, for every day + lesson, whether the lesson can go there (move into a gap, or swap with another lesson)
+  function swapOptions(A) {
+    const L = swapModel(), P = IDX.P, base = swProblems(L), res = {};
+    const trial = (moves) => { const L2 = L.map(l => moves[l.i] ? { ...l, d: moves[l.i][0], p: moves[l.i][1] } : l);
+      const now = swProblems(L2), why = []; now.forEach((m, k) => { if (!base.has(k)) why.push(m); }); return why; };
+    IDX.D.forEach((_, d) => IDX.lessons.forEach(p => {
+      const key = d + '~' + p;
+      if (d === A.d && p === A.p) { res[key] = { st: 'here' }; return; }
+      if (p + A.n > P.length || swSlots(A, d, p).some(([, q]) => P[q].brk)) { res[key] = { st: 'no', why: ['A lesson this long does not fit here'] }; return; }
+      const tgt = swSlots(A, d, p).map(x => x.join('~'));
+      const hit = L.filter(l => l.i !== A.i && l.c.some(c => A.c.includes(c)) && swSlots(l).some(x => tgt.includes(x.join('~'))));
+      if (!hit.length) { const why = trial({ [A.i]: [d, p] }); res[key] = why.length ? { st: 'no', why } : { st: 'move' }; return; }
+      const B2 = hit[0];
+      if (hit.length > 1 || B2.n !== A.n || B2.d !== d || B2.p !== p) { res[key] = { st: 'no', why: ['It overlaps lessons of different length, so a swap is not possible here'] }; return; }
+      const why = trial({ [A.i]: [d, p], [B2.i]: [A.d, A.p] });
+      res[key] = why.length ? { st: 'no', why, other: B2 } : { st: 'swap', other: B2 };
+    }));
+    return res;
+  }
+  function openSwapSheet(id, d, j) {
+    const item = IDX.byId[id]; if (!item) return;
+    const L = swapModel(); let start = j; const row = item.grid[d] || []; while (start > 0 && row[start] === '^') start--;
+    const A = L.find(l => l.d === d && l.p === start && (item.kind === 'teachers' ? l.t.includes(item.code) : item.kind === 'rooms' ? l.r.includes(item.name) : l.c.includes(item.name)));
+    if (!A) { toast('Could not find that lesson'); return; }
+    const opt = swapOptions(A), ND = IDX.D.length, LS = IDX.lessons;
+    state.swap = { id, d, j, A, opt, sel: null };
+    const nrules = (B.rules || []).filter(r => r && r.enabled !== false).length;
+    const cell = (i, p) => { const o = opt[i + '~' + p]; const cls = { here: 'here', move: 'ok', swap: 'sw', no: 'bad' }[o.st];
+      const sym = { here: '●', move: '✓', swap: '⇄', no: '✕' }[o.st];
+      return `<button class="swcell ${cls}" ${o.st === 'here' ? '' : `data-swapcell="${i}|${p}"`} aria-label="${esc(swWhen(i, p))}: ${o.st}">${sym}</button>`; };
+    const horiz = LS.length > 8 && LS.length > ND;
+    const lh = (k, p) => `<div class="hd"><b>Lesson ${k + 1}</b><small>${esc(IDX.P[p].time || '')}</small></div>`;
+    const dh = i => `<div class="hd dh"><b>${esc(IDX.D[i].label.slice(0, 6))}</b></div>`;
+    const grid = !horiz
+      ? `<div class="cvgrid" style="grid-template-columns:minmax(52px,auto) repeat(${ND},minmax(0,1fr))"><div></div>${IDX.D.map((_, i) => dh(i)).join('')}${LS.map((p, k) => lh(k, p) + IDX.D.map((_, i) => cell(i, p)).join('')).join('')}</div>`
+      : `<div class="cvscroll"><div class="cvgrid" style="grid-template-columns:minmax(52px,auto) repeat(${LS.length},minmax(48px,1fr))"><div></div>${LS.map((p, k) => lh(k, p)).join('')}${IDX.D.map((_, i) => dh(i) + LS.map(p => cell(i, p)).join('')).join('')}</div></div>`;
+    const nOk = Object.values(opt).filter(o => o.st === 'move' || o.st === 'swap').length;
+    openSheet(`<div class="grab"></div><h3>⇄ Move or swap this lesson</h3>
+      <div class="cvinfo"><b>${esc(swWhen(A.d, A.p))}${A.n > 1 ? ' · double lesson' : ''}</b><span>${esc(swLab(A))}${A.t.length ? ' — ' + esc(A.t.map(swT).join(', ')) : ''}</span></div>
+      <div class="swkey"><i class="swcell ok">✓</i> free, can move <i class="swcell sw">⇄</i> can swap <i class="swcell bad">✕</i> not allowed</div>
+      ${grid}
+      <div id="swdetail" class="swdetail"><b>${nOk} place${nOk === 1 ? '' : 's'} work.</b> Tap a box to see why.</div>
+      ${swapPartnersHTML(A, opt)}
+      <p class="muted small">${nrules ? `Checked against your school's ${nrules} rule${nrules === 1 ? '' : 's'} and the standard checks (no clashes, no lessons in breaks).` : 'Checked against the standard rules only (no teacher, class or room clash, no lessons in breaks). Your own rules are used once the timetable is published with “Check constraints” ticked.'} This only shows options; it does not change the timetable.</p>
+      <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  }
+  // WHO CAN I SWAP WITH? Every lesson of the same class that can change places with this one without breaking the
+  // timetable: the class keeps all its lessons, no teacher / class / room is in two places, no break, no school rule
+  // broken. Nearest first: the same day, then the following days. Tap a teacher to see their timetable.
+  function swapPartnersHTML(A, opt) {
+    const ND = IDX.D.length, dist = d => (d - A.d + ND) % ND;
+    const pick = st => Object.entries(opt).filter(([, o]) => o.st === st).map(([k, o]) => { const [d, p] = k.split('~').map(Number); return { d, p, o }; })
+      .sort((a, b) => dist(a.d) - dist(b.d) || a.p - b.p);
+    const mine = x => x.o.other.t.length && x.o.other.t.every(c => A.t.includes(c));   // the same teacher's own lesson: not a swap with someone
+    const sw = pick('swap').filter(x => !mine(x)), mv = pick('move');
+    const row = x => { const ts = x.o.other.t.map(c => IDX.tByCode[c]).filter(Boolean), t0 = ts[0];
+      return `<li><button class="row"${t0 ? ` data-go="view/${esc(t0.id)}"` : ''}><span class="av av-teachers">${esc(String(t0 ? t0.code : '—').slice(0, 4))}</span>
+        <span class="nm"><b>${esc(ts.map(teacherLabel).join(', ') || 'No teacher named')}</b><small>${esc(swWhen(x.d, x.p))} · ${esc(swLab(x.o.other))}</small>
+        <span class="badges">${x.d === A.d ? '<i class="bd g">Same day</i>' : ''}${x.o.other.s && nU(x.o.other.s) === nU(A.s) ? '<i class="bd b">Same subject</i>' : ''}</span></span>${t0 ? icon('chev', 'chev') : ''}</button></li>`; };
+    return `<h4 class="cvh">⇄ Teachers you can swap with · ${sw.length}</h4>
+      <ul class="list cvlist">${sw.map(row).join('') || '<li class="empty">No swap works for this lesson without breaking the timetable.</li>'}</ul>
+      ${sw.length ? `<p class="muted small">Each swap keeps the timetable in order: ${esc(A.c.join(', ') || 'the class')} still has all its lessons, nobody is in two places, and no school rule is broken. Agree with the teacher, then tell the office.</p>` : ''}
+      ${mv.length ? `<details class="cvmore"><summary>✓ Free times ${esc(A.c.join(', ') || 'the class')} can take this lesson instead · ${mv.length}</summary><ul class="list cvlist">${mv.map(x => `<li class="empty" style="text-align:left">${esc(swWhen(x.d, x.p))}${x.d === A.d ? ' · same day' : ''}</li>`).join('')}</ul></details>` : ''}`;
+  }
+  function swapDetail(i, p) {
+    const S = state.swap; if (!S) return; const o = S.opt[i + '~' + p], box = $('#swdetail'); if (!box) return;
+    const when = swWhen(i, p);
+    box.innerHTML = o.st === 'move' ? `<b>✓ ${esc(when)}</b> is free for ${esc(S.A.c.join(', ') || 'this class')} and breaks no rule. The lesson can be taken here.`
+      : o.st === 'swap' ? `<b>⇄ ${esc(when)}</b> — swap with <b>${esc(swLab(o.other))}</b>${o.other.t.length ? ' (' + esc(o.other.t.map(swT).join(', ')) + ')' : ''}. Both lessons can change places without breaking a rule.`
+      : `<b>✕ ${esc(when)}</b> is not possible${o.other ? ' (swap with ' + esc(swLab(o.other)) + ')' : ''}:<ul>${(o.why || []).slice(0, 6).map(w => `<li>${esc(w)}</li>`).join('')}</ul>`;
+  }
+  function teacherSubjects(t) { const s = new Set(); t.grid.forEach(r => r.forEach(c => { if (isLesson(c) && c.s) s.add(c.s.replace(/\s*\d+$/, '').trim()); })); return s; }
+  function teacherClasses(t) { const s = new Set(); t.grid.forEach(r => r.forEach(c => { if (isLesson(c) && c.c) c.c.split(',').forEach(x => s.add(x.trim())); })); return s; }
+
+  // ------------------------------------------------------------------ data
+  // Each school can have several timetables (e.g. KIANDERI, KIANDERI WEEKDAY, END TERM EXAM).
+  const curTT = () => store.get('tt', '') || '';
+  const cacheKey = tt => `/__data/${CODE}/${tt || 'main'}.json`;
+  async function loadCached(tt = curTT()) {
+    try { if ('caches' in self) { const c = await caches.open(DATA_CACHE); const r = await c.match(cacheKey(tt)); if (r) return await r.json(); } } catch { }
+    try { const v = localStorage.getItem(`ireri:${CODE}:data3:${tt}`); return v ? JSON.parse(v) : null; } catch { return null; }
+  }
+  async function saveCached(obj) {
+    const tt = obj.tt || '';
+    const body = JSON.stringify(obj);
+    try { if ('caches' in self) { const c = await caches.open(DATA_CACHE); await c.put(cacheKey(tt), new Response(body, { headers: { 'Content-Type': 'application/json' } })); return; } } catch { }
+    try { localStorage.setItem(`ireri:${CODE}:data3:${tt}`, body); } catch { }
+  }
+  class NotFound extends Error { }
+  class Locked extends Error { }
+  class NeedJoin extends Error { }
+
+  // ------------------------------------------------------------------ SCHOOL LOCK: only teachers on the school's
+  // list (by phone number) open its timetables. The phone gets the school's key once, then works offline too.
+  const LK_KEY = `ireri:${CODE}:lk`, PH_KEY = `ireri:${CODE}:ph`;
+  const lockKey = () => { try { return localStorage.getItem(LK_KEY) || ''; } catch { return ''; } };
+  const DID = (() => { try { let d = localStorage.getItem('ireri:did'); if (!d) { d = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join(''); localStorage.setItem('ireri:did', d); } return d; } catch { return 'x' + Date.now(); } })();
+  const PLAT = /android/i.test(navigator.userAgent) ? 'and' : /iphone|ipad|ipod/i.test(navigator.userAgent) ? 'ios' : 'pc';
+  const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  async function openBox(key, box) {
+    const k = b64d(key), S = crypto.subtle;
+    const mk = new Uint8Array(await S.digest('SHA-256', new Uint8Array([...k, ...new TextEncoder().encode('|mac')])));
+    const iv = b64d(box.iv), ct = b64d(box.ct), mac = b64d(box.mac);
+    const hk = await S.importKey('raw', mk, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+    const both = new Uint8Array(iv.length + ct.length); both.set(iv); both.set(ct, iv.length);
+    if (!await S.verify('HMAC', hk, mac, both)) throw new NeedJoin('key');
+    const ek = await S.importKey('raw', k, 'AES-CTR', false, ['decrypt']);
+    const z = await S.decrypt({ name: 'AES-CTR', counter: iv, length: 128 }, ek, ct);
+    return JSON.parse(await new Response(new Blob([z]).stream().pipeThrough(new DecompressionStream('deflate'))).text());
+  }
+  function normPhone(s) {
+    const raw = String(s || '').trim(); let d = raw.replace(/\D/g, '');
+    if (raw.startsWith('+') && d.length >= 9) return d.startsWith('2540') ? '254' + d.slice(4) : d;
+    if (d.startsWith('2540')) d = '254' + d.slice(4);
+    if (d.length === 10 && d[0] === '0' && '17'.includes(d[1])) return '254' + d.slice(1);
+    if (d.length === 9 && '17'.includes(d[0])) return '254' + d;
+    if (d.length === 12 && d.startsWith('254') && '17'.includes(d[3])) return d;
+    return '';
+  }
+  async function phoneHash(n) {
+    const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`prepfix|${CODE}|${n}`)));
+    return Array.from(h, b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+  }
+  // still this number's phone? Asked when online (at most every 20 minutes). If the timetable office freed the
+  // number or took the teacher off the list, this phone forgets the school and asks again.
+  async function stillMine() {
+    if (!CFG.push || CFG.preview || !lockKey()) return;
+    const k = 'ireri:chk:' + CODE; try { if (Date.now() - (+localStorage.getItem(k) || 0) < 20 * 60e3) return; } catch { }
+    let ph = ''; try { ph = localStorage.getItem(PH_KEY) || ''; } catch { }
+    if (!ph) return;
+    try {
+      const r = await fetch(CFG.push + '/check', { method: 'POST', body: JSON.stringify({ school: CODE, ph, did: DID }) });
+      const j = await r.json();
+      try { localStorage.setItem(k, Date.now()); } catch { }
+      if (j.ok && j.locked && j.mine === false) {
+        try { [LK_KEY, PH_KEY, k].forEach(x => localStorage.removeItem(x)); Object.keys(localStorage).filter(x => x.startsWith(`ireri:${CODE}:data3:`)).forEach(x => localStorage.removeItem(x)); } catch { }
+        try { if ('caches' in self) await caches.delete(DATA_CACHE); } catch { }
+        state.data = null; B = null; state.error = 'join';
+        state.joinMsg = 'You were signed out by the timetable office. Type your number and make a PIN to sign in again.';
+        render();
+      }
+    } catch { }
+  }
+  // SIGN OUT (with the member's PIN): this phone forgets the school; the number can sign in again anywhere
+  function openSignOut() {
+    openSheet(`<div class="grab"></div><h3>Sign out</h3><p>Your number becomes free to sign in on another phone. Type your PIN to sign out.</p>
+      <input id="soPin" type="password" inputmode="numeric" maxlength="4" placeholder="Your PIN" style="font:600 20px/1.2 Poppins,Arial,sans-serif;padding:12px;border:2px solid #12284C;border-radius:12px;text-align:center;width:100%">
+      <p class="joinmsg" id="soMsg"></p><button class="btn wide" data-act="signOutGo">Sign out</button><button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
+  }
+  async function signOutGo() {
+    const m = $('#soMsg'), pin = ($('#soPin').value || '').replace(/\D/g, '');
+    let ph = ''; try { ph = localStorage.getItem(PH_KEY) || ''; } catch { }
+    if (pin.length !== 4) { m.textContent = 'Type your 4-number PIN.'; return; }
+    m.textContent = 'Signing out…';
+    try {
+      const r = await fetch(CFG.push + '/signout', { method: 'POST', body: JSON.stringify({ school: CODE, ph, did: DID, pin }) });
+      const j = await r.json();
+      if (!j.ok) { m.textContent = j.error === 'wrong-pin' ? 'That is not your PIN.' : j.error === 'too-many' ? 'Too many tries. Wait an hour.' : 'Could not sign out. Try again.'; return; }
+    } catch { m.textContent = 'You need the internet to sign out.'; return; }
+    try { [LK_KEY, PH_KEY].forEach(x => localStorage.removeItem(x)); Object.keys(localStorage).filter(x => x.startsWith(`ireri:${CODE}:data3:`)).forEach(x => localStorage.removeItem(x)); } catch { }
+    try { if ('caches' in self) await caches.delete(DATA_CACHE); } catch { }
+    closeSheet(); state.data = null; B = null; state.error = 'join'; state.joinMsg = 'You have signed out.'; render();
+  }
+  function seenPing() {                          // so Cyrus sees who uses the app (once in 6 hours, no timetable details)
+    if (!CFG.push || CFG.preview) return;
+    const k = 'ireri:ping:' + CODE; try { if (Date.now() - (+localStorage.getItem(k) || 0) < 6 * 3600e3) return; localStorage.setItem(k, Date.now()); } catch { }
+    fetch(CFG.push + '/hit', { method: 'POST', body: JSON.stringify({ did: DID, ev: 'open', school: CODE, name: store.get('myname', '') || '', plat: PLAT }) }).catch(() => { });
+  }
+  function renderJoin() {
+    const nm = (state.joinSchool || CODE).replace(/</g, '');
+    app.innerHTML = `<div class="splash joinbox"><div class="splash-logo"></div><h2>${esc(nm)}</h2>
+      <p>This school's timetables are for its teachers. Type <b>the phone number you registered with</b> and <b>make your own 4-number PIN</b>. You stay signed in on this phone.</p>
+      <form id="joinf" autocomplete="off"><input id="joinph" type="tel" inputmode="tel" placeholder="Phone number, e.g. 0712 345 678" aria-label="Your phone number" required>
+      <input id="joinpin" type="password" inputmode="numeric" maxlength="4" placeholder="Make a PIN (4 numbers)" aria-label="Make a PIN" autocomplete="new-password">
+      <input id="joinpin2" type="password" inputmode="numeric" maxlength="4" placeholder="Type the PIN again" aria-label="Type the PIN again" autocomplete="new-password">
+      <button class="btn" type="submit">Open the timetables</button></form>
+      <p class="joinmsg" id="joinmsg">${esc(state.joinMsg || '')}</p>
+      <p class="muted small">One phone per number. Changing phones? Sign out on the old phone first (menu ☰ → Sign out).</p></div>`;
+    $('#joinf').addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const msg = $('#joinmsg'), n = normPhone($('#joinph').value);
+      if (!n) { msg.textContent = 'That is not a phone number. Type it like 0712 345 678.'; return; }
+      if (!CFG.push) { msg.textContent = 'The timetable service is not ready yet. Please ask the school office.'; return; }
+      msg.textContent = 'Checking…';
+      try {
+        const pin = ($('#joinpin').value || '').replace(/\D/g, ''), pin2 = ($('#joinpin2').value || '').replace(/\D/g, '');
+        if (pin.length !== 4) { msg.textContent = 'Make a PIN of 4 numbers.'; return; }
+        if (pin !== pin2) { msg.textContent = 'The two PINs are not the same. Type them again.'; return; }
+        const r = await fetch(CFG.push + '/join', { method: 'POST', body: JSON.stringify({ school: CODE, ph: await phoneHash(n), pin, did: DID, plat: PLAT }) });
+        const j = await r.json().catch(() => ({}));
+        if (j.ok && j.key) {
+          try { localStorage.setItem(LK_KEY, j.key); localStorage.setItem(PH_KEY, await phoneHash(n)); localStorage.setItem('ireri:chk:' + CODE, Date.now()); } catch { }
+          try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch { }   // keep it: do not let the browser clear it
+          if (j.t) store.set('me', j.t);
+          if (j.name) store.set('myname', j.name);
+          state.error = null; state.joinMsg = '';
+          toast(j.name ? `Welcome, ${j.name} ✓` : 'Welcome ✓', 4000);
+          renderEmpty(); sync('manual'); return;
+        }
+        msg.textContent = (j.error === 'no-match' || j.error === 'not-registered') ? 'This number is not registered for this school. Check it, or ask the timetable office.'
+          : j.error === 'in-use' ? 'This number is already signed in on another phone. If that is not you, tell the timetable office - they will remove that sign-in.'
+          : j.error === 'need-pin' ? 'Make a PIN of 4 numbers.'
+          : j.error === 'too-many' ? 'Too many tries. Wait an hour and try again.'
+          : j.error === 'not-locked' ? 'Please try again in a minute.' : 'Could not check the number. Try again.';
+      } catch { msg.textContent = navigator.onLine ? 'Could not reach the timetable service. Try again.' : 'You are offline. Connect to the internet and try again.'; }
+    });
+  }
+  const BASE = `/s/${encodeURIComponent(CODE)}/`;
+  async function getJson(name, bust) {
+    const r = await fetch(`${BASE}${name}?v=${encodeURIComponent(bust)}`, { cache: 'no-store' });
+    if (r.status === 404) throw new NotFound(name);
+    if (!r.ok) throw new Error(`Server said ${r.status}`);
+    return r.json();
+  }
+  // SUSPENDED by Cyrus Ireri: no timetable is shown (not even the saved copy) until the school is restored
+  const SUSP_KEY = `ireri:${CODE}:suspended`;
+  async function lockOut(msg) {
+    state.error = 'locked'; state.lockMsg = msg || ''; state.data = null; B = null;
+    try { localStorage.setItem(SUSP_KEY, state.lockMsg || '1'); } catch { }
+    try { if ('caches' in self) await caches.delete(DATA_CACHE); } catch { }
+    try { Object.keys(localStorage).filter(k => k.startsWith(`ireri:${CODE}:data3:`)).forEach(k => localStorage.removeItem(k)); } catch { }
+    render();
+  }
+  const PC_ONLY_MSG = 'This school uses PREPFIX on the school computer only. Timetables on phones are not switched on for this school - ask the school office.';
+  async function dirSuspended() {              // Cyrus Ireri's list of schools: suspended, or the mobile app not allowed
+    if (CFG.preview) return '';                // the preview / desktop version on the school's own computer
+    try { const r = await fetch(DIRECTORY + '?v=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return '';
+      const j = await r.json(); const me = (j.schools || []).find(x => x.code === CODE);
+      if (!me) return '';
+      if (me.suspended) return 'suspended';
+      if (me.until) { const t = new Date(), d = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+        if (d > String(me.until).slice(0, 10)) return "This school's PREPFIX subscription has ended. Please contact the school office or Cyrus Ireri, 0720872582."; }
+      if (me.mobile === false) return PC_ONLY_MSG;
+      return ''; } catch { return ''; }
+  }
+  // The app can be installed only once the school's timetables are open on this phone: for a school locked to its
+  // teachers, that is after a registered number has signed in. (index.html carries the manifest switched off.)
+  function enableInstall() {
+    const l = document.querySelector('link[data-mf]');
+    if (!l || l.rel === 'manifest') return;
+    const m = document.createElement('link'); m.rel = 'manifest'; m.href = l.getAttribute('href'); document.head.appendChild(m); l.remove();
+  }
+  function setData(d) { enableInstall(); state.data = d; B = d.bundle; buildIndex(); buildColours(); if (remOn()) setTimeout(() => pushSubscribe(false), 1500); }
+  async function sync(reason = '') {
+    if (state.syncing) return;
+    state.syncing = true; renderStatus();
+    const had = !!state.data;
+    try {
+      const meta = await getJson('meta.json', Date.now());          // tiny file: has anything changed?
+      const dirSays = meta.suspended ? '' : await dirSuspended();
+      if (meta.suspended || dirSays) { await lockOut(meta.message || (dirSays === 'suspended' ? '' : dirSays)); return; }
+      try { localStorage.removeItem(SUSP_KEY); } catch { }
+      const list = Array.isArray(meta.timetables) ? meta.timetables : null;
+      state.tts = list || [];
+      try { localStorage.setItem(`ireri:${CODE}:tts`, JSON.stringify(state.tts)); } catch { }
+      if (list && !list.length) {                      // every timetable was deleted: phones stop showing the old one
+        state.data = null; B = null;
+        try { if ('caches' in self) await caches.delete(DATA_CACHE); } catch { }
+        try { Object.keys(localStorage).filter(k => k.startsWith(`ireri:${CODE}:data3:`)).forEach(k => localStorage.removeItem(k)); } catch { }
+        throw new NotFound('none');
+      }
+      let tt = '', ver = meta.version, path = 'data.json';
+      if (list) {
+        const want = curTT();
+        const t = list.find(x => x.id === want) || list[0];
+        tt = t.id; ver = t.version; path = `t/${encodeURIComponent(t.id)}/data.json`;
+        if (want !== tt) store.set('tt', tt);
+      }
+      state.joinSchool = meta.name || '';
+      if (meta.locked && !lockKey() && !CFG.preview) throw new NeedJoin('no key');
+      if (!state.data || state.data.tt !== tt || state.data.version !== ver) {
+        const switching = state.data && state.data.tt !== tt;
+        const full = await getJson(path, ver);                       // the timetable itself
+        if (full.benc) {                                             // a locked school: open it with this phone's key
+          if (!lockKey()) throw new NeedJoin('no key');
+          try { full.bundle = await openBox(lockKey(), full.benc); }
+          catch (e) { try { localStorage.removeItem(LK_KEY); } catch { } throw new NeedJoin('key'); }
+        }
+        if (meta.locked || full.benc) seenPing();
+        setData({ tt, ttName: (full.timetable || {}).name || '', version: full.version || ver, school: { ...(full.school || {}), ...meta, note: (full.school || {}).note || '' }, bundle: full.bundle, savedAt: Date.now() });
+        await saveCached(state.data);
+        if (had && !switching) toast('Timetable updated to the latest version ✓');
+        state.error = null; render();
+      } else { state.data.school = { ...state.data.school, ...meta, note: state.data.school.note }; state.data.savedAt = Date.now(); saveCached(state.data); }
+      if (meta.locked && lockKey()) stillMine();          // signed out here if the number was used on another phone
+      state.online = true; state.lastSync = Date.now(); state.error = null;
+    } catch (e) {
+      state.online = navigator.onLine && !(e instanceof TypeError);
+      if (e instanceof NeedJoin) {                                   // not this phone's school (yet): ask for the number
+        state.error = 'join'; state.data = null; B = null;
+        try { if ('caches' in self) await caches.delete(DATA_CACHE); } catch { }
+        try { Object.keys(localStorage).filter(k => k.startsWith(`ireri:${CODE}:data3:`)).forEach(k => localStorage.removeItem(k)); } catch { }
+        render(); return;
+      }
+      if (e instanceof NotFound) state.error = 'notfound';
+      else if (!state.data && state.error !== 'locked') state.error = state.online ? 'failed' : 'offline';
+      if (!state.data) render();
+      if (reason === 'manual') toast(navigator.onLine ? 'Could not reach the server. Showing saved copy.' : 'You are offline. Showing saved copy.');
+    } finally { state.syncing = false; renderStatus(); if (state.data && route().name === 'home') renderBanners(); }
+  }
+
+  // ------------------------------------------------------------------ shell
+  const app = $('#app');
+  function route() {
+    const h = location.hash.replace(/^#\/?/, '');
+    if (!h) return { name: 'home' };
+    const parts = h.split('/').map(decodeURIComponent);
+    if (parts[0] === 'list') return { name: 'list', kind: parts[1] || 'teachers', pick: parts[2] === 'pick' };
+    if (parts[0] === 'view') return { name: 'view', id: parts[1] };
+    if (parts[0] === 'analysis') return { name: 'analysis', id: parts[1] };
+    if (parts[0] === 'meet') return { name: 'meet' };
+    if (parts[0] === 'schools') return { name: 'schools' };
+    if (parts[0] === 'pages') return { name: 'pages', kind: parts[1] || 'teachers' };
+    return { name: parts[0] };
+  }
+  // Navigation: every page knows how deep it is, so the dashboard is always "home"
+  let pushing = false;
+  const go = h => { pushing = true; location.hash = h; };
+  const depthNow = () => (history.state && history.state.d) || 0;
+  if (!history.state) history.replaceState({ d: 0 }, '');
+  state.lastDepth = depthNow();
+  // Left pop-out menu: tap the tab on the left edge (or swipe from the edge) to jump anywhere
+  function railItems() {
+    const me = meTeacher();
+    return [['home', 'grid', 'Dashboard', ''], ['me', 'star', 'My timetable', me ? `view/${me.id}` : ''], ['teachers', 'teacher', 'Teachers', 'list/teachers'],
+      ['classes', 'classes', 'Classes', 'list/classes'], ['master', 'grid', 'Master', 'master'], ['rooms', 'lab', 'Labs & Fields', 'list/rooms'],
+      ['free', 'free', 'Free teachers', 'free'], ['cover', 'cover', 'Find cover', 'cover'], ['where', 'pin', 'Where is…?', 'where'],
+      ['meet', 'classes', 'Meeting', 'meet'], ['analysis', 'chart', 'Analysis', 'analysis'], ['pages', 'print', 'As printed (A4)', 'pages/teachers'], ['printall', 'print', 'Print all', '@allSheet'], ['schools', 'info', 'Schools', 'schools']];
+  }
+  function ensureRail() {
+    if (POSTER || !state.data || $('#railtab')) return;
+    const tab = document.createElement('button'); tab.id = 'railtab'; tab.type = 'button'; tab.setAttribute('data-act', 'rail'); tab.setAttribute('aria-label', 'Open menu'); tab.setAttribute('aria-expanded', 'false');
+    tab.innerHTML = '<span></span><span></span><span></span><em>MENU</em>';
+    const rail = document.createElement('nav'); rail.id = 'rail'; rail.setAttribute('aria-label', 'Go to');
+    document.body.append(tab, rail);
+  }
+  function toggleRail() {
+    const rail = $('#rail'); if (!rail) return;
+    if (rail.classList.contains('open')) return closeRail();
+    const here = route().name;
+    rail.innerHTML = railItems().map(([k, ic, label, href]) => `<button type="button" class="ri ${here === k || (k === 'home' && here === 'home') ? 'on' : ''}" ${k === 'home' ? 'data-act="home"' : href.startsWith('@') ? `data-act="${href.slice(1)}"` : href ? `data-go="${href}"` : 'data-act="pickMe"'}>${icon(ic)}<span>${label}</span></button>`).join('');
+    rail.classList.add('open'); document.body.classList.add('rail-open'); const t = $('#railtab'); if (t) t.setAttribute('aria-expanded', 'true');
+  }
+  function closeRail() { const r = $('#rail'); if (r) r.classList.remove('open'); document.body.classList.remove('rail-open'); const t = $('#railtab'); if (t) t.setAttribute('aria-expanded', 'false'); }
+  document.addEventListener('click', e => { if (document.body.classList.contains('rail-open') && !e.target.closest('#rail,#railtab')) closeRail(); }, true);
+  let edgeX = null;
+  document.addEventListener('touchstart', e => { const t = e.touches[0]; edgeX = t.clientX < 18 ? t.clientX : null; }, { passive: true });
+  document.addEventListener('touchend', e => { if (edgeX == null) return; const dx = e.changedTouches[0].clientX - edgeX; edgeX = null; if (dx > 50 && !document.body.classList.contains('rail-open')) toggleRail(); }, { passive: true });
+  function goHome() {
+    closeSheet(); closeRail();
+    const d = depthNow();
+    if (d > 0) { state.homing = true; history.go(-d); } else if (location.hash) { history.replaceState({ d: 0 }, '', location.pathname + location.search); render(); window.scrollTo(0, 0); }
+  }
+  function render() {
+    if (POSTER) return renderPoster();
+    ensureRail();
+    document.documentElement.classList.toggle('on-pages', route().name === 'pages');
+    document.body.classList.toggle('desk', isDesk());
+    document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name));
+    document.body.classList.toggle('frame', !fillOn() && ['view', 'master'].includes(route().name));
+    if ((state.full || state.force) && !['view', 'master'].includes(route().name)) releaseRotate();
+    if (state.error === 'join') return renderJoin();
+    if (state.error === 'locked') return renderMsg('Timetables not available', state.lockMsg || 'This school\'s timetable service is suspended. Please contact the school office.', false);
+    if (!state.data) return renderEmpty();
+    const r = route();
+    if (r.name === 'list') return renderList(r.kind, r.pick);
+    if (r.name === 'view' && IDX.byId[r.id]) return renderViewer(r.id);
+    if (r.name === 'analysis') { const k = r.id && IDX.byId[r.id] ? IDX.byId[r.id].kind : ''; return k === 'teachers' ? renderProfile(r.id) : k === 'classes' ? renderClassProfile(r.id) : renderAnalysis(); }
+    if (r.name === 'meet') return renderMeet();
+    if (r.name === 'schools') return renderSchools();
+    if (r.name === 'master') return renderMaster();
+    if (r.name === 'free') return renderFree();
+    if (r.name === 'cover') return renderCover();
+    if (r.name === 'where') return renderWhere();
+    if (r.name === 'pages') return renderPages(r.kind);
+    return CFG.preview && !CFG.desktop ? renderPreviewHome() : renderHome();
+  }
+  // AS PRINTED: every A4 page exactly as it will print (the same drawing as Print / Save), big on the screen
+  let PAGES_OBS = null;
+  const PG_AT = {};
+  let PG_FIT = () => { };                              // the page each kind was on: Back and the tabs come back to it
+  function renderPages(kind) {
+    const kinds = [['teachers', 'Teachers', B.teachers.length], ['classes', 'Classes', B.classes.length],
+      ['rooms', 'Labs & Fields', (B.rooms || []).length], ['master', 'Master', IDX.D.length]].filter(k => k[2]);
+    if (!kinds.some(k => k[0] === kind)) kind = kinds[0] ? kinds[0][0] : 'teachers';
+    const bw = !!store.get('pgBW', false);
+    const T = kind === 'master' ? IDX.D.map((dd, d) => ({ t: { master: true, d, grade: 'all' }, lab: 'Master — ' + dd.label, no: dayShort(dd.label), nm: 'Master' }))
+      : (B[kind] || []).map(x => ({ t: { id: x.id }, lab: kind === 'teachers' ? `${x.code} · ${teacherLabel(x)}` : x.name, no: kind === 'teachers' ? String(x.code) : '', nm: kind === 'teachers' ? teacherLabel(x) : '' }));
+    const sch = state.data.school || {};
+    const bad = (B.teachers.concat(B.classes)).some(it => (it.grid || []).some(r => r.some(c => c && typeof c === 'object' && c.bad)));
+    document.title = (sch.name || 'School') + ' · As printed';
+    app.innerHTML = `
+      <header class="top pghead"><div class="brandrow">${CFG.preview ? '' : `<button class="iconbtn" data-act="home" aria-label="Back">${icon('back')}</button>`}
+        <div class="titles"><h1>As printed · A4</h1><p class="sub">${esc(sch.name || '')}${state.data.ttName ? ' · ' + esc(state.data.ttName) : ''} — exactly what the printer gets</p></div></div>
+        <nav class="pgtabs">${kinds.map(([k, l, n]) => k === kind ? `<a class="on" href="#pages/${k}">${esc(l)}</a><button type="button" class="pgnum" data-act="pgpick" title="Choose one">☰ ${n}</button>` : `<a href="#pages/${k}">${esc(l)} <small>${n}</small></a>`).join('')}
+          ${kind === 'classes' && IDX.grades.length > 1 ? `<span class="pgjump">Go to:${IDX.grades.map(g => `<button type="button" data-pgjump="${B.classes.findIndex(c => gradeOf(c.name) === g)}">${esc(g)}</button>`).join('')}</span>` : ''}
+          ${kind === 'master' ? `<span class="pgjump">Go to:${IDX.D.map((dd, d) => `<button type="button" data-pgjump="${d}">${esc(dayShort(dd.label))}</button>`).join('')}</span>` : ''}
+          <button type="button" class="pgfullb" data-act="pgfull">⛶ Full view</button>
+          <button type="button" class="pgbw ${bw ? 'on' : ''}" data-act="pgbw">${bw ? '⚫ Black & white' : '🎨 Colour'}</button>
+          <button type="button" class="pgprint" data-act="allSheet">${icon('print')} Print / save…</button></nav>
+        <div class="pgpick" id="pgpick" hidden><div class="pghd"><b>Choose ${kind === 'teachers' ? 'a teacher' : kind === 'classes' ? 'a class' : kind === 'rooms' ? 'a lab or field' : 'a day'} (${T.length})</b>${T.length > 12 ? '<input type="search" id="pgfind" placeholder="Type a name or number…" autocomplete="off">' : ''}<button type="button" class="pgx" data-act="pgpick">✕ Close</button></div><div class="pglist">${T.map((x, i) => `<button type="button" data-pgjump="${i}"><b>${esc(x.no || String(i + 1))}</b> ${esc(x.nm || x.lab)}</button>`).join('')}</div></div>
+      </header>
+      <button type="button" class="pgexit" data-act="pgfull">✕ Exit full view</button>
+      <button type="button" class="pgnav l" data-act="pgprev" aria-label="Previous page">‹</button>
+      <button type="button" class="pgnav r" data-act="pgnext" aria-label="Next page">›</button>
+      <div class="pgcount" id="pgcount">1 / ${T.length}</div>
+      <main class="pages h">${T.map((x, i) => `<figure class="pg" data-pg="${i}"><div class="pgsheet"><span class="pgwait">Page ${i + 1}…</span></div>
+        <figcaption>${esc(x.lab)} <span>· page ${i + 1} of ${T.length}</span></figcaption></figure>`).join('')}</main>`;
+    if (PAGES_OBS) PAGES_OBS.disconnect();
+    const drawOne = async (fig) => {
+      if (fig.dataset.done) return; fig.dataset.done = '1';
+      try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { }
+      const logo = await loadLogo();
+      const cv = drawTimetablePage(bw, T[+fig.dataset.pg].t, logo, 1.3, !!CFG.preview);
+      try {                                       // Full view shows only the timetable part of the page (not the empty space under it)
+        const W2 = cv.width, H2 = cv.height, cx2 = cv.getContext('2d'), lim = Math.floor(H2 * 0.86);
+        const px = cx2.getImageData(0, 0, W2, lim).data; let last = 0;
+        for (let yy = lim - 1; yy > 0 && !last; yy -= 2) for (let xx = 0; xx < W2; xx += 6) { const o = (yy * W2 + xx) * 4; if (px[o] < 235 || px[o + 1] < 235 || px[o + 2] < 235) { last = yy; break; } }
+        if (last) fig.style.setProperty('--crop', String(W2 / Math.min(H2, last + Math.round(H2 * 0.03))));
+      } catch { }
+      const im = new Image(); im.alt = T[+fig.dataset.pg].lab; im.src = cv.toDataURL('image/jpeg', 0.9);
+      cv.width = cv.height = 1;
+      const sh = fig.querySelector(".pgsheet"); sh.innerHTML = ''; sh.appendChild(im);
+    };
+    const main = document.querySelector('.pages');
+    const fit = () => { const top = main.getBoundingClientRect().top; main.style.height = Math.max(240, innerHeight - top - 30) + 'px'; };
+    PG_FIT = () => { const k = PG_AT[kind] || 0; fit(); main.style.scrollBehavior = 'auto'; main.scrollLeft = k * main.clientWidth; main.style.scrollBehavior = ''; };
+    fit(); addEventListener('resize', fit, { once: true });
+    const count = () => { const k = Math.round(main.scrollLeft / Math.max(1, main.clientWidth)); PG_AT[kind] = k; const c = document.getElementById('pgcount'); if (c) c.textContent = `${k + 1} / ${T.length}`; };
+    main.addEventListener('scroll', () => requestAnimationFrame(count), { passive: true });
+    if (PG_AT[kind] > 0) { main.style.scrollBehavior = 'auto'; main.scrollLeft = Math.min(PG_AT[kind], T.length - 1) * main.clientWidth; main.style.scrollBehavior = ''; count(); }
+    PAGES_OBS = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { PAGES_OBS.unobserve(e.target); drawOne(e.target); } }), { root: main, rootMargin: '0px 120%' }) : null;
+    document.querySelectorAll('.pages .pg').forEach((f, i) => { if (PAGES_OBS) PAGES_OBS.observe(f); else if (i < 3) drawOne(f); });
+  }
+  // the list of every teacher (class, lab…) opens over the page and closes again: ✕, Esc, a click outside, or a choice
+  function pgPick(open) {
+    const pk = document.getElementById('pgpick'); if (!pk) return;
+    pk.hidden = open === undefined ? !pk.hidden : !open;
+    const f = document.getElementById('pgfind');
+    if (!pk.hidden && f) { f.value = ''; pk.querySelectorAll('[data-pgjump]').forEach(b => b.hidden = false); setTimeout(() => f.focus(), 30); }
+  }
+  document.addEventListener('input', e => {
+    if (e.target.id !== 'pgfind') return;
+    const w = e.target.value.trim().toLowerCase();
+    document.querySelectorAll('#pgpick [data-pgjump]').forEach(b => b.hidden = !!w && !b.textContent.toLowerCase().includes(w));
+  });
+  document.addEventListener('keydown', e => {
+    const pk = document.getElementById('pgpick'); if (!pk || pk.hidden) return;
+    if (e.key === 'Escape') { pgPick(false); e.stopPropagation(); }
+    if (e.key === 'Enter' && e.target.id === 'pgfind') { const b = [...pk.querySelectorAll('[data-pgjump]')].find(x => !x.hidden); if (b) b.click(); }
+  }, true);
+  document.addEventListener('click', e => {
+    const pk = document.getElementById('pgpick');
+    if (pk && !pk.hidden && !e.target.closest('#pgpick,.pgnum')) pgPick(false);
+  });
+  // FULL VIEW: only the timetable page, as big as the screen allows (✕, Esc or a double-click to come back)
+  function pgFull(on) {
+    const h = document.documentElement; on = on === undefined ? !h.classList.contains('pgfull') : on;
+    h.classList.toggle('pgfull', on); if (on) pgPick(false);
+    requestAnimationFrame(() => PG_FIT());
+  }
+  document.addEventListener('dblclick', e => { if (e.target.closest('.pages.h .pgsheet')) pgFull(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.documentElement.classList.contains('pgfull')) pgFull(false); });
+  addEventListener('hashchange', () => { if (route().name !== 'pages') document.documentElement.classList.remove('pgfull'); });
+  function pageStep(dir) {                       // one A4 page at a time, left and right
+    const m = document.querySelector('.pages.h'); if (!m) return false;
+    m.scrollBy({ left: dir * m.clientWidth, behavior: 'smooth' }); return true;
+  }
+
+  // PREVIEW on the PREPFIX computer: only what matters - teachers, classes, master (and print them all)
+  function renderPreviewHome() {
+    const sch = state.data.school || {};
+    document.title = (sch.name || 'School') + ' · Preview';
+    const tiles = [['pages', 'print', 'As printed (A4)', 'Every page exactly as it prints — big', 'pages/teachers'],
+      ['teachers', 'teacher', 'Teachers', `${B.teachers.length} timetables`, 'list/teachers'],
+      ['classes', 'classes', 'Classes', `${B.classes.length} timetables`, 'list/classes'],
+      ['master', 'grid', 'Master', 'Every class, day by day', 'master'],
+      ['printall', 'print', 'Print all timetables', 'Teachers, classes, master · colour or black & white', '']];
+    app.innerHTML = `
+      <header class="top"><div class="brandrow"><div class="logo" aria-hidden="true"></div>
+        <div class="titles"><h1>${esc(sch.name || 'School')}</h1><p class="sub">Preview · not published yet</p></div></div></header>
+      <main class="home pvhome">
+        ${instBlock()}
+        <nav class="tiles pvtiles">${tiles.map(([k, ic, t, sub, href]) => `
+          <button class="tile t-${k}" ${k === 'printall' ? 'data-act="allSheet"' : `data-go="${href}"`}>
+            <span class="tic">${icon(ic)}</span><strong>${esc(t)}</strong><small>${esc(sub)}</small></button>`).join('')}
+        </nav>
+        <footer class="foot">${esc(BRAND_LINE)}</footer>
+      </main>`;
+  }
+  function topBar(title, sub = '', right = '', html = '') {
+    return `<header class="vtop"><button class="navbtn nb-back" data-act="back" aria-label="Back">${icon('back')}<span>Back</span></button><button class="navbtn nb-home" data-act="home" aria-label="Dashboard (home)">${icon('home')}<span>Home</span></button>
+      <div class="vtitles"><h2${html ? ' class="big"' : ''}>${html || esc(title)}</h2>${sub ? `<p>${sub}</p>` : ''}</div>${right || '<span class="icon-btn ghost"></span>'}</header>`;
+  }
+  function renderStatus() {
+    const el = $('#status'); if (!el || !state.data) return;
+    let s = `${state.data.ttName ? esc(state.data.ttName) + ' · ' : ''}Updated ${esc(fmtDate(B?.published || state.data.school?.updated))}`;
+    if (state.syncing) s += ` · <span class="pill">checking…</span>`;
+    else if (!state.online) s += ` · <span class="pill off">offline · saved copy</span>`;
+    else s += ` · <span class="pill ok">✓ latest</span>`;
+    el.innerHTML = s;
+  }
+  function renderEmpty() {
+    const msgs = {
+      notfound: ['School not found', 'This link does not match any school, or the timetable has not been published yet. Ask your school office for the correct link.'],
+      offline: ['You are offline', 'Connect to the internet once to download the timetables. After that they work offline too.'],
+      failed: ['Could not load timetables', 'Please check your connection and try again.'],
+    };
+    const [t, m] = msgs[state.error] || ['Loading timetables…', 'Please wait a moment.'];
+    renderMsg(t, m, !!state.error);
+  }
+  function renderMsg(t, m, retry) {
+    app.innerHTML = `<div class="splash"><div class="splash-logo"></div><h2>${esc(t)}</h2><p>${esc(m)}</p>${retry ? '<button class="btn" data-act="retry">Try again</button>' : ''}</div>`;
+  }
+
+  // ------------------------------------------------------------------ HOME dashboard
+  function meTeacher() { const code = store.get('me'); return code != null ? IDX.tByCode[code] || null : null; }
+  function nowCard() {
+    const n = nowSlot(), me = meTeacher();
+    let when;
+    if (n.status === 'noday') when = 'No lessons today';
+    else if (n.status === 'after') when = `${dayLabel(n.d)} · lessons are over for today`;
+    else if (n.status === 'before') when = `${dayLabel(n.d)} · first lesson at ${(IDX.P[n.j]?.time || '').split('-')[0]}`;
+    else if (n.status === 'break') when = `${dayLabel(n.d)} · ${IDX.P[n.j].label} (${IDX.P[n.j].time})`;
+    else if (n.status === 'between') when = `${dayLabel(n.d)} · next ${pLabel(n.j)}`;
+    else when = `${dayLabel(n.d)} · CURRENT: ${pLabel(n.j)}`;
+    let mine = '';
+    if (me && n.d >= 0) {
+      const cur = n.status === 'lesson' ? cellAt(me, n.d, n.j) : null;
+      const after = n.status === 'after' ? 999 : n.status === 'before' ? n.j - 1 : n.j;
+      const nexts = IDX.lessons.filter(j => j > after && isLesson(cellAt(me, n.d, j)) && !isCont(me, n.d, j)).slice(0, 2);
+      const L = cur && isLesson(cur) ? cellLines('teachers', cur) : null;
+      const curTxt = cur === null ? '' : L ? `<b>${esc(L[0])}</b> ${esc(L[1])}` : cur === 'X' ? 'Not available' : '<b class="ok">Free</b>';
+      const nextHTML = nexts.map((j, i) => { const N = cellLines('teachers', cellAt(me, n.d, j));
+        return `<span class="nx"><i>${i + 1}</i><b>${esc(N[0])}</b> ${esc(N[1])} <em>${esc(pLabel(j))}</em></span>`; }).join('');
+      mine = `<div class="now-me">
+        ${curTxt ? `<div class="nowcur"><small>● CURRENT LESSON</small><span>${curTxt}</span></div>` : ''}
+        <div><small>${nexts.length > 1 ? 'NEXT 2 LESSONS' : 'NEXT LESSON'}</small>${nextHTML || '<span>No more lessons today</span>'}</div></div>`;
+    } else if (!me) {
+      mine = `<button class="now-set" data-act="pickMe">${icon('starO')} Choose “My timetable” to see your lessons here</button>`;
+    }
+    const rem = me ? `<button class="remrow ${remOn() ? 'on' : ''}" data-act="remToggle" role="switch" aria-checked="${remOn()}"><span>⏰ <b>Lesson reminder</b><small>${REMIND_MIN} minutes before each of your lessons</small></span><i class="sw"><em></em></i></button>` : '';
+    return `<section class="now-card"><div class="now-when">${icon('clock', 'tiny')}<span>${esc(when)}</span></div>${mine}${rem}</section>`;
+  }
+
+  // ------------------------------------------------------------------ LESSON REMINDER (alarm 10 minutes before a lesson)
+  const REMIND_MIN = 10;
+  const remOn = () => !!store.get('remind', false);
+  const fired = new Set();
+  function myLessonsOn(me, d) {           // [{j, start, end, lines}]
+    return IDX.lessons.filter(j => isLesson(cellAt(me, d, j)) && !isCont(me, d, j) && IDX.P[j].start != null).map(j => {
+      let k = j; while ((me.grid[d] || [])[k + 1] === '^') k++;
+      return { j, start: IDX.P[j].start, end: IDX.P[k].end ?? IDX.P[j].end, lines: cellLines('teachers', cellAt(me, d, j)), cell: cellAt(me, d, j) };
+    });
+  }
+  const hm = m => `${Math.floor(m / 60) > 12 ? Math.floor(m / 60) - 12 : Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+  function checkReminders() {
+    if (!remOn() || !state.data) return;
+    const me = meTeacher(), d = todayIndex(); if (!me || d < 0) return;
+    const now = nowMinutes(), day = new Date().toDateString();
+    for (const L of myLessonsOn(me, d)) {
+      const key = `${day}|${state.data.tt}|${L.j}`;
+      if (fired.has(key) || store.get('fired:' + key)) continue;
+      if (now >= L.start - REMIND_MIN && now < L.start) { fired.add(key); store.set('fired:' + key, 1); fireReminder(L, L.start - now); }
+    }
+  }
+  function beep() {
+    try {
+      const A = new (window.AudioContext || window.webkitAudioContext)(); let t = A.currentTime;
+      [880, 660, 880, 660, 988].forEach((f, i) => { const o = A.createOscillator(), g = A.createGain(); o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+        o.connect(g); g.connect(A.destination); o.start(t); o.stop(t + 0.34); t += 0.38; });
+    } catch { }
+  }
+  function fireReminder(L, mins) {
+    const title = `⏰ Lesson in ${mins} minute${mins === 1 ? '' : 's'} — ${IDX.P[L.j].label} at ${hm(L.start)}`;
+    const body = `${L.lines[0]}${L.lines[1] ? ' · ' + L.lines[1] : ''}${L.cell.r ? ' · ' + L.cell.r : ''}`;
+    try { navigator.vibrate && navigator.vibrate([400, 150, 400, 150, 800]); } catch { }
+    try {
+      if ('Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker) {
+        navigator.serviceWorker.ready.then(reg => reg.showNotification(title, { body, icon: '/icons/icon-192.png', badge: '/icons/badge-96.png', tag: `lesson-${IDX.D[todayIndex()]?.wd}-${L.start}`, renotify: true, requireInteraction: true, vibrate: [400, 150, 400, 150, 800], data: { url: location.href } })).catch(() => { });
+      }
+    } catch { }
+    if (document.visibilityState === 'visible') {
+      beep();
+      $$('.alarm-bg').forEach(n => n.remove());               // its own layer, above anything else on screen
+      const box = document.createElement('div'); box.className = 'alarm-bg';
+      box.innerHTML = `<div class="alarm" role="alertdialog"><div class="abell">⏰</div><h3>Lesson in ${mins} minute${mins === 1 ? '' : 's'}</h3>
+        <p class="alesson"><b>${esc(L.lines[0])}</b>${L.lines[1] ? `<span>${esc(L.lines[1])}</span>` : ''}</p>
+        <p class="awhen">${esc(IDX.P[L.j].label)} · ${esc(IDX.P[L.j].time)}${L.cell.r ? ' · ' + esc(L.cell.r) : ''}</p>
+        <button class="btn wide" type="button">OK</button></div>`;
+      box.querySelector('button').addEventListener('click', () => box.remove());
+      document.body.appendChild(box);
+    }
+  }
+  // ---- reminders that arrive when the app is CLOSED: the phone registers with the reminder service
+  const PUSH = (CFG.push || '').replace(/\/$/, '');
+  const pushPossible = () => !!(PUSH && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+  const b64ToBytes = s => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+  function myAlarmPlan() {
+    const me = meTeacher(); if (!me) return null;
+    const tz = new Date().getTimezoneOffset(), lessons = [], alarms = [];
+    IDX.D.forEach((dd, d) => { if (dd.wd < 0) return; myLessonsOn(me, d).forEach(L => {
+      const local = dd.wd * 1440 + L.start - REMIND_MIN;
+      alarms.push(((local + tz) % 10080 + 10080) % 10080);
+      lessons.push({ wd: dd.wd, start: L.start, label: IDX.P[L.j].label, time: IDX.P[L.j].time, title: L.lines[0], body: [L.lines[1], L.cell.r].filter(Boolean).join(' · ') });
+    }); });
+    return { me, alarms, lessons };
+  }
+  async function saveReminderCache(plan) {
+    try { const c = await caches.open('prepfix-rem');
+      if (!plan) { await c.delete('/__reminders'); return; }
+      await c.put('/__reminders', new Response(JSON.stringify({ min: REMIND_MIN, url: location.origin + location.pathname, teacher: teacherLabel(plan.me), school: state.data?.school?.name || '', lessons: plan.lessons }), { headers: { 'Content-Type': 'application/json' } }));
+    } catch { }
+  }
+  async function pushSubscribe(force, perm) {
+    const plan = myAlarmPlan(); if (!plan) return 'none';
+    await saveReminderCache(plan);
+    if (!pushPossible()) return 'unsupported';
+    if (isIOS() && !isStandalone()) return 'ios-install';
+    if ((perm || Notification.permission) !== 'granted') return 'blocked';
+    const sig = `${state.data.tt}|${state.data.version}|${plan.me.code}|${plan.alarms.join(',')}`;
+    if (!force && store.get('pushSig') === sig) return 'ok';
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) { const k = await (await fetch(PUSH + '/vapid')).json(); sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(k.key) }); }
+      const r = await fetch(PUSH + '/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sub: sub.toJSON(), alarms: plan.alarms, school: CODE, teacher: plan.me.code }) });
+      if (!r.ok) throw new Error('service');
+      store.set('pushSig', sig); return 'ok';
+    } catch { return 'error'; }
+  }
+  async function pushUnsubscribe() {
+    store.del('pushSig'); await saveReminderCache(null);
+    try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+      if (sub) { fetch(PUSH + '/unsubscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => { }); await sub.unsubscribe(); } } catch { }
+  }
+  async function remToggle() {
+    if (remOn()) { store.set('remind', false); pushUnsubscribe(); toast('Lesson reminder OFF'); render(); return; }
+    store.set('remind', true);
+    let perm = 'default';
+    try { if ('Notification' in window) perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission(); } catch { }
+    render();
+    const ps = perm === 'granted' ? await pushSubscribe(true, perm) : 'blocked';
+    const msg = {
+      ok: '<p class="okline">✓ Alerts will come even when the app is CLOSED.</p>',
+      'ios-install': '<p class="warnline">On iPhone: first add this app to your Home Screen (Share ⬆ → Add to Home Screen), open it from there and switch the reminder on again — then alerts come even when it is closed.</p>',
+      blocked: '<p class="warnline">Notifications are blocked — allow notifications for this app in your phone settings, then switch the reminder on again.</p>',
+      unsupported: '<p class="muted small">Alerts come while the app is open or was used recently. For alerts at any time, add your lessons to your calendar below.</p>',
+      error: '<p class="warnline">Could not reach the reminder service now (check internet). It will try again next time you open the app.</p>',
+    }[ps] || '';
+    openSheet(`<div class="grab"></div><h3>⏰ Lesson reminder is ON</h3>
+      <p>You will get an alert <b>${REMIND_MIN} minutes before each of your lessons</b> (${esc(teacherLabel(meTeacher()))}), with sound and vibration.</p>
+      ${msg}
+      ${ps === 'ok' ? '' : `<button class="btn wide" data-act="remCal">📅 Add my lessons to my phone calendar</button>`}
+      <button class="btn ghost wide" data-act="closeSheet">Done</button>`);
+    checkReminders();
+  }
+  function remCalendar() {
+    const me = meTeacher(); if (!me) return;
+    const pad = n => String(n).padStart(2, '0'), stamp = new Date();
+    const dt = (date, m) => `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}T${pad(Math.floor(m / 60))}${pad(m % 60)}00`;
+    const escI = t => String(t || '').replace(/\\/g, '\\\\').replace(/[,;]/g, m => '\\' + m).replace(/\n/g, ' ');
+    const ev = [];
+    IDX.D.forEach((dd, d) => {
+      if (dd.wd < 0) return;
+      const date = new Date(); date.setHours(0, 0, 0, 0);
+      while (date.getDay() !== dd.wd) date.setDate(date.getDate() + 1);
+      myLessonsOn(me, d).forEach(L => {
+        ev.push(['BEGIN:VEVENT', `UID:prepfix-${state.data.tt}-${me.code}-${d}-${L.j}@prepfix`, `DTSTAMP:${dt(stamp, stamp.getHours() * 60 + stamp.getMinutes())}`,
+          `DTSTART:${dt(date, L.start)}`, `DTEND:${dt(date, L.end || L.start + 40)}`, 'RRULE:FREQ=WEEKLY;COUNT=14',
+          `SUMMARY:${escI(`${IDX.P[L.j].label} · ${L.lines[0]}${L.lines[1] ? ' ' + L.lines[1] : ''}`)}`,
+          L.cell.r ? `LOCATION:${escI(L.cell.r)}` : '', `DESCRIPTION:${escI(`${state.data.school?.name || ''} · ${state.data.ttName || ''} · PREPFIX`)}`,
+          'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escI('Lesson in ' + REMIND_MIN + ' minutes: ' + L.lines[0])}`, `TRIGGER:-PT${REMIND_MIN}M`, 'END:VALARM', 'END:VEVENT'].filter(Boolean).join('\r\n'));
+      });
+    });
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PREPFIX//Timetables//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:PREPFIX · ${escI(teacherLabel(me))}`, ...ev, 'END:VCALENDAR'].join('\r\n');
+    const blob = new Blob([ics], { type: 'text/calendar' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `PREPFIX reminders - ${teacherLabel(me).replace(/[\\/:*?"<>|]+/g, ' ').replace(/[.\s]+$/, '')}.ics`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast(`Calendar file saved — open it to add ${ev.length} weekly lessons with a ${REMIND_MIN}-minute alarm`, 5000);
+  }
+  function schoolsCount() {
+    try { const j = JSON.parse(localStorage.getItem('ireri:schools') || 'null'); const n = j && j.schools ? j.schools.length : 0; if (n) return `${n} school${n === 1 ? '' : 's'}`; } catch { }
+    fetchSchools().then(j => { const el = document.querySelector('.t-schools small'); if (el && j && j.schools) el.textContent = `${j.schools.length} school${j.schools.length === 1 ? '' : 's'}`; });
+    return 'See all schools';
+  }
+  function renderHome() {
+    const sch = state.data.school || {};
+    const name = sch.name || B.school || 'School';
+    const me = meTeacher();
+    document.title = name + ' · Timetables';
+    const tiles = [
+      ['me', 'star', 'My timetable', me ? teacherLabel(me) : 'Tap to choose', me ? `view/${me.id}` : ''],
+      ['teachers', 'teacher', 'Teachers', `${B.teachers.length} timetables`, 'list/teachers'],
+      ['classes', 'classes', 'Classes', `${B.classes.length} timetables`, 'list/classes'],
+      ['master', 'grid', 'Master', 'Day by day', 'master'],
+      ['rooms', 'lab', 'Labs & Fields', `${B.rooms.length} timetables`, 'list/rooms'],
+      ['free', 'free', 'Free teachers', 'Now & free afternoon', 'free'],
+      ['cover', 'cover', 'Find cover', 'Who can stand in', 'cover'],
+      ['where', 'pin', 'Where is…?', 'Find a teacher', 'where'],
+      ['meet', 'classes', 'Meeting finder', 'When are teachers all free', 'meet'],
+      ['analysis', 'chart', 'Staff analysis', 'Subjects, classes & load', 'analysis'],
+      ['printall', 'print', 'Print all timetables', 'Colour or black & white', ''],
+      ['schools', 'grid', 'Schools using FET', fetCount(), 'schools'],
+    ];
+    app.innerHTML = `
+      <header class="top"><div class="brandrow">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="titles"><h1>${esc(name)}</h1><p class="sub" id="status"></p></div>
+        <button class="icon-btn" data-act="menu" aria-label="Menu">${icon('more')}</button></div>
+      </header>
+      <main class="home">
+        ${ttSwitcher()}
+        ${instBlock()}
+        <div id="banners"></div>
+        ${nowCard()}
+        <nav class="tiles">${tiles.map(([k, ic, t, s, href]) => `
+          <button class="tile t-${k}" ${k === 'printall' ? 'data-act="allSheet"' : href ? `data-go="${href}"` : 'data-act="pickMe"'}>
+            <span class="tic">${icon(ic)}</span><strong>${esc(t)}</strong><small>${esc(s)}</small></button>`).join('')}
+        </nav>
+        <footer class="foot">${esc(BRAND_LINE)}</footer>
+      </main>`;
+    renderStatus(); renderBanners();
+    const on = $('.ttchip.on'); if (on && on.scrollIntoView) on.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+  // The school's name and term exactly as in FET, e.g. ST. BARBARA KIANDERI SEN. SCHOOL / TERM 1 2027 TIMETABLE
+  function instLines() {
+    if (B && Array.isArray(B.institution_lines) && B.institution_lines.length > 1) return B.institution_lines;
+    const whole = String((B && B.institution) || state.data?.school?.institution || '').replace(/\bSCH\b\.?/g, 'SCHOOL').toUpperCase();
+    if (!whole) return [];
+    const m = whole.match(/\s(TERM\b.*|END\b.*|\d{4}\b.*TIMETABLE.*)$/);
+    return m ? [whole.slice(0, m.index).trim(), m[1].trim()] : [whole];
+  }
+  function instBlock(extra = '', owner = null) {
+    const L = instLines();
+    if (!L.length) return '';
+    const og = B && B.origin && B.origin.text ? `<p class="origin o-${esc(B.origin.path || 'A')}">${esc(B.origin.text)}</p>` : '';
+    return `<div class="inst ${extra}${owner ? ' has-owner' : ''}"><img class="inst-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX Timetable Toolkit"><b>${esc(L[0])}</b>${L.slice(1).map(x => `<span>${esc(x)}</span>`).join('')}${owner ? `<div class="owner"><i>${esc(owner.tag)}</i><strong>${esc(owner.name)}</strong></div>` : ''}${og}</div>`;
+  }
+  function ttSwitcher() {
+    const list = state.tts || [];
+    if (list.length < 2) return state.data && state.data.ttName ? `<p class="ttone">${esc(state.data.ttName)}</p>` : '';
+    return `<div class="ttlist" role="list" aria-label="Choose timetable"><h3 class="ttl-h">Timetables published · tap one to open</h3>${list.map(t => { const on = t.id === state.data.tt;
+      return `<button class="ttrow ${on ? 'on' : ''}" data-tt="${esc(t.id)}" role="listitem"><span class="ttdot">${on ? '✓' : ''}</span><span class="ttn"><b>${esc(t.name)}</b><small>${t.updated ? 'Updated ' + esc(fmtDate(t.updated)) : ''}</small></span>${isNewTT(t) ? '<em class="ttnew">NEW</em>' : ''}${on ? '<em class="ttshow">Showing</em>' : icon('chev', 'chev')}</button>`; }).join('')}</div>`;
+  }
+  const seenMap = () => store.get('seenTT', {}) || {};
+  const isNewTT = t => seenMap()[t.id] !== t.version;
+  async function switchTT(id) {
+    if (!id || (state.data && state.data.tt === id)) return;
+    store.set('tt', id);
+    const cached = await loadCached(id);
+    if (cached && cached.bundle && cached.bundle.format === 2 && cached.tt === id) { setData(cached); render(); }
+    else { toast('Loading timetable…', 1500); }
+    await sync('switch');
+    render();
+  }
+  // ---- PREPFIX app updates: teachers get every improvement without reinstalling
+  async function remoteBuild() {
+    try { const t = await (await fetch('/config.js?v=' + Date.now(), { cache: 'no-store' })).text(); const m = t.match(/"build"\s*:\s*"([^"]+)"/); return m ? m[1] : ''; } catch { return ''; }
+  }
+  // Has the website got newer app files than this phone is running? (cheap header check, nothing is downloaded)
+  async function shellChanged() {
+    try {
+      if (!self.caches) return false;
+      const tag = r => r ? (r.headers.get('etag') || r.headers.get('last-modified') || '').replace(/^W\//, '') : '';
+      for (const f of ['/app.js', '/app.css']) {
+        const hit = await caches.match(f); if (!hit) continue;
+        const net = await fetch(f + '?u=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+        const a = tag(hit), b = tag(net);
+        if (net.ok && a && b && a !== b) return true;
+      }
+    } catch { }
+    return false;
+  }
+  async function updateReady() {
+    const rb = await remoteBuild();
+    if (rb && CFG.build && rb !== CFG.build) return true;
+    return shellChanged();
+  }
+  async function applyAppUpdate() {
+    const box = document.createElement('div'); box.className = 'alarm-bg';
+    box.innerHTML = `<div class="alarm"><div class="abell">⬆</div><h3>Updating PREPFIX…</h3><p class="awhen">A moment, please</p></div>`;
+    document.body.appendChild(box);
+    try {
+      const files = ['/app.js', '/app.css', '/config.js', '/sw.js', '/qrcode.js', location.pathname];
+      await Promise.all(files.map(f => fetch(f + (f.includes('?') ? '&' : '?') + 'u=' + Date.now(), { cache: 'reload' }).catch(() => { })));
+      await Promise.all(files.map(f => fetch(f, { cache: 'reload' }).catch(() => { })));
+      if (navigator.serviceWorker) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          await reg.update().catch(() => { });
+          const w = reg.waiting || reg.installing;
+          if (w) {                                    // switch to the newest service worker now, because the teacher asked for the update
+            const swap = new Promise(res => { navigator.serviceWorker.addEventListener('controllerchange', res, { once: true }); setTimeout(res, 2500); });
+            if (w.state === 'installed') w.postMessage('SKIP_WAITING');
+            else w.addEventListener('statechange', () => { if (w.state === 'installed') w.postMessage('SKIP_WAITING'); });
+            await swap;
+          }
+        }
+      }
+      if (self.caches) { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith('ireri-shell')).map(k => caches.delete(k))); }
+      try { sessionStorage.setItem('prepfix:updated', CFG.build || '1'); } catch { }
+    } catch { }
+    location.reload();
+  }
+  async function checkUpdates() {
+    if (!state.online) { toast('No internet — try again when you are online'); return; }
+    toast('Checking for updates…', 1500);
+    if (await updateReady()) {
+      openSheet(`<div class="grab"></div><h3>⬆ PREPFIX has been improved</h3><p>A newer version of the app is ready with the latest improvements. Nothing changes until you tap <b>Update now</b>.</p>
+        <button class="btn wide" data-act="appUpdate">Update now</button><button class="btn ghost wide" data-act="closeSheet">Later</button>`);
+      return;
+    }
+    await sync('manual');
+    if (state.online) toast('✓ You have the newest PREPFIX and the latest timetables');
+  }
+  async function autoCheckApp() {                       // quietly, at most every 30 minutes
+    const last = +(store.get('appChk') || 0); if (Date.now() - last < 30 * 60000 || !state.online) return;
+    store.set('appChk', Date.now());
+    state.appNew = await updateReady();
+    if (state.appNew && route().name === 'home') renderBanners();
+  }
+  function renderBanners() {
+    const box = $('#banners'); if (!box || !state.data) return;
+    const out = [];
+    if (state.appNew) out.push(`<div class="banner new"><div><strong>⬆ PREPFIX has been improved</strong><span>Tap Update to get the newest version — your timetables stay as they are.</span></div><div class="banner-actions"><button class="btn small" data-act="appUpdate">Update</button></div></div>`);
+    const fresh = (state.tts && state.tts.length ? state.tts : [{ id: state.data.tt, version: state.data.version, name: state.data.ttName, updated: B.published, note: state.data.school?.note }]).filter(isNewTT);
+    if (fresh.length) {
+      const items = fresh.map(t => `<b>${esc(t.name || 'Timetable')}</b> · ${esc(fmtDate(t.updated))}${t.note ? ' — ' + esc(t.note) : ''}`).join('<br>');
+      out.push(`<div class="banner new"><div><strong>🆕 ${fresh.length > 1 ? 'New timetables published' : 'New timetable published'}</strong><span>${items}</span></div><button class="txt-btn" data-act="seen">Got it</button></div>`);
+    }
+    if (!isStandalone() && !store.get('hideInstallTip')) {
+      if (state.installEvt) out.push(`<div class="banner tip"><div>${icon('install')}<span><strong>Install this app</strong> for one-tap access, even offline.</span></div><div class="banner-actions"><button class="btn small" data-act="install">Install</button><button class="txt-btn" data-act="getapp">Other devices</button><button class="txt-btn" data-act="hideInstall">Later</button></div></div>`);
+      else out.push(`<div class="banner tip"><div>${icon('install')}<span><strong>Get the app</strong> on your Android, iPhone or computer — one tap, works offline.</span></div><div class="banner-actions"><button class="btn small" data-act="getapp">Get the app</button><button class="txt-btn" data-act="hideInstall">Later</button></div></div>`);
+    }
+    box.innerHTML = out.join('');
+  }
+
+  // ------------------------------------------------------------------ LISTS with filters
+  const KIND = {
+    teachers: { title: 'Teachers', ph: 'Search by number or name…' },
+    classes: { title: 'Classes', ph: 'Search a class…', one: 'Class' },
+    rooms: { title: 'Labs & Fields', ph: 'Search a lab or field…' },
+  };
+  function listItems(kind) {
+    const q = (state.query[kind] || '').trim().toLowerCase();
+    let list = B[kind] || [];
+    if (kind === 'classes' && state.grade !== 'all') list = list.filter(c => gradeOf(c.name) === state.grade);
+    if (q) list = list.filter(x => (kind === 'teachers' ? `${x.code} ${x.name}` : x.name).toLowerCase().includes(q));
+    return list;
+  }
+  function gradeChips() {
+    return IDX.grades.length > 1 ? `<div class="chips" id="chips">${['all', ...IDX.grades].map(g => `<button class="chip ${state.grade === g ? 'on' : ''}" data-grade="${esc(g)}">${g === 'all' ? 'All' : esc(g)}</button>`).join('')}</div>` : '';
+  }
+  function renderList(kind, pick) {
+    const k = KIND[kind] || KIND.teachers;
+    app.innerHTML = `${topBar(pick ? 'Choose your timetable' : k.title, `${(B[kind] || []).length} timetables`)}
+      <main class="page">
+        ${pick ? '<p class="hint-box">Tap your name, then tap ☆ at the top of your timetable.</p>' : ''}
+        <div class="searchbox">${icon('search')}<input id="q" type="search" autocomplete="off" placeholder="${esc(k.ph)}" value="${esc(state.query[kind] || '')}"></div>
+        ${kind === 'classes' ? gradeChips() : ''}
+        <ul class="list" id="list"></ul>
+      </main>`;
+    const draw = () => {
+      const me = String(store.get('me'));
+      let rows = listItems(kind);
+      if (kind === 'teachers') {                       // ★ My timetable always comes first
+        const mine = rows.find(x => String(x.code) === me);
+        if (mine) rows = [mine, ...rows.filter(x => x !== mine)];
+      }
+      $('#list').innerHTML = rows.length ? rows.map(x => `
+        <li${kind === 'teachers' && String(x.code) === me ? ' class="mine"' : ''}><button class="row" data-go="view/${esc(x.id)}">
+          <span class="av av-${kind}">${kind === 'teachers' ? esc(String(x.code).slice(0, 4)) : kind === 'rooms' ? icon('lab') : esc(String(x.name).replace(/\s+/g, '').slice(0, 4))}</span>
+          <span class="nm">${esc(kind === 'teachers' ? teacherLabel(x) : x.name)}${kind === 'teachers' ? `<small>${x.name ? 'No. ' + esc(x.code) + ' · ' : ''}${plural(x.load || 0, 'lesson')} a week</small>` : ''}</span>
+          ${kind === 'teachers' && String(x.code) === me ? '<span class="me-tag">★ Me</span>' : ''}
+          ${icon('chev', 'chev')}</button></li>`).join('') : `<li class="empty">Nothing matches.</li>`;
+    };
+    draw();
+    $('#q').addEventListener('input', e => { state.query[kind] = e.target.value; draw(); });
+    $$('#chips .chip').forEach(b => b.addEventListener('click', () => { state.grade = b.dataset.grade; $$('#chips .chip').forEach(x => x.classList.toggle('on', x === b)); draw(); }));
+  }
+
+  // ------------------------------------------------------------------ CURRENT LESSON — focus it once when a timetable opens
+  // Scrolls to the lesson in progress (or the next one) a single time per opening; after that the person scrolls freely.
+  function focusCurrent(key, layout) {
+    if (state.focusKey === key) return;                 // already focused for this opening: never snap back
+    state.focusKey = key;
+    if (!state.data || !IDX || !IDX.P) return;
+    const n = nowSlot();
+    const looking = layout === 'day' ? n.d === state.day : true;
+    setTimeout(() => {
+      if (state.focusKey !== key) return;
+      let msg = '';
+      if (n.status === 'noday') msg = 'No lessons today — showing the timetable from the start';
+      else if (n.status === 'after') msg = 'Lessons are over for today';
+      else if (n.status === 'before') msg = 'School has not started — showing the first lesson';
+      else if (n.status === 'between') msg = 'No lesson in progress — showing the next lesson';
+      if (!looking) { if (n.status === 'noday') toast(msg, 2600); return; }
+      let el = null;
+      if (layout === 'day') el = document.querySelector('.dayview li.now') || document.querySelector('.dayview li.next');
+      else el = document.querySelector('#wk td.now') || document.querySelector('#wk th.nowcol');
+      if (el && el.scrollIntoView) { try { el.scrollIntoView({ block: layout === 'day' ? 'center' : 'nearest', inline: 'center', behavior: 'auto' }); } catch (e) { el.scrollIntoView(); } }
+      if (msg) toast(msg, 2600);
+    }, 120);
+  }
+
+  // ------------------------------------------------------------------ VIEWER — one timetable at a time
+  function siblings(item) {
+    const list = ['classes', 'teachers', 'rooms'].includes(item.kind) ? listItems(item.kind) : B[item.kind];
+    return list.some(x => x.id === item.id) ? list : B[item.kind];
+  }
+  const isDesk = () => matchMedia('(pointer: fine)').matches && innerWidth >= 1000;
+  const fillOn = () => state.full || isDesk();
+  const effectiveLayout = () => state.layout === 'auto' ? (isDesk() ? 'week' : 'day') : state.layout;
+  function renderViewer(id) {
+    const item = IDX.byId[id], kind = item.kind;
+    const sib = siblings(item), idx = sib.findIndex(x => x.id === id);
+    const isMe = kind === 'teachers' && String(store.get('me')) === String(item.code);
+    const title = kind === 'teachers' ? teacherLabel(item) : item.name;
+    const sub = `${KIND[kind]?.title || 'Master'} · ${idx + 1} of ${sib.length}${kind === 'teachers' && item.name ? ' · No. ' + esc(item.code) : ''}`;
+    const titleHTML = kind === 'teachers' ? `<span class="tcode">${esc(item.code)}</span>${esc(title)}` : '';
+    if (state.day == null) state.day = Math.max(0, todayIndex());
+    const layout = effectiveLayout();
+    document.title = title + ' · Timetable';
+    app.innerHTML = `
+      ${topBar(title, sub, kind === 'teachers' ? `<button class="icon-btn star ${isMe ? 'on' : ''}" data-act="me" aria-label="My timetable">${icon(isMe ? 'star' : 'starO')}</button>` : '', titleHTML)}
+      <div class="vbar">
+        <button class="icon-btn fv-only fv-nav" data-act="prev" ${idx <= 0 ? 'disabled' : ''} aria-label="Previous">${icon('prev')}</button>
+        <span class="fv-only fv-title">${kind === 'teachers' ? `<i class="sc">${esc(item.code)}</i>` : ''}<b>${esc(kind === 'teachers' ? teacherLabel(item) : item.name)}</b><small>${idx + 1}/${sib.length}</small></span>
+        <button class="icon-btn fv-only fv-nav" data-act="next" ${idx >= sib.length - 1 ? 'disabled' : ''} aria-label="Next">${icon('next')}</button>
+        <div class="seg"><button class="${layout === 'day' ? 'on' : ''}" data-layout="day">Day</button><button class="${layout === 'week' ? 'on' : ''}" data-layout="week">Week</button></div>
+        <button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit full screen' : 'Rotate'}</span></button>
+        ${kind === 'teachers' ? `<button class="btn small ghost" data-go="analysis/${esc(item.id)}" aria-label="Profile">${icon('chart')} <span class="lbl">Profile</span></button>` : ''}<button class="btn small ghost" data-act="save" aria-label="Save">${icon('save')} <span class="lbl">Save</span></button>
+      </div>
+      <main class="tt" id="tt">${instBlock('small', ownerLine(kind, item))}${layout === 'day' ? dayView(item) : weekGrid(item)}${notesHTML(item)}</main>
+      <div class="vtools">
+        <button class="icon-btn" data-act="prev" ${idx <= 0 ? 'disabled' : ''} aria-label="Previous">${icon('prev')}</button>
+        <span class="vcur">${kind === 'teachers' ? `<i class="sc">${esc(item.code)}</i>` : ''}<b>${esc(kind === 'teachers' ? teacherLabel(item) : item.name)}</b><small>${idx + 1} of ${sib.length}</small></span>
+        <button class="icon-btn" data-act="next" ${idx >= sib.length - 1 ? 'disabled' : ''} aria-label="Next">${icon('next')}</button>
+      </div>${zoomCtl()}`;
+    if (layout === 'week') fitGrid();
+    focusCurrent('view:' + id + ':' + layout + ':' + state.day + ':' + (state.full ? 'f' : 'n'), layout);
+  }
+  // ROTATE = full-screen landscape, whatever the phone's auto-rotate setting. The whole week fits on the screen.
+  function applyForce() {
+    if (!state.full) return;
+    const portrait = innerHeight > innerWidth;
+    state.force = portrait; document.body.classList.toggle('force-land', portrait);
+  }
+  function releaseRotate() {
+    try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch { }
+    try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => { }); } catch { }
+    state.full = false; state.force = false; document.body.classList.remove('force-land', 'fullv');
+  }
+  async function toggleRotate() {
+    if (state.full) { releaseRotate(); render(); return; }
+    state.full = true; document.body.classList.add('fullv');          // same arrangement — only the viewing angle changes
+    // no browser full-screen request: it makes the browser show its own "… is full screen" notice
+    try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch { }
+    applyForce(); render();
+    setTimeout(() => { applyForce(); fitGrid(); }, 350);
+  }
+  const sibName = x => x.kind === 'teachers' ? `<i class="sc">${esc(x.code)}</i><span>${esc(teacherLabel(x))}</span>` : `<span>${esc(x.name)}</span>`;
+  const nameOf = x => x.kind === 'teachers' ? tLabel(x) : x.name;
+  function dayTabs(sel, attr = 'day') {
+    const today = todayIndex();
+    return `<div class="daytabs">${IDX.D.map((d, i) => `<button class="dc${i % 5} ${i === sel ? 'on' : ''}" data-${attr}="${i}">${esc(d.label.slice(0, 3))}${i === today ? '<i></i>' : ''}</button>`).join('')}</div>`;
+  }
+  function dayView(item) {
+    const d = state.day, n = nowSlot();
+    const rows = IDX.P.map((p, j) => {
+      const isNow = n.d === d && n.j === j && (n.status === 'lesson' || n.status === 'break');
+      const isNext = n.d === d && n.j === j && (n.status === 'before' || n.status === 'between');
+      const tag = isNow ? '<span class="curtag">● CURRENT</span>' : isNext ? '<span class="nexttag">NEXT</span>' : '';
+      if (p.brk) return `<li class="brk${isNow ? ' now' : ''}"><span>${esc(p.label)}${tag}</span><em>${esc(p.time)}</em></li>`;
+      const cls = (isNow ? 'now' : isNext ? 'next' : '') + (p.pm ? ' pm' : '');
+      if (isCont(item, d, j)) return `<li class="cont ${cls}"><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div><div class="pc">${tag}<span class="muted">↳ continues (double lesson)</span></div></li>`;
+      const c = cellAt(item, d, j), L = cellLines(item.kind, c, item.name);
+      return `<li class="${cls}${L ? ' has tap' : ''}${L && c.mv ? ' mvd' : ''}${L && c.bad ? ' badc' : ''}"${L && c.bad ? ` title="${esc(c.bad)}"` : ''}${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c, item.kind, item.name)}><div class="pt"><b>${esc(p.label)}</b><em>${esc(p.time)}</em></div>
+        <div class="pc">${tag}${L && c.bad ? `<span class="badtag">${esc(String(c.bad).split(' · ')[0])}</span>` : ''}${L && c.mv ? '<span class="mvtag">MOVED</span>' : ''}${L ? `<strong>${esc(L[0])}</strong>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${L[2] ? `<span class="tn">${esc(L[2])}</span>` : ''}${isDoubleStart(item, d, j) ? '<span class="dbl">double</span>' : ''}` : c === 'X' ? '<span class="muted">Not available</span>' : '<span class="freec">Free</span>'}</div></li>`;
+    }).join('');
+    return `${dayTabs(d)}<ul class="dayview dv-${item.kind}" style="zoom:${zmGet('Day')}">${rows}</ul><p class="swipe-hint"><b>Tap a lesson</b> to see ${item.kind === 'classes' ? 'the teacher\'s name and who can cover' : 'who can be there'} · swipe for the next ${item.kind === 'teachers' ? 'teacher' : item.kind === 'classes' ? 'class' : 'timetable'} · press <b>Rotate</b> for the whole week</p>`;
+  }
+  function headCells(d, n) {
+    return IDX.P.map((p, j) => `<th class="${p.brk ? 'b' : p.pm ? 'pmh' : 'amh'}${n.d === d && n.j === j ? ' nowcol' : ''}">${n.d === d && n.j === j && !p.brk ? '<span class="curtag sm">CURRENT</span>' : ''}${p.brk ? brkHead(p) : `<b>${esc(p.label)}</b><small>${esc(p.time)}</small>`}</th>`).join('');
+  }
+  // Breaks: name written downwards, one letter per line, sized to fit the column height
+  function stackText(label, nrows, rowH) {
+    const words = String(label || 'BREAK').toUpperCase().split(/\s+/).filter(Boolean);
+    const units = words.reduce((t, w) => t + w.length, 0) + (words.length - 1) * 0.6;
+    const px = Math.max(7, Math.min(13, Math.floor((nrows * rowH - 8) / (units * 1.12))));
+    return `<div class="stk" style="font-size:${px}px">${words.map(w => [...w].map(ch => `<i>${esc(ch)}</i>`).join('')).join('<i class="sp"></i>')}</div>`;
+  }
+  const brkTimes = p => { const t = String(p.time || '').split('-'); return t.length === 2 ? `<span class="bt"><b>${esc(t[0])}</b><i>–</i><b>${esc(t[1])}</b></span>` : ''; };
+  function brkHead(p) { return brkTimes(p) || `<span class="bt"><b>—</b></span>`; }
+  function rowCells(item, kind, d, n, ri = 0, nrows = 1, rowH = 46) {
+    let tds = '';
+    for (let j = 0; j < IDX.P.length; j++) {
+      if (IDX.P[j].brk) { if (ri === 0) tds += `<td class="b bl" rowspan="${nrows}">${stackText(IDX.P[j].label, nrows, rowH)}</td>`; continue; }
+      if (isCont(item, d, j)) continue;
+      let span = 1; while ((item.grid[d] || [])[j + span] === '^') span++;
+      const c = cellAt(item, d, j), L = cellLines(kind, c, item.name);
+      const nowc = n.d === d && n.j >= j && n.j < j + span ? ' now' : '';
+      tds += `<td${span > 1 ? ` colspan="${span}"` : ''}${L ? ` data-cv="${esc(item.id)}|${d}|${j}"` : ''}${hlStyle(c, kind, item.name)} class="${L ? 'l' : c === 'X' ? 'x' : 'f'}${IDX.P[j].pm ? ' pmc' : ''}${nowc}${L && c.mv ? ' mvd' : ''}${L && c.bad ? ' badc' : ''}"${L && c.bad ? ` title="${esc(c.bad)}"` : ''}>${nowc && n.status === 'lesson' ? '<span class="curtag sm">● CURRENT</span>' : ''}${L && c.bad ? `<span class="badtag">${esc(String(c.bad).split(' · ')[0])}</span>` : ''}${L && c.mv ? '<span class="mvtag">MOVED</span>' : ''}${L ? `<b>${esc(L[0])}</b>${L[1] ? `<small>${esc(L[1])}</small>` : ''}${L[2] ? `<small class="tn">${esc(L[2])}</small>` : ''}` : ''}</td>`;
+    }
+    return tds;
+  }
+  function weekGrid(item) {
+    const n = nowSlot();
+    const body = IDX.D.map((dd, d) => `<tr class="dc${d % 5} ${n.d === d ? 'today' : ''}"><th>${esc(dayShort(dd.label))}${n.d === d ? '<small>today</small>' : ''}</th>${rowCells(item, item.kind, d, n, d, IDX.D.length, 46)}</tr>`).join('');
+    return `<div class="gridwrap" id="gridwrap"><table class="wk" id="wk"><thead><tr><th></th>${headCells(-9, { d: -1 })}</tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+  // ZOOM: pinch with two fingers, or use the + / - / Fit buttons. Week and Master tables zoom the whole table (slide to look
+  // around); the Day list zooms its text. The size is remembered on this phone.
+  const zmGet = k => { const v = state['zm' + k]; return v == null ? (state['zm' + k] = Number(store.get('zm' + k, 1)) || 1) : v; };
+  const zKind = () => (route().name === 'master' || effectiveLayout() === 'week') ? 'Week' : 'Day';
+  function zoomCtl() { return `<div class="zoomctl" role="group" aria-label="Zoom"><button data-act="zoomOut" aria-label="Zoom out">−</button><button class="fit" data-act="zoomFit" aria-label="Fit to screen">Fit</button><button data-act="zoomIn" aria-label="Zoom in">+</button></div>`; }
+  function setZoom(v, noSave) {
+    const k = zKind(), lim = k === 'Week' ? [fillOn() ? 1 : 0.5, 3.5] : [0.85, 2.2];
+    v = Math.round(Math.max(lim[0], Math.min(lim[1], v)) * 100) / 100;
+    state['zm' + k] = v; if (!noSave) store.set('zm' + k, v);
+    if (k === 'Day') { const u = $('.dayview'); if (u) u.style.zoom = v; return; }
+    const wrap = $('#gridwrap'); if (!wrap) return;
+    const cx = (wrap.scrollLeft + wrap.clientWidth / 2) / (wrap.scrollWidth || 1), cy = (wrap.scrollTop + wrap.clientHeight / 2) / (wrap.scrollHeight || 1);
+    fitGrid();
+    wrap.scrollLeft = cx * wrap.scrollWidth - wrap.clientWidth / 2; wrap.scrollTop = cy * wrap.scrollHeight - wrap.clientHeight / 2;
+  }
+  function applyUserZoom() {
+    const wrap = $('#gridwrap'), tb = $('#wk'); const m = zmGet('Week'); if (!wrap || !tb || Math.abs(m - 1) < 0.01) return;
+    const W = wrap.clientWidth - 2, z0 = parseFloat(tb.style.zoom) || 1, z = z0 * m;
+    $$('tbody tr', tb).forEach(r => { r.style.height = ''; });
+    tb.style.zoom = z; tb.style.width = ''; tb.style.minWidth = (W / z) + 'px'; wrap.classList.add('scroll2');
+  }
+  function fitGrid() { fitGridBase(); applyUserZoom(); }
+  function fitGridBase() {
+    const wrap = $('#gridwrap'), tb = $('#wk'); if (!wrap || !tb) return;
+    tb.style.minWidth = ''; wrap.classList.remove('scroll2');
+    tb.style.zoom = 1; tb.style.width = '';
+    if (fillOn()) {                                     // whole week on one screen: fill the width, fit the height
+      const W = wrap.clientWidth - 2, H = wrap.clientHeight - 2, rows = $$('tbody tr', tb);
+      rows.forEach(r => { r.style.height = ''; });
+      const at = z => { tb.style.zoom = z; tb.style.width = (W / z) + 'px'; return tb.offsetHeight * z; };
+      let lo = 0.2, hi = 1.5;                            // largest size at which the whole week still fits
+      for (let i = 0; i < 12; i++) { const mid = (lo + hi) / 2; if (at(mid) <= H) lo = mid; else hi = mid; }
+      const MIN = state.full ? 0.6 : 0.85;                                  // never too small to read: below this, scroll instead
+      const scrollMode = () => { rows.forEach(r => { r.style.height = ''; }); tb.style.zoom = MIN; tb.style.width = ''; tb.style.minWidth = (W / MIN) + 'px'; wrap.classList.add('scroll2'); };
+      if (lo < MIN) { scrollMode(); return; }
+      wrap.classList.remove('scroll2'); tb.style.minWidth = '';
+      const z = lo, h = at(z);
+      if (h < H - 4 && rows.length) {                   // spread the rows to use the whole height
+        const extra = (H - h) / z / rows.length;
+        rows.forEach(r => { r.style.height = (r.offsetHeight + extra) + 'px'; });
+      }
+      // Safety check on what is really on screen: if any day or period is still cut off, switch to scrolling (both directions)
+      if (wrap.scrollHeight > wrap.clientHeight + 2 || wrap.scrollWidth > wrap.clientWidth + 2) scrollMode();
+      return;
+    }
+    const z = Math.min(1, (wrap.clientWidth - 2) / tb.scrollWidth);
+    if (z < 1) tb.style.zoom = Math.max(isLandscape() ? 0.55 : 0.62, z);
+  }
+
+  // ------------------------------------------------------------------ MASTER — day by day
+  function renderMaster() {
+    if (state.day == null) state.day = Math.max(0, todayIndex());
+    const d = state.day, n = nowSlot();
+    const list = B.master.filter(m => state.grade === 'all' || gradeOf(m.name) === state.grade);
+    const body = list.map((m, i) => `<tr class="${i > 0 && gradeOf(list[i - 1].name) !== gradeOf(m.name) ? 'gstart' : ''}"><th>${esc(m.name)}</th>${rowCells(m, 'master', d, n, i, list.length, 34)}</tr>`).join('');
+    document.title = 'Master · ' + dayLabel(d);
+    app.innerHTML = `${topBar('Master timetable', esc(dayLabel(d)) + ' · all classes', `<button class="btn small rot" data-act="rotate" aria-label="Rotate">${icon('rotate')} <span>${state.full ? 'Exit' : 'Rotate'}</span></button><button class="icon-btn" data-act="save" aria-label="Save">${icon('save')}</button>`)}
+      <div class="mbar">${dayTabs(d)}${gradeChips()}</div>
+      <main class="tt"><div class="gridwrap" id="gridwrap"><table class="wk master dc${d % 5}" id="wk"><thead><tr><th>Class</th>${headCells(d, n)}</tr></thead><tbody>${body}</tbody></table></div>
+      <p class="swipe-hint"><b>Tap a lesson</b> to see the teacher · slide the table sideways · swipe here for the next section (Labs &amp; Fields) · press Rotate for the whole day on one screen</p></main>${zoomCtl()}`;
+    if (fillOn() || Math.abs(zmGet('Week') - 1) > 0.01) fitGrid();
+    focusCurrent('master:' + state.grade + ':' + d + ':' + (state.full ? 'f' : 'n'), 'week');
+  }
+
+  // ------------------------------------------------------------------ FREE TEACHERS + FREE AFTERNOON
+  function slotPicker(sel) {
+    const n = nowSlot(), sd = (state.slot || {}).d;
+    const curJ = n.status === 'lesson' && n.d === sd ? n.j : -1;
+    return `<div class="chips periods">${IDX.lessons.map(j => `<button class="chip ${sel === j ? 'on' : ''}${curJ === j ? ' cur' : ''}" data-slot="${j}">${curJ === j ? '<em>CURRENT</em>' : ''}${esc(IDX.P[j].label)}<small>${esc(IDX.P[j].time)}</small></button>`).join('')}</div>`;
+  }
+  function renderFree() {
+    if (!state.slot) state.slot = defaultSlot();
+    const { d, j } = state.slot;
+    const tab = store.get('freeTab', 'now');
+    let inner;
+    if (tab === 'now') {
+      const free = freeAt(d, j).sort((a, b) => lessonsOnDay(a, d) - lessonsOnDay(b, d) || natural(a.code, b.code));
+      inner = `${dayTabs(d, 'sday')}${slotPicker(j)}
+        <h3 class="sect">${free.length} free · ${esc(dayLabel(d))} · ${esc(pLabel(j))}</h3>
+        <ul class="list">${free.map(t => `<li><button class="row" data-go="view/${t.id}"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span>
+          <span class="nm">${esc(teacherLabel(t))}<small>${plural(lessonsOnDay(t, d), 'lesson')} on ${esc(dayLabel(d))}</small></span>${icon('chev', 'chev')}</button></li>`).join('') || '<li class="empty">No teacher is free at this lesson.</li>'}</ul>`;
+    } else {
+      const me = meTeacher();
+      const byDay = IDX.D.map((_, dd) => B.teachers.map(t => ({ t, r: afternoonFree(t, dd) })).filter(x => x.r)
+        .sort((x, y) => (y.r.full - x.r.full) || (y.r.n - x.r.n) || natural(x.t.code, y.t.code)));
+      const none = B.teachers.filter(t => !IDX.D.some((_, dd) => afternoonFree(t, dd)));
+      const myFA = me ? IDX.D.map((_, dd) => dd).filter(dd => afternoonFree(me, dd)) : null;
+      const nm = t => esc(t.name || 'Tr ' + t.code);
+      inner = `${myFA ? `<div class="hint-box">Your free afternoons: <b>${myFA.length ? myFA.map(dayLabel).join(', ') : 'none this week'}</b></div>` : ''}
+        ${IDX.D.map((dd, i) => `<h3 class="sect dsect dc${i % 5}">${esc(dd.label)} afternoon · ${byDay[i].length} free</h3>
+          <div class="namegrid">${byDay[i].map(x => `<button data-go="view/${x.t.id}" class="${x.r.full ? 'full' : ''} ${me && me.id === x.t.id ? 'me' : ''}"><b>${nm(x.t)}</b><small>${esc(runLabel(x.r))}</small></button>`).join('') || '<span class="muted">Nobody</span>'}</div>`).join('')}
+        ${none.length ? `<h3 class="sect warn">No free afternoon this week · ${none.length}</h3><div class="namegrid">${none.map(t => `<button data-go="view/${t.id}"><b>${nm(t)}</b></button>`).join('')}</div>` : ''}
+        <p class="muted small">A free afternoon = no class at all from after lunch to the end of the day (${IDX.lessons.filter(j => IDX.P[j].pm).map(j => esc(IDX.P[j].label)).join(', ')}).</p>`;
+    }
+    app.innerHTML = `${topBar('Free teachers', 'At any lesson, and free afternoons')}
+      <div class="seg wide-seg"><button class="${tab === 'now' ? 'on' : ''}" data-freetab="now">Free at a lesson</button><button class="${tab === 'pm' ? 'on' : ''}" data-freetab="pm">Free afternoon</button></div>
+      <main class="page">${inner}</main>`;
+  }
+
+  // ------------------------------------------------------------------ FIND COVER
+  // By day & time: one grid, days against Lesson 1 … last lesson. Tap a box = that day and lesson.
+  // Days run across and lessons down; if there are too many lessons to fit the screen that way, the grid is laid
+  // out the other way round (lessons across, days down) and can be slid sideways.
+  function renderCoverByTime() {
+    if (state.day == null) state.day = Math.max(0, todayIndex());
+    const d = state.day, n = nowSlot(), LS = IDX.lessons, ND = IDX.D.length;
+    let j = state.coverTime != null && LS.includes(state.coverTime) ? state.coverTime : (n.d === d && LS.includes(n.j) ? n.j : LS[0]);
+    const free = B.teachers.filter(t => cellAt(t, d, j) === '').map(t => ({ t, same: false, knows: false, load: lessonsOnDay(t, d), pmfree: afternoonFree(t, d) }))
+      .sort((a, b) => a.load - b.load || natural(a.t.code, b.t.code));
+    const horiz = LS.length > 8 && LS.length > ND;
+    const lh = (k, jj) => `<div class="hd"><b>Lesson ${k + 1}</b><small>${esc(IDX.P[jj].time || '')}</small></div>`;
+    const dh = (i) => `<div class="hd dh ${i === todayIndex() ? 'today' : ''}"><b>${esc(IDX.D[i].label.slice(0, 3))}</b></div>`;
+    const cell = (i, jj) => { const c = freeAt(i, jj).length;
+      return `<button class="cvcell ${i === d && jj === j ? 'on' : ''} ${n.d === i && n.j === jj ? 'cur' : ''} ${c ? '' : 'zero'}" data-covercell="${i}|${jj}" aria-label="${esc(dayLabel(i))} lesson ${LS.indexOf(jj) + 1}: ${c} free">${c}</button>`; };
+    let grid;
+    if (!horiz) {
+      grid = `<div class="cvgrid" style="grid-template-columns:minmax(58px,auto) repeat(${ND},minmax(0,1fr))"><div></div>${IDX.D.map((_, i) => dh(i)).join('')}
+        ${LS.map((jj, k) => lh(k, jj) + IDX.D.map((_, i) => cell(i, jj)).join('')).join('')}</div>`;
+    } else {
+      grid = `<div class="cvscroll"><div class="cvgrid" style="grid-template-columns:minmax(52px,auto) repeat(${LS.length},minmax(48px,1fr))"><div></div>${LS.map((jj, k) => lh(k, jj)).join('')}
+        ${IDX.D.map((_, i) => dh(i) + LS.map(jj => cell(i, jj)).join('')).join('')}</div></div>`;
+    }
+    app.innerHTML = `${topBar('Find cover', 'By day and lesson')}
+      <div class="seg wide-seg"><button data-covermode="teacher">By teacher</button><button class="on" data-covermode="time">By day & time</button></div>
+      <main class="page">
+        <h3 class="sect">Tap a day and lesson <small class="muted">· the number is how many teachers are free</small></h3>${grid}
+        <h3 class="sect">${free.length} teacher${free.length === 1 ? ' is' : 's are'} free · ${esc(dayLabel(d))} · ${esc(pLabel(j))}</h3>
+        <ul class="list cvlist">${coverRows(free, d)}</ul>
+      </main>`;
+  }
+  function renderCover() {
+    if (store.get('coverMode', 'teacher') === 'time') return renderCoverByTime();
+    const me = meTeacher();
+    const who = state.coverPick ? null : (state.coverTeacher ? IDX.byId[state.coverTeacher] : me);
+    if (state.day == null) state.day = Math.max(0, todayIndex());
+    const d = state.day;
+    if (!who) {
+      app.innerHTML = `${topBar('Find cover', 'Who can stand in for a lesson')}
+        <div class="seg wide-seg"><button class="on" data-covermode="teacher">By teacher</button><button data-covermode="time">By day & time</button></div>
+        <main class="page"><p class="hint-box">Who needs someone to stand in? Choose the teacher.</p>
+        <div class="searchbox">${icon('search')}<input id="q" type="search" placeholder="Search by number or name…"></div>
+        <ul class="list" id="list"></ul></main>`;
+      const draw = () => { const q = ($('#q').value || '').toLowerCase(); $('#list').innerHTML = B.teachers.filter(t => `${t.code} ${t.name}`.toLowerCase().includes(q)).map(t => `<li><button class="row" data-covert="${t.id}"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span><span class="nm">${esc(teacherLabel(t))}</span>${icon('chev', 'chev')}</button></li>`).join(''); };
+      draw(); $('#q').addEventListener('input', draw); return;
+    }
+    const mine = IDX.lessons.filter(j => isLesson(cellAt(who, d, j)) && !isCont(who, d, j));
+    const sel = state.coverSlot != null && mine.includes(state.coverSlot) ? state.coverSlot : null;
+    let cands = '';
+    if (sel != null) {
+      const c = cellAt(who, d, sel), r = candidates(who, d, sel, c);
+      const A = swapModel().find(l => l.d === d && l.p === sel && l.t.includes(who.code));
+      cands = (A ? `<h3 class="sect">2. Swap — nobody needs to stand in</h3>${swapPartnersHTML(A, swapOptions(A))}` : '') +
+        `<h3 class="sect">${A ? '3. Or someone stands in' : '2. Who can be there'}</h3>${coverSplit(r.free, d, r.cls)}`;
+    }
+    app.innerHTML = `${topBar('Find cover', esc(tLabel(who)), `<button class="txt-btn light" data-act="coverWho">Change</button>`)}
+      <div class="seg wide-seg"><button class="on" data-covermode="teacher">By teacher</button><button data-covermode="time">By day & time</button></div>
+      <main class="page">
+        ${dayTabs(d)}
+        <h3 class="sect">1. Tap the lesson that needs someone</h3>
+        <div class="lessonpick">${mine.map(j => { const L = cellLines('teachers', cellAt(who, d, j)); return `<button class="${sel === j ? 'on' : ''}" data-coverslot="${j}"><b>${esc(IDX.P[j].label)}</b><small>${esc(IDX.P[j].time)}</small><span>${esc(L[0])}</span><em>${esc(L[1])}</em></button>`; }).join('') || `<p class="muted">No lessons on ${esc(dayLabel(d))}.</p>`}</div>
+        ${cands}
+      </main>`;
+  }
+
+  // ------------------------------------------------------------------ WHERE IS…
+  function renderWhere() {
+    if (!state.slot) state.slot = defaultSlot();
+    const { d, j } = state.slot;
+    const n = nowSlot();
+    app.innerHTML = `${topBar('Where is…?', 'Which class a teacher is in')}
+      <main class="page">
+        <div class="searchbox">${icon('search')}<input id="q" type="search" autocomplete="off" placeholder="Teacher number or name…" value="${esc(state.query.where || '')}"></div>
+        ${dayTabs(d, 'sday')}${slotPicker(j)}
+        <h3 class="sect">${esc(dayLabel(d))} · ${esc(pLabel(j))}${n.d === d && n.j === j && n.status === 'lesson' ? ' <span class="curtag">● CURRENT LESSON</span>' : ''}</h3>
+        <ul class="list" id="list"></ul>
+      </main>`;
+    const draw = () => {
+      const q = (state.query.where || '').toLowerCase();
+      $('#list').innerHTML = B.teachers.filter(t => !q || `${t.code} ${t.name}`.toLowerCase().includes(q)).map(t => {
+        const c = cellAt(t, d, j), L = cellLines('teachers', c);
+        const cls = isLesson(c) ? classesText(c.c) : '', subj = isLesson(c) ? [c.s, c.g].filter(Boolean).join(' ') : '';
+        return `<li><button class="row wrow" data-go="view/${t.id}"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span>
+          <span class="nm"><b class="wname">${esc(teacherLabel(t))}</b>
+          ${isLesson(c) ? `<span class="wh"><i class="wcls">${icon('classes')}${esc(cls || '—')}</i><i class="wsub"${hlStyle(c, 'teachers')}>${esc(subj || 'Lesson')}</i>${c.r ? `<i class="wroom">${esc(c.r)}</i>` : ''}</span>`
+            : c === 'X' ? '<span class="wh"><i class="wx">Not available</i></span>' : '<span class="wh"><i class="wfree">Free</i></span>'}</span></button></li>`;
+      }).join('') || '<li class="empty">No teacher matches.</li>';
+    };
+    draw();
+    $('#q').addEventListener('input', e => { state.query.where = e.target.value; draw(); });
+  }
+
+
+  // ------------------------------------------------------------------ STAFF ANALYSIS (principal's view)
+  const baseSubj = x => String(x || '').replace(/\s*\d+$/, '').trim() || 'Unnamed';
+  const classOrder = () => { const m = {}; B.classes.forEach((c, i) => { m[c.name] = i; }); return m; };
+  function analyse(t) {
+    if (t._an) return t._an;
+    const subj = {}, cls = {}, perDay = IDX.D.map(() => 0); let total = 0, doubles = 0;
+    IDX.D.forEach((_, d) => IDX.lessons.forEach(j => {
+      const c = cellAt(t, d, j); if (!isLesson(c)) return;
+      total++; perDay[d]++;
+      const sn = baseSubj(c.s);
+      const S = subj[sn] || (subj[sn] = { name: sn, periods: 0, doubles: 0, classes: {} });
+      S.periods++;
+      if (!isCont(t, d, j) && isDoubleStart(t, d, j)) { S.doubles++; doubles++; }
+      String(c.c || '').split(',').map(x => x.trim()).filter(Boolean).forEach(x => {
+        S.classes[x] = (S.classes[x] || 0) + 1;
+        const C = cls[x] || (cls[x] = { name: x, periods: 0, subjects: {} });
+        C.periods++; C.subjects[sn] = (C.subjects[sn] || 0) + 1;
+      });
+    }));
+    const ord = classOrder(), rank = n => ord[n] ?? 99999;
+    const subjects = Object.values(subj).sort((a, b) => b.periods - a.periods || natural(a.name, b.name));
+    subjects.forEach(S => { S.list = Object.entries(S.classes).sort((a, b) => rank(a[0]) - rank(b[0])); });
+    const classes = Object.values(cls).sort((a, b) => rank(a.name) - rank(b.name));
+    return (t._an = { total, doubles, perDay, subjects, classes });
+  }
+  const hueStyle = n => ` style="--hl:${subjHue(n)}"`;
+  const clsText = list => list.map(([n, k]) => `${esc(n)} <i>(${k})</i>`).join(', ') || '<span class="muted">—</span>';
+  function subjectIndex() {
+    const m = {};
+    B.teachers.forEach(t => analyse(t).subjects.forEach(S => {
+      const e = m[S.name] || (m[S.name] = { name: S.name, periods: 0, teachers: [], classes: new Set() });
+      e.periods += S.periods; e.teachers.push({ t, S }); S.list.forEach(([n]) => e.classes.add(n));
+    }));
+    return Object.values(m).sort((a, b) => natural(a.name, b.name));
+  }
+  function renderAnalysis() {
+    const A = state.an, rows = B.teachers.map(t => ({ t, a: analyse(t) }));
+    const loads = rows.map(r => r.a.total), max = Math.max(1, ...loads), sum = loads.reduce((x, y) => x + y, 0);
+    const avg = rows.length ? Math.round(sum / rows.length * 10) / 10 : 0;
+    const subs = subjectIndex();
+    document.title = 'Staff analysis';
+    app.innerHTML = `${topBar('Staff analysis', 'Subjects, classes and teaching load', `<button class="icon-btn" data-act="csv" aria-label="Download Excel">${icon('save')}</button>`)}
+      <main class="page wide">
+        <div class="stats"><div><b>${rows.length}</b><small>teachers</small></div><div><b>${sum}</b><small>lessons / week</small></div><div><b>${avg}</b><small>average load</small></div><div><b>${max}</b><small>highest load</small></div></div>
+        <div class="seg wide-seg four"><button class="${A.tab === 'teachers' ? 'on' : ''}" data-antab="teachers">Teachers</button><button class="${A.tab === 'subjects' ? 'on' : ''}" data-antab="subjects">Subjects</button><button class="${A.tab === 'sessions' ? 'on' : ''}" data-antab="sessions">Sessions</button><button class="${A.tab === 'classes' ? 'on' : ''}" data-antab="classes">Classes</button></div>
+        <div class="anbtns"><button class="btn small" data-act="csv">${icon('save')} Teachers (CSV)</button><button class="btn small" data-act="printReport">${icon('print')} Print staff report</button><button class="btn small ghost" data-act="print">${icon('print')} Print this view</button></div>
+        <div id="anbody"></div>
+      </main>`;
+    const draw = () => {
+      const box = $('#anbody'); if (!box) return;
+      if (A.tab === 'sessions') return drawSessions(box);
+      if (A.tab === 'classes') return drawClassList(box);
+      if (A.tab === 'subjects') {
+        box.innerHTML = `<div class="searchbox">${icon('search')}<input id="aq" type="search" placeholder="Search a subject…" value="${esc(A.q)}"></div><div id="alist"></div>`;
+        const dr = () => {
+          const q = (A.q || '').toLowerCase();
+          $('#alist').innerHTML = subs.filter(x => !q || x.name.toLowerCase().includes(q)).map(x => `<section class="subcard"${hueStyle(x.name)}>
+            <h3>${esc(x.name)}<span>${x.periods} lessons / week · ${x.teachers.length} teacher${x.teachers.length === 1 ? '' : 's'}</span></h3>
+            <table class="atable"><thead><tr><th>Teacher</th><th>Classes (lessons)</th><th>Lessons</th></tr></thead><tbody>${x.teachers.sort((a, b) => b.S.periods - a.S.periods).map(({ t, S }) => `<tr data-go="analysis/${esc(t.id)}"><td><b>${esc(teacherLabel(t))}</b></td><td>${clsText(S.list)}</td><td class="n">${S.periods}</td></tr>`).join('')}</tbody></table></section>`).join('') || '<p class="muted">Nothing matches.</p>';
+        };
+        dr(); $('#aq').addEventListener('input', e => { A.q = e.target.value; dr(); });
+        return;
+      }
+      box.innerHTML = `<div class="searchbox">${icon('search')}<input id="aq" type="search" placeholder="Search teacher or subject…" value="${esc(A.q)}"></div>
+        <div class="chips" id="schips">${['all', ...subs.map(x => x.name)].map(n => `<button class="chip ${A.subj === n ? 'on' : ''}" data-s="${esc(n)}">${n === 'all' ? 'All subjects' : esc(n)}</button>`).join('')}</div>
+        <div class="sortrow">Sort by <select id="asort"><option value="name">Teacher number / name</option><option value="high">Load: highest first</option><option value="low">Load: lowest first</option><option value="subj">Main subject</option></select></div>
+        <div id="alist"></div>`;
+      $('#asort').value = A.sort;
+      const dr = () => {
+        const q = (A.q || '').toLowerCase();
+        let list = rows.filter(r => (A.subj === 'all' || r.a.subjects.some(S => S.name === A.subj)) &&
+          (!q || `${r.t.code} ${r.t.name} ${r.a.subjects.map(S => S.name).join(' ')}`.toLowerCase().includes(q)));
+        list = list.slice().sort((x, y) => A.sort === 'high' ? y.a.total - x.a.total : A.sort === 'low' ? x.a.total - y.a.total :
+          A.sort === 'subj' ? natural(x.a.subjects[0]?.name || 'zzz', y.a.subjects[0]?.name || 'zzz') || natural(x.t.code, y.t.code) : natural(x.t.code, y.t.code));
+        $('#alist').innerHTML = list.map(({ t, a }) => `<button class="acard" data-go="analysis/${esc(t.id)}">
+          <div class="ahead"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span><span class="nm"><b>${esc(teacherLabel(t))}</b><small>${t.name ? 'No. ' + esc(t.code) + ' · ' : ''}${a.subjects.length} subject${a.subjects.length === 1 ? '' : 's'} · ${a.classes.length} class${a.classes.length === 1 ? '' : 'es'}</small></span>
+          <span class="load"><b>${a.total}</b><small>lessons/wk</small></span></div>
+          <div class="bar"><i style="width:${Math.round(a.total / max * 100)}%"></i></div>
+          <div class="asubj">${a.subjects.map(S => `<em${hueStyle(S.name)}>${esc(S.name)} <b>${S.periods}</b></em>`).join('') || '<span class="muted">No lessons</span>'}</div>
+          <div class="acls"><b>Classes:</b> ${a.classes.map(C => esc(C.name)).join(', ') || '—'}</div></button>`).join('') || '<p class="muted">No teacher matches.</p>';
+      };
+      dr();
+      $('#aq').addEventListener('input', e => { A.q = e.target.value; dr(); });
+      $('#asort').addEventListener('change', e => { A.sort = e.target.value; dr(); });
+      $$('#schips .chip').forEach(b => b.addEventListener('click', () => { A.subj = b.dataset.s; $$('#schips .chip').forEach(x => x.classList.toggle('on', x === b)); dr(); }));
+    };
+    draw();
+    $$('[data-antab]').forEach(b => b.addEventListener('click', () => { A.tab = b.dataset.antab; A.q = ''; renderAnalysis(); }));
+  }
+
+  // ------------------------------------------------------------------ SESSIONS per subject, FORM-wise and CLASS-wise + CLASS profiles
+  const tShort = cd => { const t = IDX.tByCode[cd]; return t ? (t.name || (/^\d+$/.test(cd) ? 'Tr ' + cd : cd)) : cd; };
+  function classModel() {
+    if (IDX.cm) return IDX.cm;
+    const subjSet = new Set();
+    const classes = B.classes.map(c => {
+      const subj = {}; let total = 0;
+      IDX.D.forEach((_, d) => IDX.lessons.forEach(j => {
+        const c0 = cellAt(c, d, j); if (!isLesson(c0)) return;
+        total++; const sn = baseSubj(c0.s); subjSet.add(sn);
+        const S = subj[sn] || (subj[sn] = { name: sn, periods: 0, teachers: {} }); S.periods++;
+        String(c0.t || '').split(',').map(x => x.trim()).filter(Boolean).forEach(cd => { S.teachers[cd] = (S.teachers[cd] || 0) + 1; });
+      }));
+      return { item: c, id: c.id, name: c.name, grade: gradeOf(c.name), subj, total };
+    });
+    const grades = [...IDX.grades]; if (classes.some(c => !c.grade)) grades.push('');
+    const groups = grades.map(g => ({ g, label: g ? 'Grade ' + g : 'Other', cls: classes.filter(c => c.grade === g) })).filter(x => x.cls.length);
+    return (IDX.cm = { classes, groups, subjects: [...subjSet].sort(natural) });
+  }
+  const sess = (c, sn) => c.subj[sn] ? c.subj[sn].periods : 0;
+  const teachersOf = (c, sn, withN) => { const S = c.subj[sn]; if (!S) return '<span class="muted">—</span>'; const e = Object.entries(S.teachers).sort((a, b) => b[1] - a[1]);
+    return e.map(([cd, n]) => `<b>${esc(tShort(cd))}</b>${withN && e.length > 1 ? ` <i>(${n})</i>` : ''}`).join(', ') || '<span class="muted">not assigned</span>'; };
+  function drawSessions(box) {
+    const A = state.an, M = classModel();
+    if (A.sub !== 'all' && !M.subjects.includes(A.sub)) A.sub = 'all';
+    box.innerHTML = `<div class="seg wide-seg"><button class="${A.sm === 'form' ? 'on' : ''}" data-sm="form">Form-wise</button><button class="${A.sm === 'class' ? 'on' : ''}" data-sm="class">Class-wise</button></div>
+      <div class="chips" id="schips">${['all', ...M.subjects].map(n => `<button class="chip ${A.sub === n ? 'on' : ''}" data-sub="${esc(n)}">${n === 'all' ? 'All subjects' : esc(n)}</button>`).join('')}</div>
+      <div class="anbtns"><button class="btn small" data-act="csv2">${icon('save')} Sessions per class (CSV)</button></div>
+      <div id="sbody" class="gridwrap2"></div>`;
+    const body = $('#sbody'), sn = A.sub;
+    const head = '<p class="muted small keyline"><b class="redkey">Red</b> = some classes in that form have fewer sessions than the others · numbers are lessons per week (a double counts as 2)</p>';
+    if (sn === 'all' && A.sm === 'form') {
+      body.innerHTML = `<table class="atable mx"><thead><tr><th>Subject</th>${M.groups.map(x => `<th class="c">${esc(x.label)}<small>${x.cls.length} class${x.cls.length > 1 ? 'es' : ''}</small></th>`).join('')}</tr></thead><tbody>
+        ${M.subjects.map(n => `<tr><th class="sj"${hueStyle(n)}>${esc(n)}</th>${M.groups.map(({ cls }) => {
+          const v = cls.map(c => sess(c, n)), mx = Math.max(...v), mn = Math.min(...v);
+          if (!mx) return '<td class="z">–</td>';
+          return `<td class="c ${mn < mx ? 'warn' : ''}" data-asub="${esc(n)}"><b>${mn < mx ? mn + '–' + mx : mx}</b></td>`; }).join('')}</tr>`).join('')}
+        <tr class="tot"><td>All lessons / week</td>${M.groups.map(({ cls }) => { const v = cls.map(c => c.total); const mn = Math.min(...v), mx = Math.max(...v); return `<td class="c">${mn < mx ? mn + '–' + mx : mx}</td>`; }).join('')}</tr></tbody></table>${head}<p class="muted small">Tap a number to see that subject class by class.</p>`;
+    } else if (sn === 'all') {
+      body.innerHTML = `<table class="atable mx"><thead><tr><th rowspan="2">Subject</th>${M.groups.map((x, gi) => `<th class="c gs g${gi % 2}" colspan="${x.cls.length}">${esc(x.label)}</th>`).join('')}<th rowspan="2" class="c">Total</th></tr>
+        <tr>${M.groups.map((x, gi) => x.cls.map((c, k) => `<th class="c ${k === 0 ? 'gs' : ''} g${gi % 2}">${esc(c.name)}</th>`).join('')).join('')}</tr></thead><tbody>
+        ${M.subjects.map(n => `<tr><th class="sj"${hueStyle(n)}>${esc(n)}</th>${M.groups.map((x, gi) => { const mx = Math.max(...x.cls.map(c => sess(c, n)));
+          return x.cls.map((c, k) => { const v = sess(c, n); const w = mx > 0 && v < mx; return `<td class="c ${k === 0 ? 'gs' : ''} g${gi % 2} ${w ? 'warn' : ''}" data-asub="${esc(n)}">${v ? `<b>${v}</b>` : w ? '<b>0</b>' : '–'}</td>`; }).join(''); }).join('')}
+          <td class="c tot2"><b>${M.classes.reduce((a, c) => a + sess(c, n), 0)}</b></td></tr>`).join('')}
+        <tr class="tot"><td>All lessons</td>${M.groups.map(x => x.cls.map((c, k) => `<td class="c ${k === 0 ? 'gs' : ''}">${c.total}</td>`).join('')).join('')}<td class="c">${M.classes.reduce((a, c) => a + c.total, 0)}</td></tr></tbody></table>${head}`;
+    } else if (A.sm === 'form') {
+      body.innerHTML = `<h3 class="sect">${esc(sn)} · form by form</h3><table class="atable"><thead><tr><th>Form</th><th>Classes</th><th>Sessions per class</th><th>Total sessions</th><th>Teachers (classes)</th></tr></thead><tbody>
+        ${M.groups.map(({ label, cls }) => { const v = cls.map(c => sess(c, sn)), mx = Math.max(...v), mn = Math.min(...v);
+          const tm = {}; cls.forEach(c => Object.keys((c.subj[sn] || { teachers: {} }).teachers).forEach(cd => (tm[cd] = tm[cd] || []).push(c.name)));
+          const less = cls.filter((c, i) => v[i] < mx).map(c => `${esc(c.name)} (${sess(c, sn)})`);
+          return `<tr class="${mn < mx ? 'warnrow' : ''}"><th class="gh">${esc(label)}</th><td>${cls.map(c => esc(c.name)).join(', ')}</td>
+          <td class="c"><b>${mx ? (mn < mx ? mn + '–' + mx : mx) : '–'}</b>${less.length && mx ? `<small class="redt">Less: ${less.join(', ')}</small>` : ''}</td><td class="c"><b>${v.reduce((a, b) => a + b, 0)}</b></td>
+          <td>${Object.entries(tm).map(([cd, cn]) => `<b>${esc(tShort(cd))}</b> <i>(${cn.map(esc).join(', ')})</i>`).join('<br>') || '<span class="muted">—</span>'}</td></tr>`; }).join('')}</tbody></table>${head}`;
+    } else {
+      body.innerHTML = `<h3 class="sect">${esc(sn)} · teachers class by class</h3><table class="atable"><thead><tr><th>Form</th><th>Class</th><th>Sessions</th><th>Teacher(s)</th><th>Status</th></tr></thead><tbody>
+        ${M.groups.map(({ label, cls }) => { const mx = Math.max(...cls.map(c => sess(c, sn)));
+          return cls.map((c, k) => { const v = sess(c, sn), w = mx > 0 && v < mx;
+            return `<tr class="${k === 0 ? 'gs' : ''} ${w ? 'warnrow' : ''}">${k === 0 ? `<th class="gh" rowspan="${cls.length}">${esc(label)}</th>` : ''}<td><b>${esc(c.name)}</b></td><td class="c"><b>${v || '–'}</b></td><td>${teachersOf(c, sn, true)}</td>
+            <td>${!mx ? '<span class="muted">not taught</span>' : v === mx ? '<span class="okt">✓ full</span>' : `<span class="redt">⚠ ${v ? (mx - v) + ' less than rest of form' : 'not on timetable'}</span>`}</td></tr>`; }).join(''); }).join('')}
+        <tr class="tot"><td colspan="2">Total sessions</td><td class="c">${M.classes.reduce((a, c) => a + sess(c, sn), 0)}</td><td colspan="2"></td></tr></tbody></table>${head}`;
+    }
+    $$('[data-sm]', box).forEach(b => b.addEventListener('click', () => { A.sm = b.dataset.sm; drawSessions(box); }));
+    $$('[data-sub]', box).forEach(b => b.addEventListener('click', () => { A.sub = b.dataset.sub; drawSessions(box); }));
+    $$('[data-asub]', box).forEach(b => b.addEventListener('click', () => { A.sub = b.dataset.asub; drawSessions(box); window.scrollTo(0, 0); }));
+  }
+  function drawClassList(box) {
+    const A = state.an, M = classModel();
+    box.innerHTML = `<div class="chips" id="gchips">${['all', ...IDX.grades].map(g => `<button class="chip ${A.gr === g ? 'on' : ''}" data-g="${esc(g)}">${g === 'all' ? 'All' : 'Grade ' + esc(g)}</button>`).join('')}</div><div id="alist"></div>`;
+    const dr = () => {
+      const list = M.classes.filter(c => A.gr === 'all' || c.grade === A.gr);
+      $('#alist').innerHTML = list.map(c => { const subs = Object.values(c.subj).sort((a, b) => b.periods - a.periods);
+        const tset = new Set(); subs.forEach(S => Object.keys(S.teachers).forEach(x => tset.add(x)));
+        return `<button class="acard" data-go="analysis/${esc(c.id)}"><div class="ahead"><span class="av av-classes">${esc(String(c.name).replace(/\s+/g, '').slice(0, 4))}</span>
+          <span class="nm"><b>Class ${esc(c.name)}</b><small>${subs.length} subjects · ${tset.size} teachers</small></span><span class="load"><b>${c.total}</b><small>lessons/wk</small></span></div>
+          <div class="asubj">${subs.map(S => `<em${hueStyle(S.name)}>${esc(S.name)} <b>${S.periods}</b></em>`).join('')}</div></button>`; }).join('') || '<p class="muted">No classes.</p>';
+    };
+    dr(); $$('#gchips .chip').forEach(b => b.addEventListener('click', () => { A.gr = b.dataset.g; $$('#gchips .chip').forEach(x => x.classList.toggle('on', x === b)); dr(); }));
+  }
+  function renderClassProfile(id) {
+    const M = classModel(), c = M.classes.find(x => x.id === id), grp = M.classes.filter(x => x.grade === c.grade);
+    document.title = 'Class ' + c.name;
+    const names = [...new Set([...Object.keys(c.subj), ...grp.flatMap(x => Object.keys(x.subj))])];
+    const rows = names.map(n => { const v = sess(c, n), mx = Math.max(...grp.map(x => sess(x, n))); return { n, v, mx }; }).sort((a, b) => (b.v - a.v) || natural(a.n, b.n));
+    const tm = {}; Object.values(c.subj).forEach(S => Object.entries(S.teachers).forEach(([cd, k]) => { const e = tm[cd] || (tm[cd] = { subs: {}, total: 0 }); e.subs[S.name] = k; e.total += k; }));
+    const trs = Object.entries(tm).sort((a, b) => b[1].total - a[1].total);
+    const flags = rows.filter(r => r.v < r.mx).length;
+    app.innerHTML = `${topBar('Class ' + c.name, 'Teachers and subjects' + (c.grade ? ' · Grade ' + esc(c.grade) : ''), `<button class="icon-btn" data-act="print" aria-label="Print">${icon('print')}</button>`)}
+      <main class="page wide">
+        <div class="stats big"><div class="hi"><b>${c.total}</b><small>lessons / week</small></div><div><b>${Object.keys(c.subj).length}</b><small>subjects</small></div><div><b>${trs.length}</b><small>teachers</small></div><div class="${flags ? 'bad' : ''}"><b>${flags}</b><small>fewer than form</small></div></div>
+        <h3 class="sect">Subjects, teachers and sessions</h3>
+        <div class="gridwrap2"><table class="atable"><thead><tr><th>Subject</th><th>Teacher(s)</th><th>Sessions</th><th>Other classes in form</th></tr></thead><tbody>
+          ${rows.map(r => `<tr${hueStyle(r.n)} class="sr ${r.v < r.mx ? 'warnrow' : ''}"><td><b>${esc(r.n)}</b></td><td>${teachersOf(c, r.n, true)}</td><td class="n">${r.v}</td>
+            <td>${r.v < r.mx ? `<span class="redt">⚠ ${r.v ? (r.mx - r.v) + ' fewer than' : 'missing, others have'} ${r.mx}</span>` : '<span class="okt">✓</span>'}</td></tr>`).join('')}
+          <tr class="tot"><td colspan="2">TOTAL</td><td class="n">${c.total}</td><td></td></tr></tbody></table></div>
+        <h3 class="sect">All teachers of this class</h3>
+        <div class="gridwrap2"><table class="atable"><thead><tr><th>Teacher</th><th>Subjects taught (sessions)</th><th>Sessions</th></tr></thead><tbody>
+          ${trs.map(([cd, e]) => { const t = IDX.tByCode[cd]; return `<tr ${t ? `data-go="analysis/${esc(t.id)}"` : ''}><td><b>${esc(tShort(cd))}</b></td><td>${Object.entries(e.subs).map(([n, k]) => `<em class="sx"${hueStyle(n)}>${esc(n)} <b>${k}</b></em>`).join(' ')}</td><td class="n">${e.total}</td></tr>`; }).join('') || '<tr><td colspan="3" class="muted">No teachers found</td></tr>'}</tbody></table></div>
+        <div class="anbtns"><button class="btn" data-go="view/${esc(c.id)}">Open class timetable</button><button class="btn ghost" data-go="analysis">Back to analysis</button></div>
+      </main>`;
+  }
+  function downloadSessionsCsv() {
+    const M = classModel(), q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const out = [['Subject', 'Grade', 'Class', 'Sessions per week', 'Most sessions in this grade', 'Teachers'].map(q).join(',')];
+    M.subjects.forEach(n => M.groups.forEach(({ g, cls }) => { const mx = Math.max(...cls.map(c => sess(c, n))); if (!mx) return;
+      cls.forEach(c => out.push([n, g, c.name, sess(c, n), mx, Object.keys((c.subj[n] || { teachers: {} }).teachers).map(tShort).join(' / ')].map(q).join(','))); }));
+    const blob = new Blob(['\ufeff' + out.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${(state.data.school?.name || 'School').replace(/[^\w\- ]+/g, '').trim()}-sessions-per-class.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Saved to your Downloads ✓');
+  }
+
+  function renderProfile(id) {
+    const t = IDX.byId[id], a = analyse(t), max = Math.max(1, ...a.perDay);
+    document.title = teacherLabel(t) + ' · Profile';
+    const busy = a.perDay.indexOf(Math.max(...a.perDay));
+    app.innerHTML = `${topBar(teacherLabel(t), 'Teaching profile' + (t.name ? ' · No. ' + esc(t.code) : ''), `<button class="icon-btn" data-act="print" aria-label="Print">${icon('print')}</button>`)}
+      <main class="page wide">
+        <div class="stats big"><div class="hi"><b>${a.total}</b><small>total lessons / week</small></div><div><b>${a.subjects.length}</b><small>subjects</small></div><div><b>${a.classes.length}</b><small>classes</small></div><div><b>${a.doubles}</b><small>double lessons</small></div></div>
+        <h3 class="sect">Subjects taught · lessons per subject</h3>
+        <div class="gridwrap2"><table class="atable"><thead><tr><th>Subject</th><th>Classes (lessons each)</th><th>Lessons</th><th>Doubles</th></tr></thead><tbody>
+          ${a.subjects.map(S => `<tr${hueStyle(S.name)} class="sr"><td><b>${esc(S.name)}</b></td><td>${clsText(S.list)}</td><td class="n">${S.periods}</td><td class="n">${S.doubles || '–'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No lessons</td></tr>'}
+          <tr class="tot"><td colspan="2">TOTAL LOAD</td><td class="n">${a.total}</td><td class="n">${a.doubles || '–'}</td></tr></tbody></table></div>
+        <h3 class="sect">Classes taught</h3>
+        <div class="gridwrap2"><table class="atable"><thead><tr><th>Class</th><th>Subjects (lessons)</th><th>Lessons</th></tr></thead><tbody>
+          ${a.classes.map(C => `<tr><td><b>${esc(C.name)}</b></td><td>${Object.entries(C.subjects).map(([n, k]) => `<em class="sx"${hueStyle(n)}>${esc(n)} <b>${k}</b></em>`).join(' ')}</td><td class="n">${C.periods}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">No classes</td></tr>'}</tbody></table></div>
+        <h3 class="sect">Load per day</h3>
+        <div class="daybars">${IDX.D.map((dd, i) => `<div class="dc${i % 5}"><span>${esc(dd.label.slice(0, 3))}</span><i style="height:${Math.round(a.perDay[i] / max * 80) + 4}px"></i><b>${a.perDay[i]}</b></div>`).join('')}</div>
+        <p class="muted small">Busiest day: <b>${esc(dayLabel(busy))}</b> (${a.perDay[busy]} lessons). Double lessons count as 2 lessons.</p>
+        <div class="anbtns"><button class="btn" data-go="view/${esc(t.id)}">Open timetable</button><button class="btn ghost" data-go="analysis">All teachers</button></div>
+      </main>`;
+  }
+  // ------------------------------------------------------------------ PRINT: staff analysis report (A4, all teachers in one table)
+  function printStaffReport() {
+    if (!state.data || !B) return;
+    const A = state.an || {};
+    const q = (A.q || '').toLowerCase();
+    let rows = B.teachers.map(t => ({ t, a: analyse(t) })).filter(r => r.a.total > 0 || true);
+    const tab = A.tab === 'teachers' || !A.tab;
+    if (tab) {
+      if (A.subj && A.subj !== 'all') rows = rows.filter(r => r.a.subjects.some(S => S.name === A.subj));
+      if (q) rows = rows.filter(r => `${r.t.code} ${r.t.name} ${r.a.subjects.map(S => S.name).join(' ')}`.toLowerCase().includes(q));
+    }
+    rows.sort((x, y) => A.sort === 'high' ? y.a.total - x.a.total : A.sort === 'low' ? x.a.total - y.a.total :
+      A.sort === 'subj' ? natural(x.a.subjects[0]?.name || 'zzz', y.a.subjects[0]?.name || 'zzz') || natural(x.t.code, y.t.code) : natural(x.t.code, y.t.code));
+    const loads = rows.map(r => r.a.total), sum = loads.reduce((s, v) => s + v, 0);
+    const avg = rows.length ? Math.round(sum / rows.length * 10) / 10 : 0, max = loads.length ? Math.max(...loads) : 0;
+    const sch = state.data.school || {};
+    const filt = tab && ((A.subj && A.subj !== 'all') || q) ? `Filter: ${[(A.subj && A.subj !== 'all') ? A.subj : '', q ? '“' + A.q + '”' : ''].filter(Boolean).join(' · ')}` : 'All teachers';
+    const dayHead = IDX.D.map(d => `<th class="n">${esc(String(d.label).slice(0, 3))}</th>`).join('');
+    const body = rows.map(({ t, a }) => `<tr>
+      <td class="n">${esc(t.code)}</td><td><b>${esc(t.name || ('Teacher ' + t.code))}</b></td>
+      <td>${a.subjects.map(S => `${esc(S.name)} (${S.periods})`).join(', ') || '—'}</td>
+      <td>${a.classes.map(C => esc(C.name)).join(', ') || '—'}</td>
+      ${a.perDay.map(v => `<td class="n">${v || ''}</td>`).join('')}
+      <td class="n tot">${a.total}</td><td class="n">${a.doubles || ''}</td></tr>`).join('');
+    const html = `<header class="prh"><h1>${esc(sch.name || 'School')}</h1>
+      <h2>Staff analysis — teaching load</h2>
+      <p>${esc(B.institution || sch.institution || '')}${state.data.ttName ? ' · ' + esc(state.data.ttName) : ''}</p>
+      <p class="prm">Report date: ${esc(new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }))} · Timetable updated: ${esc(fmtDate(B.published || sch.updated))} · ${esc(filt)}</p></header>
+      <div class="prs"><span><b>${rows.length}</b> teachers</span><span><b>${sum}</b> lessons / week</span><span><b>${avg}</b> average load</span><span><b>${max}</b> highest load</span></div>
+      <table class="prt"><thead><tr><th class="n">No.</th><th>Teacher</th><th>Subjects (lessons / week)</th><th>Classes</th>${dayHead}<th class="n">Total</th><th class="n">Dbl</th></tr></thead><tbody>${body}</tbody></table>
+      <footer class="prf">${esc(BRAND_LINE)} · Lessons per day columns show how many lessons each teacher has on that day. “Dbl” = double lessons.</footer>`;
+    let host = document.getElementById('printreport');
+    if (host) host.remove();
+    host = document.createElement('div'); host.id = 'printreport'; host.innerHTML = html;
+    document.body.appendChild(host);
+    document.body.classList.add('print-report');
+    const done = () => { document.body.classList.remove('print-report'); const h = document.getElementById('printreport'); if (h) h.remove(); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    setTimeout(() => { try { window.print(); } catch (e) { done(); toast('Printing is not available here. Use your browser menu → Print.'); } }, 80);
+    setTimeout(() => { if (document.body.classList.contains('print-report')) done(); }, 60000);
+  }
+
+  function downloadCsv() {
+    const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const out = [['Teacher No', 'Teacher Name', 'Subject', 'Class', 'Lessons per week (subject+class)', 'Subject total', 'Teacher total load'].map(q).join(',')];
+    B.teachers.forEach(t => { const a = analyse(t);
+      if (!a.subjects.length) out.push([t.code, t.name, '', '', 0, 0, 0].map(q).join(','));
+      a.subjects.forEach(S => { if (!S.list.length) out.push([t.code, t.name, S.name, '', S.periods, S.periods, a.total].map(q).join(','));
+        S.list.forEach(([c, k]) => out.push([t.code, t.name, S.name, c, k, S.periods, a.total].map(q).join(','))); }); });
+    const blob = new Blob(['\ufeff' + out.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const nm = `${(state.data.school?.name || 'School').replace(/[^\w\- ]+/g, '').trim()}-teacher-analysis.csv`;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nm; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Saved to your Downloads ✓');
+  }
+
+
+  // ------------------------------------------------------------------ SCHOOLS using the app
+  async function renderSchools() {
+    if (!isOwner()) {                              // teachers: the schools using FET (the owner keeps his school list)
+      document.title = 'Schools using FET';
+      app.innerHTML = `${topBar('Schools using FET', 'Loading…')}<main class="page wide"><p class="muted center-t">Loading…</p></main>`;
+      const F = await fetPageHTML();
+      if (route().name !== 'schools') return;
+      app.innerHTML = `${topBar('Schools using FET', `${F.n} school${F.n === 1 ? '' : 's'}`)}<main class="page wide">${F.html}</main>`;
+      F.wire(); return;
+    }
+    const cur = CODE;
+    document.title = 'Schools using Timetables';
+    app.innerHTML = `${topBar('Schools using this app', 'Loading…')}<main class="page wide"><p class="muted center-t">Loading schools…</p></main>`;
+    const j = await fetchSchools();
+    if (route().name !== 'schools') return;
+    const n = j && j.schools ? j.schools.length : 0;
+    app.innerHTML = `${topBar('Schools using this app', isOwner() ? 'Owner mode · tap a school to open it' : `${n} school${n === 1 ? '' : 's'}`)}
+      <main class="page wide">
+        <div class="stats three"><div><b>${n}</b><small>schools</small></div><div><b>${(j?.schools || []).reduce((a, x) => a + (x.teachers || 0), 0)}</b><small>teachers</small></div><div><b>${(j?.schools || []).reduce((a, x) => a + (x.classes || 0), 0)}</b><small>classes</small></div></div>
+        <div class="searchbox">${icon('search')}<input id="sq" type="search" autocomplete="off" placeholder="Search a school…"></div>
+        <div id="slist">${schoolsListHTML(j, cur, '')}</div>
+      </main>`;
+    wireSchoolSearch(j, cur);
+  }
+
+  // ------------------------------------------------------------------ MEETING FINDER
+  function meetBlocks(d, sel, k, pmOnly) {
+    // windows of k adjacent lessons (not split by lunch) in which every chosen teacher is free
+    const L = IDX.lessons.filter(j => !pmOnly || IDX.P[j].pm), out = [];
+    const lunchBetween = (a, b) => { for (let x = a + 1; x < b; x++) if (IDX.P[x].brk && /lunch/i.test(IDX.P[x].label || '')) return true; return false; };
+    for (let i = 0; i + k <= L.length; i++) {
+      const w = L.slice(i, i + k); let ok = true;
+      for (let q = 1; q < w.length; q++) if (lunchBetween(w[q - 1], w[q])) ok = false;
+      if (ok && w.every(j => sel.every(t => cellAt(t, d, j) === ''))) out.push(w);
+    }
+    return out;
+  }
+  const timeRange = (j0, j1) => { const a = String(IDX.P[j0].time || '').split(/\s*[-–]\s*/)[0], b = String(IDX.P[j1].time || '').split(/\s*[-–]\s*/).pop(); return a && b ? `${a}–${b}` : ''; };
+  function renderMeet() {
+    const M = state.meet;
+    document.title = 'Meeting finder';
+    app.innerHTML = `${topBar('Meeting finder', 'Find a time when everyone is free')}
+      <main class="page wide">
+        <h3 class="sect">1. Who must attend?</h3>
+        <div id="mchosen" class="chosen"></div>
+        <div class="searchbox">${icon('search')}<input id="mq" type="search" autocomplete="off" placeholder="Search teacher to add…" value="${esc(M.q)}"></div>
+        <ul class="list mlist" id="mlist"></ul>
+        <h3 class="sect">2. Meeting length</h3>
+        <div class="optrow"><div class="seg" id="mk">${[1, 2, 3].map(k => `<button class="${M.k === k ? 'on' : ''}" data-k="${k}">${k} lesson${k > 1 ? 's' : ''}</button>`).join('')}</div>
+        <label class="chk"><input type="checkbox" id="mpm" ${M.pm ? 'checked' : ''}> After lunch only</label></div>
+        <h3 class="sect">3. Times when all are free</h3>
+        <div id="mres"></div>
+      </main>`;
+    const sel = () => M.ids.map(id => IDX.byId[id]).filter(Boolean);
+    const drawChosen = () => {
+      const me = meTeacher();
+      $('#mchosen').innerHTML = (sel().map(t => `<button class="chosenchip" data-del="${esc(t.id)}">${esc(nameOf(t))} <b>✕</b></button>`).join('') || '<span class="muted">Nobody chosen yet. Search below and tap a name.</span>') +
+        (me && !M.ids.includes(me.id) ? `<button class="chip" data-addme="1">+ Add me</button>` : '') + (M.ids.length ? '<button class="txt-btn" data-clear="1">Clear all</button>' : '');
+    };
+    const drawList = () => {
+      const q = (M.q || '').toLowerCase();
+      const rows = B.teachers.filter(t => !q || `${t.code} ${t.name}`.toLowerCase().includes(q)).slice(0, q ? 60 : 12);
+      $('#mlist').innerHTML = rows.map(t => { const on = M.ids.includes(t.id);
+        return `<li><button class="row" data-mt="${esc(t.id)}"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span><span class="nm">${esc(teacherLabel(t))}</span><span class="tick ${on ? 'on' : ''}">${on ? '✓' : '+'}</span></button></li>`; }).join('') +
+        (!q && B.teachers.length > 12 ? '<li class="empty">Type a name or number to find more teachers.</li>' : '') || '<li class="empty">No teacher matches.</li>';
+    };
+    const drawRes = () => {
+      const T = sel(), box = $('#mres');
+      if (T.length < 2) { box.innerHTML = '<p class="hint-box">Choose at least two teachers to see when they are all free.</p>'; return; }
+      const days = IDX.D.map((dd, d) => ({ d, dd, blocks: meetBlocks(d, T, M.k, M.pm) }));
+      const total = days.reduce((a, x) => a + x.blocks.length, 0);
+      const ps = M.pm ? IDX.lessons.filter(j => IDX.P[j].pm) : IDX.lessons;
+      const head = `<div class="bestbox ${total ? 'good' : 'none'}"><b>${total ? `${total} time${total === 1 ? '' : 's'} found` : 'No common time found'}</b><span>${T.length} teachers · ${M.k} lesson${M.k > 1 ? 's' : ''}${M.pm ? ' · after lunch' : ''}</span></div>`;
+      const found = days.filter(x => x.blocks.length).map(x => `<div class="mday dc${x.d % 5}"><h4>${esc(x.dd.label)}</h4><div>${x.blocks.map(w => `<span class="slotchip"><b>${esc(IDX.P[w[0]].label)}${w.length > 1 ? '–' + esc(IDX.P[w[w.length - 1]].label) : ''}</b><small>${esc(timeRange(w[0], w[w.length - 1]))}</small></span>`).join('')}</div></div>`).join('');
+      const grid = `<div class="gridwrap2"><table class="atable mx"><thead><tr><th></th>${ps.map(j => `<th class="c">${esc(IDX.P[j].label)}<small>${esc(IDX.P[j].time)}</small></th>`).join('')}</tr></thead><tbody>
+        ${IDX.D.map((dd, d) => `<tr class="dc${d % 5}"><th class="dh">${esc(dayShort(dd.label))}</th>${ps.map(j => { const busy = T.filter(t => cellAt(t, d, j) !== ''); const all = !busy.length;
+          return `<td class="c ${all ? 'allfree' : busy.length === 1 ? 'one' : 'busy'}" data-mb="${d}|${j}">${all ? '✓' : `<small>${busy.length} busy</small>`}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>
+        <p class="muted small"><b class="okt">✓ green</b> = every chosen teacher is free · tap any slot to see who is busy.</p>`;
+      box.innerHTML = head + found + '<h3 class="sect">Week at a glance</h3>' + grid;
+      $$('[data-mb]', box).forEach(td => td.addEventListener('click', () => { const [d, j] = td.dataset.mb.split('|').map(Number);
+        const rows = T.map(t => { const c = cellAt(t, d, j), L = cellLines('teachers', c); return `<li><div class="row nolink"><span class="av av-teachers">${esc(String(t.code).slice(0, 4))}</span><span class="nm">${esc(teacherLabel(t))}</span><span class="where ${L ? 'in' : c === 'X' ? 'x' : 'fr'}">${L ? `<b>${esc(L[0])}</b><small>${esc(L[1])}</small>` : c === 'X' ? 'Not available' : 'Free'}</span></div></li>`; }).join('');
+        openSheet(`<div class="grab"></div><h3>${esc(dayLabel(d))} · ${esc(pLabel(j))}</h3><ul class="list">${rows}</ul><button class="btn ghost wide" data-act="closeSheet">Close</button>`); }));
+    };
+    const all = () => { drawChosen(); drawList(); drawRes(); };
+    all();
+    $('#mq').addEventListener('input', e => { M.q = e.target.value; drawList(); });
+    $('#mpm').addEventListener('change', e => { M.pm = e.target.checked; drawRes(); });
+    $$('#mk button').forEach(b => b.addEventListener('click', () => { M.k = +b.dataset.k; $$('#mk button').forEach(x => x.classList.toggle('on', x === b)); drawRes(); }));
+    $('#mlist').addEventListener('click', e => { const b = e.target.closest('[data-mt]'); if (!b) return; const id = b.dataset.mt;
+      M.ids = M.ids.includes(id) ? M.ids.filter(x => x !== id) : [...M.ids, id]; all(); });
+    $('#mchosen').addEventListener('click', e => {
+      const del = e.target.closest('[data-del]'), me = e.target.closest('[data-addme]'), clr = e.target.closest('[data-clear]');
+      if (del) M.ids = M.ids.filter(x => x !== del.dataset.del);
+      else if (me) { const m = meTeacher(); if (m && !M.ids.includes(m.id)) M.ids.push(m.id); }
+      else if (clr) M.ids = [];
+      else return; all(); });
+  }
+
+  // ------------------------------------------------------------------ SAVE as picture
+  function wrapText(ctx, text, maxW) {
+    // break at spaces; a word still too wide (e.g. T.FILM/F.ART/GEO) may also break after a "/"
+    const toks = [];
+    String(text).split(/\s+/).filter(Boolean).forEach(w => {
+      if (ctx.measureText(w).width <= maxW || !w.includes('/')) { toks.push([w, ' ']); return; }
+      const parts = w.split(/(?<=\/)/); parts.forEach((x, i) => toks.push([x, i === 0 ? ' ' : '']));
+    });
+    const lines = []; let cur = '';
+    for (const [w, glue] of toks) { const t = cur ? cur + glue + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; }
+    if (cur) lines.push(cur); return lines;
+  }
+  // ------------------------------------------------------------------ SAVE: picture (PNG) or PDF · coloured or black & white · fills an A4 page
+  function openSaveSheet() {
+    const fmt = store.get('saveFmt', 'image'), col = store.get('saveCol', 'colour');
+    openSheet(`<div class="grab"></div><h3>Save this timetable</h3>
+      <p class="muted small">${esc(saveName().base)}</p>
+      <h4 class="svh">Save as</h4>
+      <div class="seg wide-seg sv"><button class="${fmt === 'image' ? 'on' : ''}" data-savefmt="image">🖼 Picture (PNG)</button><button class="${fmt === 'pdf' ? 'on' : ''}" data-savefmt="pdf">📄 PDF</button><button class="${fmt === 'print' ? 'on' : ''}" data-savefmt="print">🖨 Print now</button></div>
+      <h4 class="svh">Colour</h4>
+      <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-savecol="colour">🎨 Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-savecol="bw">⚫ Black & white</button></div>
+      <p class="muted small">A4 size, sharp HD quality, ready to print.</p>
+      <button class="btn wide" data-act="doSave">${icon(fmt === 'print' ? 'print' : 'save')} ${fmt === 'print' ? 'Print' : 'Save'}</button>
+      <button class="btn ghost wide" data-act="allSheet">${icon('print')} Print / save ALL timetables</button>
+      <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
+  }
+  function saveName() {
+    const r = route(); let base;
+    if (r.name === 'master') base = `Master timetable ${dayLabel(state.day)}`;
+    else { const it = IDX.byId[r.id]; base = it.kind === 'teachers' ? `${it.code}. ${teacherLabel(it)}` : `${(KIND[it.kind]?.one || '')} ${it.name}`.trim(); }
+    const ttn = state.data?.ttName || '';
+    const clean = t => t.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').replace(/[.\s]+$/, '').trim();
+    return { base: clean([base, ttn].filter(Boolean).join(' - ')).slice(0, 110) };
+  }
+  // PREPFIX logo for printed pages (loaded once)
+  let LOGO = null;
+  function loadLogo() {
+    if (LOGO) return LOGO;
+    LOGO = new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = '/brand/prepfix-logo.png'; });
+    return LOGO;
+  }
+  const currentTarget = () => { const r = route(); return r.name === 'master' ? { master: true, d: state.day, grade: state.grade } : { id: r.id }; };
+  // who/what the page is for, written big at the top — exactly as in the FET timetables
+  function ownerLine(kind, item, d) {
+    if (kind === 'master') return { tag: 'MASTER TIMETABLE', name: dayShort(dayLabel(d)) };
+    if (kind === 'teachers') return { tag: 'TEACHER', name: `${item.code}${item.name ? '  ·  ' + item.name : ''}` };
+    if (kind === 'classes') return { tag: 'CLASS', name: item.name };
+    return { tag: 'LAB / FIELD', name: item.name };
+  }
+  // Printed pages: a teacher's lesson shows the class(es) big and the SUBJECT in its own white box, like the teacher
+  // numbers on class timetables, so class and subject never share one text colour.
+  function pageLines(kind, c, own) {
+    const L = cellLines(kind, c, own);
+    if (!L || kind !== 'teachers' || !c.c) return L;
+    return [L[0], c.r || '', [c.s || '', c.g || ''].filter(Boolean).join(' · ')];
+  }
+  function drawTimetablePage(bw, tgt = currentTarget(), logoImg = null, SCALE = 2.2, marks = false) {
+    let title, rows, kind, own;
+    if (tgt.master) {
+      const d = tgt.d; kind = 'master'; title = `Master timetable — ${dayLabel(d)}`;
+      rows = B.master.filter(m => !tgt.grade || tgt.grade === 'all' || gradeOf(m.name) === tgt.grade).map(m => ({ head: m.name, item: m, d }));
+      own = ownerLine('master', null, d);
+    } else {
+      const item = IDX.byId[tgt.id]; kind = item.kind;
+      title = kind === 'teachers' ? `${item.code}. ${teacherLabel(item)}` : item.name;
+      rows = IDX.D.map((dd, d) => ({ head: dayShort(dd.label), item, d }));
+      own = ownerLine(kind, item);
+    }
+    const P = IDX.P;
+    const PW = 1600, PH = Math.round(1600 / Math.SQRT2);        // A4 landscape proportions
+    const mctx = document.createElement('canvas').getContext('2d');
+    const nL = P.filter(p => !p.brk).length, nB = P.length - nL;
+    // fit everything onto one page: shrink the drawing (f) only if the content is taller than the page
+    let f = 1, lay;
+    for (let it = 0; it < 8; it++) {
+      const W = PW / f, H = PH / f, pad = 28, top = 156, foot = (B && B.origin && B.origin.text) ? 66 : 46, headW = kind === 'master' ? 96 : 84, brkW = 40;
+      const colW = (W - pad * 2 - headW - nB * brkW) / nL;
+      const colWs = P.map(p => p.brk ? brkW : colW);
+      let S = 1;                                       // text size multiplier: as big as still fits on the page
+      const cellText = (row, j) => {
+        let span = 1; while ((row.item.grid[row.d] || [])[j + span] === '^') span++;
+        let cw = 0; for (let k = j; k < j + span; k++) cw += colWs[k];
+        const c = cellAt(row.item, row.d, j), L = pageLines(kind, c, row.item.name);
+        if (!L) return { cw, L, a: [], b: [], t: [], k: 1 };
+        // the subject gets smaller in its own box until it fits (at most 3 lines, nothing past the border)
+        let k = 1, a;
+        for (; ; k *= 0.9) {
+          mctx.font = `800 ${15 * S * k}px Poppins, Arial`; a = wrapText(mctx, L[0], cw - 14);
+          if ((a.length <= 3 && a.every(x => mctx.measureText(x).width <= cw - 10)) || k < 0.5) break;
+        }
+        a = a.slice(0, 3);
+        mctx.font = `600 ${12.5 * S}px Poppins, Arial`; const b = L[1] ? wrapText(mctx, L[1], cw - 14) : [];
+        mctx.font = `700 ${12 * S}px Poppins, Arial`; const t = L[2] ? wrapText(mctx, L[2], cw - 22) : [];
+        return { cw, L, a, b, t, k };
+      };
+      const calcNeed = () => rows.map(row => { let h = 56; for (let j = 0; j < P.length; j++) { if (P[j].brk || isCont(row.item, row.d, j)) continue;
+        const t = cellText(row, j); h = Math.max(h, t.a.length * 18 * S * t.k + t.b.length * 15 * S + (t.t.length ? t.t.length * 14 * S + 10 * S : 0) + 22); } return h; });
+      const bodyAvail = H - top - 52 - foot;
+      let need, sum;
+      for (const cand of [1.75, 1.6, 1.45, 1.32, 1.2, 1.1, 1]) { S = cand; need = calcNeed(); sum = need.reduce((a, b) => a + b, 0); if (sum <= bodyAvail * 1.001) break; }
+      // only the master fills the A4 page; teachers', classes' and labs' timetables use 3/4 of it
+      const capBody = kind === 'master' ? bodyAvail : Math.min(bodyAvail, H * 0.75 - top - 52);
+      if (sum > capBody * 1.001 && f > 0.42) { f = Math.max(0.42, f * Math.sqrt(capBody / sum) * 0.98); continue; }
+      const extra = Math.max(0, capBody - sum), RH = need.map(h => h + extra / rows.length);
+      lay = { W, H, pad, top, foot, headW, brkW, colWs, cellText, RH, S }; break;
+    }
+    const { W, H, pad, top, foot, headW, colWs, cellText, RH, S } = lay;
+    const Y = []; RH.reduce((acc, h, i) => { Y[i] = acc; return acc + h; }, 0);
+    const bodyH = RH.reduce((a, b) => a + b, 0), y0 = top;
+    const cv = document.createElement('canvas'); cv.width = Math.round(PW * SCALE); cv.height = Math.round(PH * SCALE);
+    const ctx = cv.getContext('2d'); ctx.scale(SCALE * f, SCALE * f); ctx.textBaseline = 'alphabetic';
+    const INK = '#000000', NAVY = bw ? '#000000' : '#12284C', GOLD = bw ? '#000000' : '#C9A227';
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+    // header: school + term on the left, PREPFIX logo top-right, then the owner in big letters
+    const IL = instLines();
+    const lh = 82, lw = logoImg ? lh * logoImg.width / logoImg.height : 0;
+    if (logoImg) { ctx.save(); if (bw) ctx.filter = 'grayscale(1) contrast(1.15)'; ctx.drawImage(logoImg, W - pad - lw, 8, lw, lh); ctx.restore(); }
+    const textW = W - pad * 2 - lw - 20;
+    const sname = (state.data.school?.name || IL[0] || '').toUpperCase();          // the school's name, once
+    const ttn = (state.data.ttName || '').toUpperCase();                           // the timetable's name
+    const extraT = IL.slice(1).map(x => String(x).toUpperCase()).filter(x => x && x !== ttn && !sname.includes(x) && !(ttn && ttn.includes(x))).join(' ');
+    ctx.fillStyle = NAVY; ctx.font = '800 34px Poppins, Arial';
+    let sfs = 34; while (ctx.measureText(sname).width > textW && sfs > 18) { sfs -= 1; ctx.font = `800 ${sfs}px Poppins, Arial`; }
+    ctx.fillText(sname, pad, 42);
+    ctx.fillStyle = bw ? INK : '#1E7F5C';
+    let tfs = 26; ctx.font = `800 ${tfs}px Poppins, Arial`;
+    const line2 = ttn || extraT;
+    while (ctx.measureText(line2).width > textW && tfs > 15) { tfs -= 1; ctx.font = `800 ${tfs}px Poppins, Arial`; }
+    ctx.fillText(line2, pad, 78);
+    if (ttn && extraT) { const ox = pad + ctx.measureText(ttn).width + 18; ctx.font = '700 16px Poppins, Arial'; ctx.fillStyle = bw ? INK : NAVY;
+      if (ox + ctx.measureText(extraT).width < pad + textW) ctx.fillText('·  ' + extraT, ox, 78); }
+    ctx.fillStyle = GOLD; ctx.fillRect(pad, 94, W - pad * 2, 4);
+    ctx.fillStyle = bw ? '#000' : NAVY; ctx.fillRect(pad, 104, W - pad * 2, 42);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
+    ctx.font = '700 15px Poppins, Arial'; const tagW = ctx.measureText(own.tag + '   ').width;
+    ctx.font = '800 26px Poppins, Arial'; const nmW = ctx.measureText(own.name).width;
+    const sx = W / 2 - (tagW + nmW) / 2;
+    ctx.textAlign = 'left'; ctx.font = '700 15px Poppins, Arial'; ctx.fillStyle = bw ? '#fff' : '#E8D48A'; ctx.fillText(own.tag, sx, 131);
+    ctx.font = '800 26px Poppins, Arial'; ctx.fillStyle = '#fff'; ctx.fillText(own.name, sx + tagW, 134);
+    // column headings
+    const colX = []; let x = pad + headW;
+    P.forEach((p, j) => {
+      const w = colWs[j]; colX[j] = [x, w];
+      ctx.fillStyle = bw ? '#fff' : (p.brk ? '#E4DCC2' : '#F3EEDF'); ctx.fillRect(x, y0, w, 52);
+      ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(x, y0, w, 52);
+      ctx.textAlign = 'center'; ctx.fillStyle = INK;
+      if (p.brk) { const t = String(p.time || '').split('-'); ctx.font = '700 10.5px Poppins, Arial';
+        if (t.length === 2) { ctx.fillText(t[0], x + w / 2, y0 + 15); ctx.fillText('–', x + w / 2, y0 + 28); ctx.fillText(t[1], x + w / 2, y0 + 41); } }
+      else { ctx.fillStyle = NAVY; ctx.font = '800 17px Poppins, Arial'; ctx.fillText(p.label, x + w / 2, y0 + 22); ctx.fillStyle = INK; ctx.font = '700 13px Poppins, Arial'; ctx.fillText(p.time, x + w / 2, y0 + 42); }
+      ctx.textAlign = 'left'; x += w;
+    });
+    // rows
+    rows.forEach((row, ri) => {
+      const y = y0 + 52 + Y[ri], rowH = RH[ri];
+      ctx.fillStyle = bw ? '#fff' : NAVY; ctx.fillRect(pad, y, headW, rowH); ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(pad, y, headW, rowH);
+      const HK = Math.min(S, 1.35); ctx.fillStyle = bw ? INK : '#fff'; ctx.font = `800 ${16 * HK}px Poppins, Arial`; ctx.textAlign = 'center';
+      const hl = wrapText(ctx, row.head, headW - 10).slice(0, 3); hl.forEach((ln, k) => ctx.fillText(ln, pad + headW / 2, y + rowH / 2 - (hl.length - 1) * 9 * HK + k * 18 * HK + 5 * HK));
+      ctx.textAlign = 'left';
+      for (let j = 0; j < P.length; j++) {
+        const [cx, w] = colX[j];
+        if (P[j].brk) {
+          if (ri === 0) {
+            const Hh = bodyH; ctx.fillStyle = bw ? '#fff' : '#E4DCC2'; ctx.fillRect(cx, y, w, Hh); ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(cx, y, w, Hh);
+            const words = String(P[j].label || 'BREAK').toUpperCase().split(/\s+/).filter(Boolean);
+            const units = words.reduce((t, wd) => t + wd.length, 0) + (words.length - 1) * 0.6;
+            const lh = (Hh - 20) / units, fs = Math.max(9, Math.min(26, Math.floor(Math.min(lh * 0.86, w * 0.62))));
+            let ty = y + 10 + lh / 2 + fs * 0.36; ctx.font = `800 ${fs}px Poppins, Arial`; ctx.fillStyle = bw ? INK : '#3A3218'; ctx.textAlign = 'center';
+            words.forEach((wd, wi) => { [...wd].forEach(ch => { ctx.fillText(ch, cx + w / 2, ty); ty += lh; }); if (wi < words.length - 1) ty += lh * 0.6; });
+            ctx.textAlign = 'left';
+          }
+          continue;
+        }
+        if (isCont(row.item, row.d, j)) continue;
+        const c = cellAt(row.item, row.d, j), T = cellText(row, j), L = T.L, cw = T.cw;
+        const fc = !bw && L ? colourFor(kind, c, row.item.name) : null;
+        ctx.fillStyle = fc ? fc[0] : '#ffffff'; ctx.fillRect(cx, y, cw, rowH);
+        ctx.lineWidth = 1.6; ctx.strokeStyle = '#1B2333'; ctx.strokeRect(cx, y, cw, rowH);
+        if (marks && L && c && typeof c === 'object' && (c.bad || c.mv)) {      // preview only: moved / breaks a rule
+          ctx.save(); ctx.strokeStyle = '#D11F1F'; ctx.lineWidth = c.bad ? 5 : 3; if (!c.bad) ctx.setLineDash([9, 6]);
+          ctx.strokeRect(cx + 3.5, y + 3.5, cw - 7, rowH - 7); ctx.restore();
+          const tg = c.bad ? String(c.bad).split(' — ')[0].toUpperCase() : 'MOVED';     // the rule it still breaks
+          ctx.font = '800 10px Poppins, Arial'; const tl = wrapText(ctx, tg, cw - 22).slice(0, 2);
+          const tw = Math.min(cw - 10, Math.max(...tl.map(l => ctx.measureText(l).width)) + 10);
+          ctx.fillStyle = '#D11F1F'; ctx.fillRect(cx + 5, y + 5, tw, tl.length * 12 + 4); ctx.fillStyle = '#fff'; ctx.textAlign = 'left';
+          tl.forEach((l, i) => ctx.fillText(l, cx + 10, y + 15 + i * 12, tw - 8));
+        }
+        if (L) {
+          const blockH = T.a.length * 18 * S * T.k + T.b.length * 15 * S + (T.t.length ? T.t.length * 14 * S + 10 * S : 0);
+          let ty = y + (rowH - blockH) / 2 + 14 * S; ctx.textAlign = 'center';
+          ctx.fillStyle = fc ? fc[1] : INK; ctx.font = `800 ${15 * S * T.k}px Poppins, Arial`; T.a.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 18 * S * T.k; });
+          ctx.font = `600 ${12.5 * S}px Poppins, Arial`; T.b.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 15 * S; });
+          if (T.t.length) {                                    // teacher numbers (or a teacher's subject) in their own box and colour
+            ctx.font = `700 ${12 * S}px Poppins, Arial`;
+            const bwid = Math.min(cw - 10, Math.max(...T.t.map(l => ctx.measureText(l).width)) + 14), bh = T.t.length * 14 * S + 6 * S;
+            const bx = cx + (cw - bwid) / 2, by = ty - 11 * S;
+            ctx.fillStyle = '#ffffff'; ctx.strokeStyle = bw ? '#000' : '#0B3D91'; ctx.lineWidth = 1.2;
+            ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, bwid, bh, 6); else ctx.rect(bx, by, bwid, bh); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = bw ? '#000' : '#0B3D91'; ty += 2 * S; T.t.forEach(ln => { ctx.fillText(ln, cx + cw / 2, ty); ty += 14 * S; });
+          }
+          ctx.textAlign = 'left';
+        }
+      }
+    });
+    // teachers: the week's total lessons, bold, under the timetable on the right (a double counts as 2 lessons)
+    let totH = 0;
+    if (kind === 'teachers' && !tgt.master) {
+      let n = 0, one = 0, two = 0, more = 0;
+      IDX.byId[tgt.id].grid.forEach(row => row.forEach((c, j) => { if (!isLesson(c)) return;
+        let sp = 1; while (row[j + sp] === '^') sp++; n += sp; if (sp === 1) one++; else if (sp === 2) two++; else more++; }));
+      const big = `TOTAL LESSONS: ${n}`, small = '';   // just the total: the list beside it shows how it is made up
+      ctx.font = '800 24px Poppins, Arial'; const w1 = ctx.measureText(big).width;
+      ctx.font = '700 13.5px Poppins, Arial'; const w2 = small ? ctx.measureText(small).width : 0;
+      const tw = Math.max(w1, w2) + 32, th = small ? 62 : 42, tx = W - pad - tw, ty = y0 + 52 + bodyH + 10;
+      ctx.fillStyle = bw ? '#ffffff' : NAVY; ctx.fillRect(tx, ty, tw, th);
+      ctx.lineWidth = 2; ctx.strokeStyle = bw ? '#000' : GOLD; ctx.strokeRect(tx, ty, tw, th);
+      ctx.textAlign = 'right'; ctx.fillStyle = bw ? '#000' : '#ffffff'; ctx.font = '800 24px Poppins, Arial'; ctx.fillText(big, W - pad - 16, ty + 31);
+      if (small) { ctx.font = '700 13.5px Poppins, Arial'; ctx.fillStyle = bw ? '#000' : '#E8D48A'; ctx.fillText(small, W - pad - 16, ty + 52); }
+      ctx.textAlign = 'left'; totH = th + 8;
+      // how the total is made up: each subject + class(es), biggest first, beside the total box
+      const grp = {};
+      IDX.byId[tgt.id].grid.forEach(row => row.forEach((c, j) => { if (!isLesson(c)) return;
+        let sp = 1; while (row[j + sp] === '^') sp++;
+        const lab = [colSubj(c.s) || 'Lesson', classesText(c.c)].filter(Boolean).join('  ');
+        const g = grp[lab] || (grp[lab] = { lab, n: 0, dbl: 0 }); g.n += sp; if (sp > 1) g.dbl++; }));
+      const items = Object.values(grp).sort((p, q) => q.n - p.n || p.lab.localeCompare(q.lab));
+      if (items.length) {
+        // a long subject (BST/CRE/AGRI/LIT/…) or many classes is split and carries on downwards: never one very wide line
+        const fs = 15, lh = 21, gap = 7, sx = pad, availW = tx - 16 - sx;
+        const cols = items.length >= 3 && availW > 560 ? 2 : 1, colW = Math.min(availW / cols, 440);
+        const blocks = items.map(g => {
+          ctx.font = `800 ${fs}px Poppins, Arial`;
+          const a = wrapText(ctx, g.lab, colW - 24), tail = `– ${g.n} lesson${g.n === 1 ? '' : 's'}`;
+          const last = a[a.length - 1] || '', lw = ctx.measureText(last + ' ').width;
+          ctx.font = `600 ${fs}px Poppins, Arial`;
+          const own = lw + ctx.measureText(tail).width > colW - 24;      // the "– 9 lessons" goes under, not off the edge
+          return { a, tail, own, h: (a.length + (own ? 1 : 0)) * lh + gap };
+        });
+        const total = blocks.reduce((t, b) => t + b.h, 0), perCol = Math.max(total / cols, Math.max(...blocks.map(b => b.h)));
+        let col = 0, cy = 0, tallest = 0;
+        blocks.forEach(b => {
+          if (cy > 0 && cy + b.h > perCol + 1 && col < cols - 1) { col++; cy = 0; }
+          const x0 = sx + col * colW; let yy = ty + 4 + cy + fs;
+          ctx.font = `800 ${fs}px Poppins, Arial`; ctx.fillStyle = bw ? '#000' : NAVY;
+          b.a.forEach((ln, k) => { ctx.fillText(ln, x0, yy); if (k < b.a.length - 1) yy += lh; });
+          let tx2 = x0 + ctx.measureText((b.a[b.a.length - 1] || '') + ' ').width;
+          if (b.own) { yy += lh; tx2 = x0 + 14; }
+          ctx.font = `600 ${fs}px Poppins, Arial`; ctx.fillStyle = bw ? '#000' : '#1E7F5C'; ctx.fillText(b.tail, tx2, yy);
+          cy += b.h; tallest = Math.max(tallest, cy);
+        });
+        totH = Math.max(totH, tallest + 12);
+      }
+    }
+    // notes for this class / teacher, in the space under the timetable
+    const fy = H - 46 + 8;
+    const nItem = tgt.master ? null : IDX.byId[tgt.id], notes = notesFor(nItem);
+    if (notes.length) {
+      const nx = pad, nw = W - pad * 2, ny = y0 + 52 + bodyH + 14 + totH, nh = fy - (B && B.origin && B.origin.text ? 24 : 10) - ny;
+      if (nh > 40) {
+        let fs = 30, lines = [];
+        const lay = () => { ctx.font = `800 ${fs}px Poppins, Arial`; lines = [];
+          notes.forEach((n, i) => { String(n.text).toUpperCase().split(/\r?\n/).forEach(par => { lines.push(...(par.trim() ? wrapText(ctx, par, nw - 28) : [''])); }); if (i < notes.length - 1) lines.push(''); }); };
+        const hdrH = () => Math.round(fs * 1.4) + 18;          // the NOTE: label is bigger than the note itself
+        lay();
+        while (lines.length * fs * 1.35 + hdrH() + 12 > nh && fs > 9) { fs -= 1; lay(); }
+        const maxL = Math.max(1, Math.floor((nh - hdrH() - 12) / (fs * 1.35)));
+        if (lines.length > maxL) { lines = lines.slice(0, maxL); lines[maxL - 1] += ' …'; }
+        const boxH = Math.min(nh, lines.length * fs * 1.35 + hdrH() + 12);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(nx, ny, nw, boxH);
+        ctx.lineWidth = 2; ctx.strokeStyle = bw ? '#000' : GOLD; ctx.strokeRect(nx, ny, nw, boxH);
+        const lf = Math.round(fs * 1.4);
+        ctx.textAlign = 'left'; ctx.font = `900 ${lf}px Poppins, Arial`;
+        const tw = ctx.measureText('NOTE:').width;
+        ctx.fillStyle = bw ? '#D0D0D0' : '#FFE14D'; ctx.fillRect(nx + 8, ny + 7, tw + 16, lf + 6);   // highlighted
+        ctx.fillStyle = '#000'; ctx.fillText('NOTE:', nx + 16, ny + 7 + lf * 0.92);
+        ctx.fillStyle = INK; ctx.font = `800 ${fs}px Poppins, Arial`;
+        lines.forEach((ln, i) => ctx.fillText(ln, nx + 14, ny + hdrH() + (i + 1) * fs * 1.35 - fs * 0.3));
+      }
+    }
+    // footer (always) — no diagonal watermark on saved or printed pages
+    if (B && B.origin && B.origin.text) {
+      ctx.textAlign = 'left'; ctx.font = 'italic 600 12px Poppins, Arial';
+      ctx.fillStyle = bw ? '#000' : (B.origin.path === 'B' ? '#1E7F5C' : '#B5463A');
+      let t = B.origin.text; while (ctx.measureText(t).width > W - pad * 2 && t.length > 20) t = t.slice(0, -2);
+      ctx.fillText(t, pad, fy - 7);
+    }
+    ctx.fillStyle = bw ? '#000' : NAVY; ctx.fillRect(pad, fy, W - pad * 2, 30);
+    ctx.fillStyle = '#fff'; ctx.font = '800 14px Poppins, Arial'; ctx.textAlign = 'center';
+    ctx.fillText(`${LOCKED_BRAND} ${LOCKED_CONTACT}  ·  ${WATERMARK}`, W / 2, fy + 20);
+    ctx.textAlign = 'right'; ctx.font = '600 10.5px Poppins, Arial'; ctx.fillStyle = '#9AA8C2';
+    ctx.fillText(`PREPFIX · ${new Date().toLocaleString('en-GB')}`, W - pad - 8, fy + 20); ctx.textAlign = 'left';
+    return cv;
+  }
+  // Minimal PDF writer: one A4 landscape page per picture
+  function pdfFromPages(pages, titleText) {
+    const enc = new TextEncoder(), parts = [], offs = []; let len = 0;
+    const add = x => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; };
+    const obj = (n, body) => { offs[n] = len; add(`${n} 0 obj\n`); body(); add('\nendobj\n'); };
+    const pw = 841.89, ph = 595.28, N = pages.length;
+    const pdfStr = t => '(' + String(t).replace(/[^\x20-\x7E]/g, '').replace(/([()\\])/g, '\\$1') + ')';
+    add('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+    obj(1, () => add('<< /Type /Catalog /Pages 2 0 R >>'));
+    obj(2, () => add(`<< /Type /Pages /Kids [${pages.map((_, i) => `${3 + i * 3} 0 R`).join(' ')}] /Count ${N} >>`));
+    pages.forEach((pg, i) => {
+      const P = 3 + i * 3, I = P + 1, C = P + 2;
+      const sc = Math.min(pw / pg.w, ph / pg.h), iw = pg.w * sc, ih = pg.h * sc, ix = (pw - iw) / 2, iy = (ph - ih) / 2;
+      const content = `q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${ix.toFixed(2)} ${iy.toFixed(2)} cm /Im0 Do Q`;
+      obj(P, () => add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 ${I} 0 R >> >> /Contents ${C} 0 R >>`));
+      obj(I, () => { add(`<< /Type /XObject /Subtype /Image /Width ${pg.w} /Height ${pg.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${pg.jpeg.length} >>\nstream\n`); add(pg.jpeg); add('\nendstream'); });
+      obj(C, () => add(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`));
+    });
+    const INFO = 3 + N * 3;
+    obj(INFO, () => add(`<< /Title ${pdfStr(titleText)} /Author (DEVELOPED BY CYRUS IRERI 0720872582) /Creator (PREPFIX Timetables) /Producer (PREPFIX) >>`));
+    const xref = len, total = INFO + 1;
+    let x = `xref\n0 ${total}\n0000000000 65535 f \n`;
+    for (let n = 1; n < total; n++) x += String(offs[n]).padStart(10, '0') + ' 00000 n \n';
+    add(x + `trailer\n<< /Size ${total} /Root 1 0 R /Info ${INFO} 0 R >>\nstartxref\n${xref}\n%%EOF`);
+    return new Blob(parts, { type: 'application/pdf' });
+  }
+  const pdfFromJpeg = (jpeg, w, h, t) => pdfFromPages([{ jpeg, w, h }], t);
+  async function canvasJpeg(cv, q = 0.92) { const b = await new Promise(res => cv.toBlob(res, 'image/jpeg', q)); return new Uint8Array(await b.arrayBuffer()); }
+  function deliverFile(blob, full, label) {
+    const file = new File([blob], full, { type: blob.type });
+    if (isIOS() && navigator.canShare && navigator.canShare({ files: [file] })) {
+      return navigator.share({ files: [file], title: label }).then(() => toast('Tap “Save to Files” or “Print”')).catch(() => { });
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = full;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 20000);
+    toast(`Saved: ${full} ✓`, 3500);
+  }
+  // Print straight away (opens the phone's / computer's print screen)
+  function printPictures(urls, title) {
+    const fr = document.createElement('iframe'); fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    document.body.appendChild(fr);
+    const d = fr.contentDocument;
+    d.open(); d.write(`<!doctype html><html><head><title>${esc(title)}</title><style>@page{size:A4 landscape;margin:0}html,body{margin:0}img{display:block;width:100%;height:auto;page-break-after:always;break-after:page}img:last-child{page-break-after:auto;break-after:auto}</style></head><body>${urls.map(u => `<img src="${u}">`).join('')}</body></html>`); d.close();
+    const imgs = [...d.images]; let left = imgs.length;
+    const go = () => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch { } setTimeout(() => fr.remove(), 60000); };
+    if (!left) return go();
+    imgs.forEach(im => { if (im.complete) { if (--left === 0) go(); } else im.onload = im.onerror = () => { if (--left === 0) go(); }; });
+  }
+  // ---- ALL timetables at once: one PDF (or straight to the printer), coloured or black & white
+  function openAllSheet() {
+    const sel = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }), col = store.get('saveCol', 'colour'), out = store.get('allOut', 'pdf');
+    const n = { teachers: B.teachers.length, classes: B.classes.length, rooms: (B.rooms || []).length, master: IDX.D.length };
+    const lab = { teachers: 'Teachers', classes: 'Classes', rooms: 'Labs & Fields', master: 'Master (one page per day)' };
+    const total = Object.keys(n).reduce((a, k) => a + (sel[k] ? n[k] : 0), 0);
+    openSheet(`<div class="grab"></div><h3>🖨 Print / save ALL timetables</h3>
+      <p class="muted small">${esc(state.data?.school?.name || '')} · ${esc(state.data?.ttName || '')}</p>
+      <h4 class="svh">Which timetables</h4>
+      <div class="allpick">${Object.keys(n).filter(k => n[k]).map(k => `<button class="ap ${sel[k] ? 'on' : ''}" data-allsel="${k}"><i>${sel[k] ? '✓' : ''}</i><b>${lab[k]}</b><small>${n[k]} page${n[k] === 1 ? '' : 's'}</small></button>`).join('')}</div>
+      <h4 class="svh">Colour</h4>
+      <div class="seg wide-seg sv"><button class="${col === 'colour' ? 'on' : ''}" data-allcol="colour">🎨 Coloured</button><button class="${col === 'bw' ? 'on' : ''}" data-allcol="bw">⚫ Black & white</button></div>
+      <h4 class="svh">Get them as</h4>
+      <div class="seg wide-seg sv"><button class="${out === 'pdf' ? 'on' : ''}" data-allout="pdf">📄 One PDF file</button><button class="${out === 'print' ? 'on' : ''}" data-allout="print">🖨 Print now</button></div>
+      <p class="muted small">${total} A4 pages, each with its name at the top, your school and the PREPFIX logo.</p>
+      <button class="btn wide" data-act="doAll" ${total ? '' : 'disabled'}>${icon('print')} Make ${total} page${total === 1 ? '' : 's'}</button>
+      <button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
+  }
+  async function makeAll() {
+    const sel = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }), bw = store.get('saveCol', 'colour') === 'bw', out = store.get('allOut', 'pdf');
+    const T = [];
+    if (sel.teachers) B.teachers.forEach(t => T.push({ id: t.id }));
+    if (sel.classes) B.classes.forEach(c => T.push({ id: c.id }));
+    if (sel.rooms) (B.rooms || []).forEach(r => T.push({ id: r.id }));
+    if (sel.master) IDX.D.forEach((_, d) => T.push({ master: true, d, grade: 'all' }));
+    if (!T.length) return;
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { }
+    const logo = await loadLogo(), pages = [], urls = [];
+    const box = document.createElement('div'); box.className = 'alarm-bg'; box.innerHTML = `<div class="alarm"><div class="abell">🖨</div><h3>Preparing your pages…</h3><p class="awhen" id="allprog">0 of ${T.length}</p></div>`;
+    document.body.appendChild(box);
+    try {
+      for (let i = 0; i < T.length; i++) {
+        const cv = drawTimetablePage(bw, T[i], logo, 1.6);
+        if (out === 'print') urls.push(URL.createObjectURL(await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.9))));
+        else pages.push({ jpeg: await canvasJpeg(cv, 0.86), w: cv.width, h: cv.height });
+        cv.width = cv.height = 1;
+        const pe = document.getElementById('allprog'); if (pe) pe.textContent = `${i + 1} of ${T.length}`;
+        await new Promise(r => setTimeout(r, 0));
+      }
+    } finally { box.remove(); }
+    const what = Object.keys(sel).filter(k => sel[k]).length === 4 ? 'ALL TIMETABLES' : Object.keys(sel).filter(k => sel[k]).map(k => ({ teachers: 'TEACHERS', classes: 'CLASSES', rooms: 'LABS', master: 'MASTER' })[k]).join(' + ');
+    const name = `${state.data?.school?.name || 'School'} - ${state.data?.ttName || ''} - ${what}${bw ? ' (B&W)' : ''}`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (out === 'print') { printPictures(urls, name); return; }
+    deliverFile(pdfFromPages(pages, name), name + '.pdf', name);
+  }
+  async function saveImage() {
+    const fmt = store.get('saveFmt', 'image'), bw = store.get('saveCol', 'colour') === 'bw';
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { }
+    const cv = drawTimetablePage(bw, currentTarget(), await loadLogo());
+    const name = saveName().base + (bw ? ' (B&W)' : ''), full = name + (fmt === 'pdf' ? '.pdf' : '.png');
+    if (fmt === 'print') { printPictures([cv.toDataURL('image/png')], name); return; }
+    let blob;
+    if (fmt === 'pdf') {
+      const jb = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.93));
+      blob = pdfFromJpeg(new Uint8Array(await jb.arrayBuffer()), cv.width, cv.height, name);
+    } else blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    const file = new File([blob], full, { type: blob.type });
+    if (isIOS() && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: name }); toast(fmt === 'pdf' ? 'Tap “Save to Files”' : 'Tap “Save Image” to put it in Photos'); } catch { }
+      return;
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = full;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+    toast(`Saved: ${full} ✓`, 3500);
+  }
+
+  // ------------------------------------------------------------------ sheets: menu, share, poster
+  function openSheet(html) {
+    closeSheet(); const d = document.createElement('div'); d.className = 'sheet-bg'; d.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
+    d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-act="closeSheet"]')) closeSheet(); }); document.body.appendChild(d); requestAnimationFrame(() => d.classList.add('show'));
+  }
+  let ownTaps = 0, ownLast = 0;
+  function openOwnerSheet() {
+    if (!OWN()) { toast('Owner access is not set up yet'); return; }
+    if (isOwner()) { openSheet(`<div class="grab"></div><h3>Owner mode is ON</h3><p class="muted">The Schools page lets you open any school.</p><button class="btn wide" data-go="schools">Open schools</button><button class="btn ghost wide" data-act="ownerOff">Turn off</button><button class="btn ghost wide" data-act="closeSheet">Close</button>`); return; }
+    openSheet(`<div class="grab"></div><h3>Owner access</h3><p class="muted">Type your private owner password.</p><input id="ownpw" type="password" autocomplete="off" style="width:100%;padding:12px;border:1.5px solid var(--line);border-radius:12px;font-size:16px;margin:6px 0 10px"><button class="btn wide" data-act="ownerGo">Unlock</button><button class="btn ghost wide" data-act="closeSheet">Cancel</button>`);
+    setTimeout(() => { const i = $('#ownpw'); if (i) i.focus(); }, 150);
+  }
+  function closeSheet() { $$('.sheet-bg').forEach(n => n.remove()); }
+  function openMenu() {
+    openSheet(`<div class="grab"></div>
+      <button class="mrow" data-act="refresh">${icon('refresh')}<span>Check for updates<small>New timetables and PREPFIX improvements · ${state.lastSync ? 'Last checked ' + ago(state.lastSync) : ''}</small></span></button>
+      <button class="mrow" data-act="share">${icon('share')}<span>Share with colleagues<small>QR code, WhatsApp or copy link</small></span></button>
+      ${!isStandalone() ? `<button class="mrow" data-act="getapp">${icon('install')}<span>Get the app<small>Android · iPhone · Computer</small></span></button>` : ''}
+      <button class="mrow" data-go="schools">${icon('classes')}<span>Schools using FET<small>Schools whose timetables are made with FET</small></span></button>
+      ${meTeacher() ? `<button class="mrow" data-act="remToggle">${icon('clock')}<span>Lesson reminder: ${remOn() ? 'ON' : 'OFF'}<small>Alarm ${REMIND_MIN} minutes before each of your lessons · tap to switch ${remOn() ? 'off' : 'on'}</small></span></button>` : ''}
+      <button class="mrow" data-act="allSheet">${icon('print')}<span>Print / save ALL timetables<small>One PDF or straight to the printer · colour or black & white</small></span></button>
+      <button class="mrow" data-act="theme">${icon('info')}<span>Appearance: ${({ auto: 'Auto (like my phone)', light: 'Light', dark: 'Dark' })[getTheme()]}<small>Tap to switch Light · Dark · Auto</small></span></button>
+      <button class="mrow" data-act="contact">${icon('wa')}<span>Contact Cyrus Ireri<small>WhatsApp · call · SMS — ${esc(LOCKED_CONTACT)}</small></span></button>
+      <button class="mrow" data-act="about">${icon('info')}<span>About<small>${esc(BRAND_LINE)}</small></span></button>
+      ${lockKey() && !CFG.preview ? `<button class="mrow" data-act="signOut">${icon('info')}<span>Sign out<small>Frees your number to sign in on another phone · needs your PIN</small></span></button>` : ''}
+      ${isOwner() ? `<button class="mrow" data-go="schools">${icon('grid')}<span>Owner mode: all schools<small>Open any school's timetables · tap to choose a school</small></span></button><button class="mrow" data-act="ownerOff">${icon('info')}<span>Turn off owner mode<small>This phone goes back to normal</small></span></button>` : ''}
+      <p class="muted small center-t" data-act="verTap" style="padding:6px 0 2px">Version V1 · build ${esc(CFG.build || '-')}</p>
+      <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  }
+  function loadQR() { if (self.qrcode) return Promise.resolve(); return new Promise((res, rej) => { const s = document.createElement('script'); s.src = '/qrcode.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
+  async function qrSvg(text) { try { await loadQR(); const qr = self.qrcode(0, 'M'); qr.addData(text); qr.make(); return qr.createSvgTag(6, 2); } catch { return ''; } }
+  async function openShare() {
+    const link = linkFor(), name = state.data?.school?.name || 'our school';
+    const msg = `PREPFIX · ${name} timetables — open on your phone, it updates automatically: ${link}`;
+    openSheet(`<div class="grab"></div><h3>Share with colleagues</h3><div class="qr" id="qrBox"><span class="muted">Loading QR code…</span></div>
+      <p class="linktext"><a href="${esc(link)}" target="_blank" rel="noopener">PREPFIX · ${esc(name)}</a></p>
+      <div class="sharebtns"><a class="btn" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">WhatsApp</a>
+      <button class="btn ghost" data-act="copy">Copy link</button>${navigator.share ? '<button class="btn ghost" data-act="nativeShare">More…</button>' : ''}</div>
+      <a class="txt-btn center" href="${esc(link)}?poster=1" target="_blank" rel="noopener">${icon('print')} Printable poster for the staffroom</a>
+      <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+    const svg = await qrSvg(link); const box = $('#qrBox'); if (box) box.innerHTML = svg || '<span class="muted">QR code could not be drawn.</span>';
+  }
+  // Contact Cyrus Ireri: WhatsApp chat, call or SMS
+  const INTL = '254' + LOCKED_CONTACT.replace(/^0/, '');
+  function openContact() {
+    const school = state.data?.school?.name || '';
+    const msg = `Hello Cyrus, I am a teacher${school ? ' at ' + school : ''}. I am using the timetable app and `;
+    openSheet(`<div class="grab"></div><h3>Contact Cyrus Ireri</h3><p class="muted center-t">${esc(LOCKED_BRAND)} ${esc(LOCKED_CONTACT)}</p>
+      <div class="contact-opts">
+        <a class="copt cwa" href="https://wa.me/${INTL}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${icon('wa')}<span><b>Chat on WhatsApp</b><small>Opens WhatsApp with a message ready</small></span></a>
+        <a class="copt ccall" href="tel:+${INTL}"><svg class="ic" viewBox="0 0 24 24"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1l-2.3 2.2Z"/></svg><span><b>Call</b><small>${esc(LOCKED_CONTACT)}</small></span></a>
+        <a class="copt csms" href="sms:+${INTL}"><svg class="ic" viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2Zm3 6v2h2v-2H7Zm4 0v2h2v-2h-2Zm4 0v2h2v-2h-2Z"/></svg><span><b>Send SMS</b><small>Text message</small></span></a>
+      </div>
+      <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  }
+  // Get the app: teachers choose their device
+  function openGetApp(focus) {
+    const me = focus || platformName();
+    const inst = state.installEvt ? `<button class="btn wide" data-act="install">${icon('install')} Install now</button>` : '';
+    const card = (key, title, sub, steps) => `<details class="gcard ${key}"${key === me ? ' open' : ''}><summary><span class="gicon gi-${key}"></span><span><b>${title}</b><small>${sub}</small></span>${key === me ? '<i class="me-tag">This device</i>' : ''}</summary>
+      <ol class="steps">${steps.map(x => `<li>${x}</li>`).join('')}</ol>${key === me ? inst : ''}</details>`;
+    openSheet(`<div class="grab"></div><h3>Get the app</h3><p class="muted center-t">Free · the same timetables on every device · updates itself · works offline</p>
+      ${card('android', 'Android phone or tablet', 'Chrome', ['Open this page in <b>Chrome</b>.', 'Tap <b>Install</b> (or menu <b>⋮</b> → <b>Install app</b> / <b>Add to Home screen</b>).', 'The app appears on your home screen and in your apps list.'])}
+      ${card('ios', 'iPhone or iPad', 'Safari', ['Open this page in <b>Safari</b>.', 'Tap <b>Share ⬆</b> at the bottom of the screen.', 'Choose <b>Add to Home Screen</b>, then <b>Add</b>.'])}
+      ${card('desktop', 'Computer (Windows, Mac, Linux)', 'Chrome or Microsoft Edge', ['Open this page in <b>Chrome</b> or <b>Edge</b>.', 'Click the <b>Install</b> icon at the right end of the address bar (or menu → <b>Install Timetables</b>).', 'It opens in its own window and gets a desktop / Start-menu icon.'])}
+      <p class="muted center-t small">Share the link or QR code (menu → Share) so colleagues can get it too.</p>
+      <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  }
+  function openAbout() {
+    openSheet(`<div class="grab"></div><img class="about-logo" src="/brand/prepfix-logo-600.png" alt="PREPFIX Timetable Toolkit — Prepare. Perfect. Present."><h3>PREPFIX Timetable Toolkit</h3><p>${esc(state.data?.school?.name || '')} timetables. This app shows the latest version published by the school and updates itself when you open it, and keeps a copy for offline use.</p>
+      <p class="muted">${esc(state.data?.school?.institution || '')}<br>${esc(LOCKED_BRAND)}<br>${esc(LOCKED_CONTACT)}<br>Version V1 · build ${esc(CFG.build || '-')}</p>
+      <button class="btn ghost wide" data-act="closeSheet">Close</button>`);
+  }
+  async function renderPoster() {
+    const link = linkFor(), name = state.data?.school?.name || '';
+    document.body.classList.add('poster-mode');
+    app.innerHTML = `<div class="poster"><img class="plogo" src="/brand/prepfix-logo-600.png" alt="PREPFIX Timetable Toolkit — Prepare. Perfect. Present."><div class="ptop"><div class="logo big"></div><div><h1>${esc(name || 'School')} Timetables</h1><p>On your phone · Always up to date · Works offline</p></div></div>
+      <div class="pmain"><div class="pqr" id="pqr"></div><ol>
+        <li><b>Scan</b> this QR code with your phone camera.</li>
+        <li><b>Get the app</b> — Android (Chrome): tap <b>Install</b>. iPhone (Safari): Share ⬆ → <b>Add to Home Screen</b>. Computer (Chrome/Edge): click <b>Install</b> in the address bar.</li>
+        <li>Tap <b>My timetable</b>, find your name and tap <b>☆</b> to make it <b>My timetable</b>.</li></ol></div>
+      <p class="plink">${esc(link)}</p><p class="pfoot">${esc(BRAND_LINE)}</p>
+      <button class="btn noprint" onclick="window.print()">Print poster</button></div>`;
+    $('#pqr').innerHTML = await qrSvg(link);
+  }
+
+  // ------------------------------------------------------------------ events
+  // Swipe order follows the menu: Teachers -> Classes -> Master -> Labs & Fields. At the end of one section the next swipe
+  // goes on to the first of the next section (and back again the other way).
+  function sectionKinds() { return ['teachers', 'classes', 'master', 'rooms'].filter(k => (B[k] || []).length); }
+  function stepSection(kind, dir) {
+    const secs = sectionKinds(), k = secs.indexOf(kind), n = secs[k + dir];
+    if (k < 0 || !n) { toast(dir > 0 ? 'This is the last one' : 'This is the first one', 1400); return; }
+    toast(n === 'master' ? 'Master timetable' : (KIND[n]?.title || n), 1400);
+    if (n === 'master') { location.replace('#master'); return; }
+    const list = B[n]; location.replace('#view/' + encodeURIComponent((dir > 0 ? list[0] : list[list.length - 1]).id));
+  }
+  function stepItem(dir) {
+    const r = route();
+    if (r.name === 'master') { stepSection('master', dir); return; }
+    if (r.name !== 'view') return;
+    const item = IDX.byId[r.id], sib = siblings(item), i = sib.findIndex(x => x.id === item.id) + dir;
+    if (sib[i]) location.replace('#view/' + encodeURIComponent(sib[i].id)); else stepSection(item.kind, dir);
+  }
+  document.addEventListener('click', async e => {
+    const g = e.target.closest('[data-go]'); if (g) { closeSheet(); closeRail(); if (g.dataset.go === location.hash.slice(1)) return; go(g.dataset.go); return; }
+    const ttb = e.target.closest('[data-tt]'); if (ttb) { switchTT(ttb.dataset.tt); return; }
+    const swb = e.target.closest('[data-swap]'); if (swb) { const [id, d, j] = swb.dataset.swap.split('|'); openSwapSheet(id, +d, +j); return; }
+    const swc = e.target.closest('[data-swapcell]'); if (swc) { const [i, p] = swc.dataset.swapcell.split('|'); swapDetail(+i, +p); return; }
+    const pj = e.target.closest('[data-pgjump]'); if (pj) { const m = document.querySelector('.pages.h'), pk = document.getElementById('pgpick'); const far = pk && !pk.hidden; if (pk) pk.hidden = true; if (m) m.scrollTo({ left: +pj.dataset.pgjump * m.clientWidth, behavior: far ? 'auto' : 'smooth' }); return; }
+    const cv = e.target.closest('[data-cv]'); if (cv) { const [id, d, j] = cv.dataset.cv.split('|'); openCoverSheet(id, +d, +j); return; }
+    const b = e.target.closest('[data-act],[data-layout],[data-day],[data-sday],[data-slot],[data-grade],[data-freetab],[data-coverslot],[data-covert],[data-covermode],[data-covercell],[data-savefmt],[data-savecol],[data-allsel],[data-allcol],[data-allout]');
+    if (!b) return;
+    const ds = b.dataset;
+    if (ds.layout) { state.layout = ds.layout; render(); return; }
+    if (ds.day != null) { state.day = +ds.day; state.coverSlot = null; render(); return; }
+    if (ds.sday != null) { state.slot = { ...(state.slot || defaultSlot()), d: +ds.sday }; render(); return; }
+    if (ds.slot != null) { state.slot = { ...(state.slot || defaultSlot()), j: +ds.slot }; render(); return; }
+    if (ds.grade != null && route().name === 'master') { state.grade = ds.grade; render(); return; }
+    if (ds.freetab) { store.set('freeTab', ds.freetab); render(); return; }
+    if (ds.coverslot != null) { state.coverSlot = +ds.coverslot; render(); return; }
+    if (ds.allsel) { const s2 = store.get('allSel', { teachers: true, classes: true, rooms: true, master: true }); s2[ds.allsel] = !s2[ds.allsel]; store.set('allSel', s2); openAllSheet(); return; }
+    if (ds.allcol) { store.set('saveCol', ds.allcol); openAllSheet(); return; }
+    if (ds.allout) { store.set('allOut', ds.allout); openAllSheet(); return; }
+    if (ds.savefmt) { store.set('saveFmt', ds.savefmt); openSaveSheet(); return; }
+    if (ds.savecol) { store.set('saveCol', ds.savecol); openSaveSheet(); return; }
+    if (ds.covermode) { store.set('coverMode', ds.covermode); render(); return; }
+    if (ds.covercell) { const [cd, cj] = ds.covercell.split('|'); state.day = +cd; state.coverTime = +cj; render(); return; }
+    if (ds.covert) { state.coverTeacher = ds.covert; state.coverPick = false; state.coverSlot = null; render(); return; }
+    switch (ds.act) {
+      case 'back': if (depthNow() > 0) history.back(); else goHome(); break;
+      case 'home': goHome(); break;
+      case 'rail': toggleRail(); break;
+      case 'rotate': toggleRotate(); break;
+      case 'csv': downloadCsv(); break;
+      case 'csv2': downloadSessionsCsv(); break;
+      case 'print': window.print(); break;
+      case 'printReport': printStaffReport(); break;
+      case 'prev': stepItem(-1); break;
+      case 'next': stepItem(1); break;
+      case 'save': openSaveSheet(); break;
+      case 'allSheet': closeRail(); openAllSheet(); break;
+      case 'pgbw': store.set('pgBW', !store.get('pgBW', false)); render(); break;
+      case 'pgpick': pgPick(); break;
+      case 'pgfull': pgFull(); break;
+      case 'pgprev': pageStep(-1); break;
+      case 'pgnext': pageStep(1); break;
+      case 'pvhome': goHome(); break;
+      case 'pvback': if (depthNow() > 0) history.back(); else goHome(); break;
+      case 'doAll': closeSheet(); makeAll().catch(err => toast('Could not make the pages: ' + err.message)); break;
+      case 'doSave': closeSheet(); toast('Preparing your file…', 2000); saveImage().catch(err => toast('Could not save: ' + err.message)); break;
+      case 'me': {
+        const item = IDX.byId[route().id];
+        if (String(store.get('me')) === String(item.code)) { store.del('me'); toast('Removed from My timetable'); }
+        else { store.set('me', item.code); toast('★ Saved as My timetable'); }
+        render(); break;
+      }
+      case 'pickMe': state.query.teachers = ''; go('list/teachers/pick'); break;
+      case 'coverWho': state.coverPick = true; state.coverSlot = null; render(); break;
+      case 'seen': { const m = seenMap(); (state.tts && state.tts.length ? state.tts : [{ id: state.data.tt, version: state.data.version }]).forEach(t => { m[t.id] = t.version; }); store.set('seenTT', m); render(); break; }
+      case 'hideInstall': store.set('hideInstallTip', true); renderBanners(); break;
+      case 'install':
+        closeSheet();
+        if (state.installEvt) { state.installEvt.prompt(); const r = await state.installEvt.userChoice.catch(() => null); state.installEvt = null; if (r?.outcome === 'accepted') toast('Installed ✓'); renderBanners(); }
+        else if (isIOS()) openSheet(`<div class="grab"></div><h3>Add to Home Screen</h3><ol class="steps"><li>Tap <b>Share ⬆</b> at the bottom of Safari.</li><li>Choose <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>.</li></ol><button class="btn wide" data-act="closeSheet">OK</button>`);
+        break;
+      case 'menu': openMenu(); break;
+      case 'remToggle': await remToggle(); break;
+      case 'remCal': remCalendar(); break;
+      case 'refresh': closeSheet(); await checkUpdates(); break;
+      case 'appUpdate': await applyAppUpdate(); break;
+      case 'share': openShare(); break;
+      case 'copy': try { await navigator.clipboard.writeText(linkFor()); toast('Link copied'); } catch { toast(linkFor(), 6000); } break;
+      case 'nativeShare': try { await navigator.share({ title: 'School timetables', url: linkFor() }); } catch { } break;
+      case 'about': openAbout(); break;
+      case 'signOut': openSignOut(); break;
+      case 'signOutGo': await signOutGo(); break;
+      case 'contact': openContact(); break;
+      case 'theme': { const t = THEMES[(THEMES.indexOf(getTheme()) + 1) % 3]; try { localStorage.setItem('ireri:theme', t); } catch { } applyTheme(); openMenu(); toast(({ auto: 'Appearance: Auto', light: 'Light mode', dark: 'Dark mode' })[t]); break; }
+      case 'getapp': openGetApp(); break;
+      case 'zoomIn': setZoom(zmGet(zKind()) * 1.25); break;
+      case 'zoomOut': setZoom(zmGet(zKind()) / 1.25); break;
+      case 'zoomFit': setZoom(1); { const w = $('#gridwrap'); if (w) { w.scrollLeft = 0; w.scrollTop = 0; } } break;
+      case 'verTap': { const now = Date.now(); ownTaps = (now - ownLast < 1500) ? ownTaps + 1 : 1; ownLast = now; if (ownTaps >= 5) { ownTaps = 0; openOwnerSheet(); } break; }
+      case 'ownerGo': { const o = OWN(), pw = ($('#ownpw') || {}).value || ''; if (!o) { toast('Owner access is not set up yet'); break; }
+        if (await sha256hex(o.salt + pw) === o.hash) { try { localStorage.setItem('ireri:owner', o.hash); } catch { } closeSheet(); toast('Owner mode ON'); go('schools'); render(); }
+        else toast('Wrong password'); break; }
+      case 'ownerOff': try { localStorage.removeItem('ireri:owner'); } catch { } closeSheet(); toast('Owner mode off'); render(); break;
+      case 'retry': state.error = null; renderEmpty(); sync('manual'); break;
+    }
+  });
+
+  // swipe left/right = next / previous teacher, class, master or lab/field - Day view, Week view, Master and Rotate full screen.
+  // In Week view a swipe that starts on a table that is wider than the screen just slides the table, as before.
+  let tx = 0, ty = 0, tt = 0, tScroll = false, pinchFlag = false, pz = null;
+  document.addEventListener('touchstart', e => {
+    if (e.touches.length > 1) pinchFlag = true; else pinchFlag = false;
+    const zt = e.target.closest && e.target.closest('#gridwrap, .dayview');
+    if (e.touches.length === 2 && zt && ['view', 'master'].includes(route().name)) pz = { d: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY) || 1, z: zmGet(zKind()), v: null, raf: 0 };
+    const t = e.touches[0]; tx = t.clientX; ty = t.clientY; tt = Date.now();
+    const gw = e.target.closest && e.target.closest('#gridwrap, .gridwrap');
+    tScroll = !!(gw && gw.scrollWidth > gw.clientWidth + 2);
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!pz || e.touches.length !== 2) return; e.preventDefault();
+    pz.v = pz.z * (Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY) / pz.d);
+    if (!pz.raf) pz.raf = requestAnimationFrame(() => { if (pz) { pz.raf = 0; setZoom(pz.v, true); } });
+  }, { passive: false });
+  document.addEventListener('touchend', e => {
+    if (pz && e.touches.length < 2) { if (pz.v != null) setZoom(pz.v); pz = null; }
+    if (pinchFlag) { if (e.touches.length === 0) pinchFlag = false; return; }
+    const rn = route().name;
+    if (!state.data || (rn !== 'view' && rn !== 'master') || e.target.closest('.daytabs, .chips, .sheet, .rail')) return;
+    const lay = rn === 'master' ? 'week' : effectiveLayout();
+    if (lay !== 'day' && !(lay === 'week' && !tScroll)) return;
+    const t = e.changedTouches[0], dx = t.clientX - tx, dy = t.clientY - ty;
+    if (Date.now() - tt < 700 && Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.8) stepItem(dx < 0 ? 1 : -1);
+  }, { passive: true });
+
+  const SCROLL_AT = {};                          // where each page was scrolled to: Back comes back to the same place
+  addEventListener('scroll', () => { SCROLL_AT[location.hash] = window.scrollY; }, { passive: true });
+  addEventListener('popstate', () => {
+    if (!state.homing) return; state.homing = false;
+    setTimeout(() => { if (location.hash) { history.replaceState({ d: 0 }, '', location.pathname + location.search); state.lastDepth = 0; render(); window.scrollTo(0, 0); } }, 0);
+  });
+  addEventListener('hashchange', () => {
+    const r = route();
+    if (pushing) { pushing = false; history.replaceState({ d: (state.lastDepth || 0) + 1 }, ''); }
+    else if (!history.state) history.replaceState({ d: r.name === 'home' ? 0 : (state.lastDepth || 0) }, '');
+    state.lastDepth = depthNow(); state.navDepth = state.lastDepth;
+    state.focusKey = null;
+    closeRail();
+    if (r.name !== 'cover') state.coverPick = false;
+    if (state.data) render();
+    const y = SCROLL_AT[location.hash] || 0; window.scrollTo(0, y); if (y) requestAnimationFrame(() => window.scrollTo(0, y));
+  });
+  const mq = matchMedia('(orientation: landscape)');
+  const onRotate = () => { if (state.data && ['view', 'master'].includes(route().name)) setTimeout(() => { applyForce(); fitGrid(); }, 200); };
+  if (mq.addEventListener) mq.addEventListener('change', onRotate); else if (mq.addListener) mq.addListener(onRotate);
+  if (window.visualViewport) visualViewport.addEventListener('resize', () => { if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 80); });
+  addEventListener('resize', () => { applyForce(); document.body.classList.toggle('desk', isDesk()); if (state.data) document.body.classList.toggle('fillv', fillOn() && ['view', 'master'].includes(route().name)); if (state.data) document.body.classList.toggle('frame', !fillOn() && ['view', 'master'].includes(route().name)); if (state.data && (route().name === 'master' || (route().name === 'view' && effectiveLayout() === 'week'))) setTimeout(fitGrid, 60); });
+  addEventListener('hashchange', () => { if (state.full && !['view', 'master'].includes(route().name)) releaseRotate(); });
+  addEventListener('online', () => { state.online = true; sync('online'); });
+  addEventListener('offline', () => { state.online = false; renderStatus(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - state.lastSync > 60000) sync('visible');
+    if (state.data && route().name === 'home') render();
+  });
+  setInterval(() => { if (document.visibilityState === 'visible' && state.data && route().name === 'home') { const c = $('.now-card'); if (c) c.outerHTML = nowCard(); } }, 60000);
+  setInterval(checkReminders, 15000);
+  try { if (sessionStorage.getItem('prepfix:updated')) { sessionStorage.removeItem('prepfix:updated'); setTimeout(() => toast('✓ PREPFIX updated to the newest version', 3500), 2200); } } catch { }
+  if (!CFG.preview) {
+    setTimeout(() => autoCheckApp(), 4000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') autoCheckApp(); });
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkReminders(); });
+  addEventListener('beforeinstallprompt', e => { e.preventDefault(); state.installEvt = e; if (state.data && route().name === 'home') renderBanners(); });
+  addEventListener('appinstalled', () => { state.installEvt = null; toast('Installed ✓'); });
+  if ('serviceWorker' in navigator && !CFG.preview) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch(err => console.warn('SW', err));
+  }
+  // ------------------------------------------------------------------ PREVIEW on the PREPFIX computer (nothing published yet)
+  if (CFG.preview) {
+    document.documentElement.classList.add('is-preview');
+    const strip = document.createElement('div');
+    strip.id = 'pvstrip';
+    if (CFG.desktop) document.documentElement.classList.add('is-desktop');
+    strip.innerHTML = `${CFG.desktop ? '<b>PREPFIX TIMETABLE TOOLKIT</b><span>Desktop · on this computer</span>' : '<b>PREVIEW</b><span>Not published yet</span>'}
+      <button type="button" class="pvnav" data-act="pvback">← Back</button><button type="button" class="pvnav" data-act="pvhome">⌂ Home</button>
+      <a href="#pages/teachers" class="pvpg">📄 As printed</a>
+      <button type="button" id="pvfs"></button><button type="button" id="pvclose">✕ Close preview</button>`;
+    document.body.prepend(strip);
+    const fsOn = () => !!document.fullscreenElement || (innerHeight >= screen.height - 2 && innerWidth >= screen.width - 2);
+    const label = () => { const b = document.getElementById('pvfs'); if (b) b.textContent = fsOn() ? '⤡ Exit full screen' : '⛶ Full screen'; };
+    // Full screen on/off without the F11 key: PREPFIX (on this computer) presses it for the window, or the browser's own full screen is used
+    document.getElementById('pvfs').addEventListener('click', async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else {
+          const r = await fetch('/__prepfix/fullscreen', { method: 'POST', cache: 'no-store' }).then(x => x.json()).catch(() => ({}));
+          if (!r.ok) { if (fsOn()) toast('Press F11 to leave full screen', 3000); else await document.documentElement.requestFullscreen(); }
+        }
+      } catch { toast('Use ✕ Close preview to close this window', 3000); }
+      setTimeout(label, 500);
+    });
+    document.getElementById('pvclose').addEventListener('click', async () => {
+      const r = await fetch('/__prepfix/close', { method: 'POST', cache: 'no-store' }).then(x => x.json()).catch(() => ({}));
+      if (!r.ok) { try { window.close(); } catch { } setTimeout(() => toast('Close this window with the ✕ at its top right (or Alt + F4)', 4000), 300); }
+    });
+    addEventListener('resize', label); document.addEventListener('fullscreenchange', label); label();
+    document.addEventListener('keydown', e => {          // ← → : the next / previous page or timetable
+      if (e.target.closest && e.target.closest('input,textarea,select')) return;
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      const dir = e.key === 'ArrowRight' ? 1 : -1;
+      if (route().name === 'pages') { e.preventDefault(); pageStep(dir); }
+      else if (['view', 'master'].includes(route().name)) { e.preventDefault(); stepItem(dir); }
+    });
+  }
+
+  // ------------------------------------------------------------------ start
+  (async () => {
+    try { state.tts = JSON.parse(localStorage.getItem(`ireri:${CODE}:tts`) || '[]'); } catch { state.tts = []; }
+    let susp = null; try { susp = localStorage.getItem(SUSP_KEY); } catch { }
+    if (susp) { state.error = 'locked'; state.lockMsg = susp === '1' ? '' : susp; }
+    const cached = susp ? null : await loadCached();
+    if (cached && cached.bundle && cached.bundle.format === 2) setData(cached);
+    if (state.data || POSTER || susp) render();
+    await sync('start');
+    if (POSTER) renderPoster();
+  })();
+  self.__ireri = { state, sync, render, nowSlot: () => nowSlot() };
+})();
